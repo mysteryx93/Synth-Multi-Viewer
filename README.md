@@ -12,7 +12,7 @@ Comparing script variants is also very time-consuming and difficult without prop
 
 VapourSynth and AviSynth
 
-x64, x86 and ARM64
+x64 and ARM64
 
 Windows, Linux and MacOS
 
@@ -32,13 +32,17 @@ TODO: Encode feature
 
 ### MacOS Installation
 
-Download and extract the ZIP file into /Applications
+Download the ZIP that matches the Mac: `MacOS_arm64` on Apple Silicon, `MacOS_x64` on Intel.
 
-To remove code-signing security warnings, run this command in the terminal
+Extract it and drag `SynthMultiViewer.app` into `/Applications`.
 
-    /Applications % xattr -d com.apple.quarantine SynthMultiViewer.app
+The first launch is blocked by Gatekeeper because the build is not notarized. Clear the quarantine flag, including files inside the bundle:
 
-Click on the folder to run it.
+    xattr -dr com.apple.quarantine /Applications/SynthMultiViewer.app
+
+Then open the app from Applications. If macOS still refuses, Control-click the app and choose Open.
+
+VapourSynth and AviSynth must match that architecture. On Apple Silicon, Homebrew installs are ARM64, so use the ARM64 app.
 
 ### VapourSynth / AviSynth API for .NET
 

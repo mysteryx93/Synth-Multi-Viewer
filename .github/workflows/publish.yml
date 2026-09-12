@@ -11,11 +11,10 @@ on:
         options:
           - All
           - win-x64
-          - win-x86
           - linux-x64
           - linux-arm64
           - macos-x64
-#          - macos-arm64
+          - macos-arm64
       publish_release:
         description: Publish artifacts to GitHub Release
         type: boolean
@@ -53,7 +52,7 @@ jobs:
           source .github/workflows/common.sh
 
           apps='["SynthMultiViewer"]'
-          platforms='["win-x64","win-x86","linux-x64","linux-arm64","macos-x64"]' #,"macos-arm64"
+          platforms='["win-x64","linux-x64","linux-arm64","macos-x64","macos-arm64"]'
 
           if [[ "$REQUESTED_PLATFORM" != "All" ]]; then
             platforms=$(jq -cn --arg platform "$REQUESTED_PLATFORM" '[$platform]')
@@ -137,7 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           case "${{ matrix.platform }}" in
-            win-x64|win-x86) bash .github/workflows/publish-win "$APP" "$RUNTIME" ;;
+            win-x64) bash .github/workflows/publish-win "$APP" "$RUNTIME" ;;
             linux-x64|linux-arm64) bash .github/workflows/publish-linux "$APP" "$RUNTIME" ;;
             macos-x64|macos-arm64) bash .github/workflows/publish-osx "$APP" "$RUNTIME" ;;
             *) echo "::error::Unsupported platform: ${{ matrix.platform }}"; exit 1 ;;
