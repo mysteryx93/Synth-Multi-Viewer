@@ -86,7 +86,8 @@ public sealed class VsScript : IDisposable
     public static VsScript LoadScript(string script) => LoadScript(script, null);
 
     /// <summary>
-    /// Loads script text using an optional source path for error messages and relative imports.
+    /// Loads script text using an optional source path for error messages, <c>__file__</c>,
+    /// and relative imports. VapourSynth evaluates the buffer; the path does not need to exist.
     /// </summary>
     public static VsScript LoadScript(string script, string? scriptPath)
     {
@@ -107,20 +108,24 @@ public sealed class VsScript : IDisposable
 
     private void EvaluateBuffer(string script, string? scriptPath)
     {
-        var resolvedPath = string.IsNullOrWhiteSpace(scriptPath) ? null : ResolveScriptPath(scriptPath);
+        // Null or <...> names make VapourSynth omit __file__. Any other path string is
+        // metadata only; the file is not read.
+        var resolvedPath = ResolveScriptPath(string.IsNullOrWhiteSpace(scriptPath) ? UntitledScriptName : scriptPath);
         using var buffer = new Utf8Ptr(script);
-        using var fileName = resolvedPath is null ? null : new Utf8Ptr(resolvedPath);
-
-        if (resolvedPath != null)
+        using var fileName = new Utf8Ptr(resolvedPath);
+        var directory = Path.GetDirectoryName(resolvedPath);
+        if (directory.HasValue() && Directory.Exists(directory))
         {
             _scriptApi.SetWorkingDirectory(_handle, true);
         }
 
-        if (_scriptApi.EvaluateBuffer(_handle, buffer.ptr, fileName?.ptr ?? IntPtr.Zero) != 0)
+        if (_scriptApi.EvaluateBuffer(_handle, buffer.ptr, fileName.ptr) != 0)
         {
             throw new VsException(GetError() ?? "VapourSynth could not evaluate the script.");
         }
     }
+
+    private const string UntitledScriptName = "untitled.vpy";
 
     /// <summary>
     /// Converts output 0 to RGB24 after the user script has finished, so display packing

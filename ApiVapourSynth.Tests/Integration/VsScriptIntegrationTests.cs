@@ -130,6 +130,58 @@ public class VsScriptIntegrationTests
     }
 
     [Fact]
+    public void LoadScript_WithoutPath_DefinesFileWithoutRequiringARealFile()
+    {
+        SkipIfNativeUnavailable();
+        var scriptText = """
+            import vapoursynth as vs
+            import os
+            if not isinstance(__file__, str) or not __file__:
+                raise vs.Error("__file__ was not set")
+            clip = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.RGB24)
+            clip.set_output()
+            """;
+
+        using var script = VsScript.LoadScript(scriptText);
+        using var output = script.GetOutput();
+
+        Assert.Equal(16, output.VideoInfo.Width);
+        Assert.Equal(16, output.VideoInfo.Height);
+    }
+
+    [Fact]
+    public void LoadScript_WithMissingPath_DefinesFileAndEvaluatesBuffer()
+    {
+        SkipIfNativeUnavailable();
+        var directory = Path.Combine(Path.GetTempPath(), $"SynthMultiViewer-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var path = Path.GetFullPath(Path.Combine(directory, "missing.vpy"));
+        var scriptText = $"""
+            import vapoursynth as vs
+            import os
+            if os.path.normpath(__file__) != os.path.normpath(r"{path}"):
+                raise vs.Error("__file__ is not the supplied path")
+            if os.path.isfile(__file__):
+                raise vs.Error("buffer evaluation must not require the path to exist")
+            clip = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.RGB24)
+            clip.set_output()
+            """;
+
+        try
+        {
+            using var script = VsScript.LoadScript(scriptText, path);
+            using var output = script.GetOutput();
+
+            Assert.Equal(16, output.VideoInfo.Width);
+            Assert.False(File.Exists(path));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public void LoadScript_WithPath_DefinesFileAndWorkingDirectory()
     {
         SkipIfNativeUnavailable();
@@ -137,11 +189,11 @@ public class VsScriptIntegrationTests
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "script.vpy");
         File.WriteAllText(Path.Combine(directory, "marker.txt"), "ok");
-        File.WriteAllText(path, """
+        File.WriteAllText(path, $$"""
             import vapoursynth as vs
             import os
-            if not os.path.isfile(__file__):
-                raise vs.Error("__file__ is not a file")
+            if os.path.normpath(__file__) != os.path.normpath(r"{{path}}"):
+                raise vs.Error("__file__ is not the script path")
             with open("marker.txt", encoding="utf-8") as marker:
                 if marker.read() != "ok":
                     raise vs.Error("working directory is not the script directory")
