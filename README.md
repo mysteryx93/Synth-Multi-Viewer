@@ -32,7 +32,7 @@ TODO: Encode feature
 
 ### VapourSynth / AviSynth API for .NET
 
-This repo also contains .NET API wrapper for [VapourSynth](ApiVapourSynth/) and [ApiAviSynth](ApiAviSynth/).
+This repo also contains .NET API wrapper for [VapourSynth](ApiVapourSynth/) and [AviSynth](ApiAviSynth/).
 
 
 ### License
