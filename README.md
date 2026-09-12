@@ -30,6 +30,11 @@ Windows, Linux and MacOS
 
 TODO: Encode feature
 
+### VapourSynth / AviSynth API for .NET
+
+This repo also contains .NET API wrapper for [VapourSynth](ApiVapourSynth/) and [ApiAviSynth](ApiAviSynth/).
+
+
 ### License
 
 [MIT License](LICENSE)
