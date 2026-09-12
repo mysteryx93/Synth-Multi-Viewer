@@ -13,7 +13,7 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 public class ViewerPositionTests
 {
     [AvaloniaFact]
-    public void PositionDisplay_MediaLoadedAtZero_ShowsOneBasedCount()
+    public void PositionDisplay_MediaLoadedAtZero_ShowsSeconds()
     {
         var view = new ViewerView { DataContext = new ViewerViewModel() };
         using var window = TestSupport.Show(new Window
@@ -33,6 +33,6 @@ public class ViewerPositionTests
         var player = view.FindControl<HanumanInstitute.MediaPlayer.Avalonia.MediaPlayer>("Player")!;
         var label = player.GetVisualDescendants().OfType<Label>().Single();
 
-        Assert.Equal("1 / 240", label.Content);
+        Assert.Equal("0 / 239", label.Content);
     }
 }

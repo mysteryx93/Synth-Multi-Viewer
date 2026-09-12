@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+	<id>synthmultiviewer</id>
+	<metadata_license>MIT</metadata_license>
+	<project_license>MIT</project_license>
+	<name>Synth Multi-Viewer</name>
+	<summary>Cross-platform editor and viewer for VapourSynth and AviSynth</summary>
+	<description>
+		<p>Cross-platform editor and viewer for VapourSynth and AviSynth</p>
+	</description>
+	<launchable type="desktop-id">synthmultiviewer.desktop</launchable>
+	<url type="homepage">https://github.com/mysteryx93/VapourSynthViewer.NET</url>
+	<provides>
+		<id>synthmultiviewer.desktop</id>
+	</provides>
+</component>

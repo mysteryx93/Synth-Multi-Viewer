@@ -329,8 +329,10 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
         }
     }
 
-    /// <inheritdoc />
-    public override Task CopyFrameToClipboardAsync()
+    /// <summary>
+    /// Copies the current video frame to the clipboard.
+    /// </summary>
+    public Task CopyFrameToClipboardAsync()
     {
         if (VideoSource is null) { return Task.CompletedTask; }
 

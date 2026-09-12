@@ -8,7 +8,7 @@
              x:DataType="vm:ViewerViewModel"
              x:Name="Root">
     <media:MediaPlayer x:Name="Player" IsVolumeVisible="False" IsSpeedVisible="False" IsStopVisible="False"
-                       IsLoopVisible="False" ChangeVolumeOnMouseWheel="False" PositionDisplay="Frames">
+                       IsLoopVisible="False" ChangeVolumeOnMouseWheel="False" PositionDisplay="Seconds">
         <vs:SynthPlayerHost
         x:Name="PlayerHost" Kind="{Binding Kind}" Script="{Binding Script, Mode=OneWay}" AutoPlay="False"
         IsPlaying="{Binding IsPlaying, Mode=TwoWay}"

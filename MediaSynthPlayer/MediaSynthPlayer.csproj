@@ -7,11 +7,11 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="HanumanInstitute.Validators" />
+    <PackageReference Include="MediaPlayer.Avalonia" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ApiVapourSynth\ApiVapourSynth.csproj" />
     <ProjectReference Include="..\ApiAviSynth\ApiAviSynth.csproj" />
-    <ProjectReference Include="..\..\MediaPlayerUI.NET\Avalonia\MediaPlayer.Avalonia.csproj" />
     <InternalsVisibleTo Include="SynthMultiViewer.Tests" />
   </ItemGroup>
 </Project>

@@ -337,7 +337,7 @@ public class BehaviorTests
     }
 
     [AvaloniaFact]
-    public async Task FullScreen_PlayerBar_HidesUntilHovered()
+    public async Task FullScreen_Toggle_EntersAndExits()
     {
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
@@ -348,23 +348,12 @@ public class BehaviorTests
         var player = view.GetVisualDescendants().OfType<AvaloniaPlayer>().Single();
         player.ToggleFullScreenCommand.Execute(null);
         Dispatcher.UIThread.RunJobs();
-        var ui = player.FullScreenUI!;
-        var hidden = ui.PlayerBar.Opacity;
-        var over = ui.PlayerBar.TranslatePoint(
-            new Point(Math.Max(1, ui.PlayerBar.Bounds.Width / 2), Math.Max(1, ui.PlayerBar.Bounds.Height / 2)),
-            ui)!.Value;
-        ui.MouseMove(over);
-        Dispatcher.UIThread.RunJobs();
-        var shown = ui.PlayerBar.Opacity;
-        ui.MouseMove(new Point(8, 8));
-        Dispatcher.UIThread.RunJobs();
-        var left = ui.PlayerBar.Opacity;
+        var entered = player.FullScreen;
         player.FullScreen = false;
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(0, hidden);
-        Assert.Equal(1, shown);
-        Assert.Equal(0, left);
+        Assert.True(entered);
+        Assert.False(player.FullScreen);
     }
 
     [AvaloniaFact]

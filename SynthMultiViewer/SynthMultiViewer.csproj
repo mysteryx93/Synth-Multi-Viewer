@@ -3,11 +3,13 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>SynthMultiViewer</AssemblyName>
     <RootNamespace>HanumanInstitute.SynthMultiViewer</RootNamespace>
+    <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <ApplicationIcon>Assets/App.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <Version>1.0</Version>
     <Product>Synth Multi-Viewer</Product>
+    <LSApplicationCategoryType>public.app-category.developer-tools</LSApplicationCategoryType>
+    <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets/**" />
@@ -30,9 +32,9 @@
     <PackageReference Include="HanumanInstitute.MvvmDialogs" />
     <PackageReference Include="HanumanInstitute.MvvmDialogs.Avalonia" />
     <PackageReference Include="HanumanInstitute.MvvmDialogs.Avalonia.MessageBox" />
+    <PackageReference Include="MediaPlayer.Avalonia" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MediaSynthPlayer\MediaSynthPlayer.csproj" />
-    <ProjectReference Include="..\..\MediaPlayerUI.NET\Avalonia\MediaPlayer.Avalonia.csproj" />
   </ItemGroup>
 </Project>
