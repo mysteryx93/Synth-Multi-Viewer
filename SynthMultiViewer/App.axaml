@@ -1,0 +1,12 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:HanumanInstitute.SynthMultiViewer"
+             x:Class="HanumanInstitute.SynthMultiViewer.App"
+             RequestedThemeVariant="Light">
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+    <Application.Styles>
+        <StyleInclude Source="/AppTheme.axaml" />
+    </Application.Styles>
+</Application>

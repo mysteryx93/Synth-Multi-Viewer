@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:media="using:HanumanInstitute.MediaPlayer.Avalonia"
+             xmlns:vs="using:HanumanInstitute.MediaSynthUI"
+             xmlns:h="using:HanumanInstitute.SynthMultiViewer.Helpers"
+             xmlns:vm="using:HanumanInstitute.SynthMultiViewer.ViewModels"
+             x:Class="HanumanInstitute.SynthMultiViewer.Views.ViewerView"
+             x:DataType="vm:ViewerViewModel"
+             x:Name="Root">
+    <media:MediaPlayer x:Name="Player" IsVolumeVisible="False" IsSpeedVisible="False" IsStopVisible="False"
+                       IsLoopVisible="False" ChangeVolumeOnMouseWheel="False" PositionDisplay="Frames">
+        <vs:SynthPlayerHost
+        x:Name="PlayerHost" Kind="{Binding Kind}" Script="{Binding Script, Mode=OneWay}" AutoPlay="False"
+        IsPlaying="{Binding IsPlaying, Mode=TwoWay}"
+        Position="{Binding Position, Mode=TwoWay}" ScrollVerticalOffset="{Binding ScrollVerticalOffset, Mode=TwoWay}"
+        ScrollHorizontalOffset="{Binding ScrollHorizontalOffset, Mode=TwoWay}"
+        Zoom="{Binding ((vm:MainViewModel)DataContext).Zoom,
+              RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+        MinZoom="{Binding ((vm:MainViewModel)DataContext).MinZoom, RelativeSource={RelativeSource AncestorType=Window}}"
+        MaxZoom="{Binding ((vm:MainViewModel)DataContext).MaxZoom, RelativeSource={RelativeSource AncestorType=Window}}"
+        ZoomIncrement="{Binding ((vm:MainViewModel)DataContext).ZoomIncrement,
+                       RelativeSource={RelativeSource AncestorType=Window}}"
+        ZoomScaleToFit="{Binding ((vm:MainViewModel)DataContext).ZoomScaleToFit,
+                        RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+        Threads="{Binding ((vm:MainViewModel)DataContext).Threads, RelativeSource={RelativeSource AncestorType=Window}}"
+        SquarePixels="{Binding ((vm:MainViewModel)DataContext).SquarePixels,
+                      RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+        Duration="{Binding Duration, Mode=OneWayToSource}" ErrorMessage="{Binding ErrorMessage, Mode=OneWayToSource}"
+        h:EventCommands.MediaLoaded="{Binding ((vm:MainViewModel)DataContext).MediaLoaded,
+                                      RelativeSource={RelativeSource AncestorType=Window}}"
+        h:EventCommands.Parameter="{Binding}" />
+    </media:MediaPlayer>
+</UserControl>

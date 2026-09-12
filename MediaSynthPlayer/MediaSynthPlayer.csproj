@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>HanumanInstitute.MediaSynthUI</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageId>MediaSynthPlayer</PackageId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="HanumanInstitute.Validators" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ApiVapourSynth\ApiVapourSynth.csproj" />
+    <ProjectReference Include="..\ApiAviSynth\ApiAviSynth.csproj" />
+    <ProjectReference Include="..\..\MediaPlayerUI.NET\Avalonia\MediaPlayer.Avalonia.csproj" />
+    <InternalsVisibleTo Include="SynthMultiViewer.Tests" />
+  </ItemGroup>
+</Project>

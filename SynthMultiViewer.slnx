@@ -1,0 +1,14 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="ApiAviSynth/ApiAviSynth.csproj" />
+  <Project Path="ApiAviSynth.Tests/ApiAviSynth.Tests.csproj" />
+  <Project Path="ApiVapourSynth/ApiVapourSynth.csproj" />
+  <Project Path="ApiVapourSynth.Tests/ApiVapourSynth.Tests.csproj" />
+  <Project Path="MediaSynthPlayer/MediaSynthPlayer.csproj" />
+  <Project Path="SynthMultiViewer.Tests/SynthMultiViewer.Tests.csproj" />
+  <Project Path="SynthMultiViewer/SynthMultiViewer.csproj" />
+</Solution>

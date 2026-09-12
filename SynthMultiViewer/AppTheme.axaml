@@ -1,0 +1,264 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:edit="using:AvaloniaEdit">
+    <Styles.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://MediaPlayer.Avalonia/Styles/Default/Theme.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <ControlTheme x:Key="{x:Type TabStripItem}" TargetType="TabStripItem">
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontWeight" Value="{DynamicResource TabItemHeaderThemeFontWeight}" />
+                <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundUnselected}" />
+                <Setter Property="Foreground" Value="{DynamicResource TabItemHeaderForegroundUnselected}" />
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="MinHeight" Value="40" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Name="PART_LayoutRoot"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                Padding="{TemplateBinding Padding}">
+                            <Panel>
+                                <ContentPresenter Name="PART_ContentPresenter"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  Content="{TemplateBinding Content}"
+                                                  ContentTemplate="{TemplateBinding ContentTemplate}" />
+                                <Border Name="PART_SelectedPipe"
+                                        Background="{DynamicResource TabItemHeaderSelectedPipeFill}"
+                                        CornerRadius="{DynamicResource ControlCornerRadius}"
+                                        Height="{DynamicResource TabStripItemPipeThickness}"
+                                        Margin="0,0,0,3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                                        IsVisible="False" />
+                            </Panel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:selected">
+                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundSelected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource TabItemHeaderForegroundSelected}" />
+                </Style>
+                <Style Selector="^:selected /template/ Border#PART_SelectedPipe">
+                    <Setter Property="IsVisible" Value="True" />
+                </Style>
+                <Style Selector="^:pointerover /template/ Border#PART_LayoutRoot">
+                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundUnselectedPointerOver}" />
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundUnselectedPointerOver}" />
+                </Style>
+                <Style Selector="^:selected:pointerover /template/ Border#PART_LayoutRoot">
+                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundSelectedPointerOver}" />
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundSelectedPointerOver}" />
+                </Style>
+                <Style Selector="^:pressed /template/ Border#PART_LayoutRoot">
+                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundUnselectedPressed}" />
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundUnselectedPressed}" />
+                </Style>
+                <Style Selector="^:selected:pressed /template/ Border#PART_LayoutRoot">
+                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundSelectedPressed}" />
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundSelectedPressed}" />
+                </Style>
+                <Style Selector="^:disabled /template/ Border#PART_LayoutRoot">
+                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundDisabled}" />
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundDisabled}" />
+                </Style>
+            </ControlTheme>
+        </ResourceDictionary>
+    </Styles.Resources>
+    <FluentTheme />
+    <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+    <!-- Shared control alignment and dialog layout. -->
+    <Style Selector="Window">
+        <Setter Property="UseLayoutRounding" Value="True" />
+    </Style>
+    <Style Selector="Button, ToggleButton">
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="HyperlinkButton">
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="DockPanel.dialog-content">
+        <Setter Property="Margin" Value="8,6" />
+    </Style>
+    <Style Selector="StackPanel.dialog-actions">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="Spacing" Value="8" />
+        <Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+    <Style Selector="StackPanel.dialog-actions > Button">
+        <Setter Property="MinWidth" Value="72" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="10,5" />
+    </Style>
+    <Style Selector="NumericUpDown">
+        <Setter Property="ShowButtonSpinner" Value="False" />
+    </Style>
+    <Style Selector="TextBlock.field-label">
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.section-heading">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.status">
+        <Setter Property="Foreground" Value="{DynamicResource SystemControlErrorTextForegroundBrush}" />
+    </Style>
+
+    <!-- Toolbar dimensions are shared by buttons and their icons. -->
+    <Style Selector="StackPanel.toolbar">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Margin" Value="0,0,4,0" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > Button, StackPanel.toolbar > ToggleButton">
+        <Setter Property="Padding" Value="6" />
+    </Style>
+    <Style Selector="StackPanel.toolbar Image">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Stretch" Value="None" />
+    </Style>
+    <Style Selector="Button.tab-close">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+        <Setter Property="MinWidth" Value="16" />
+        <Setter Property="MinHeight" Value="16" />
+        <Setter Property="Margin" Value="4,0,0,0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="2">
+                    <ContentPresenter HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Content="{TemplateBinding Content}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="Button.tab-close TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="12" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.tab-header">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="Margin" Value="2,1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="edit|TextEditor">
+        <Setter Property="FontFamily" Value="Consolas,Menlo,Monospace" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="ShowLineNumbers" Value="True" />
+        <Setter Property="WordWrap" Value="False" />
+    </Style>
+    <Style Selector="Image.enabled">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Image.enabled:disabled">
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <Style Selector="TextBox.tab-header-edit">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="1,0" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox.tab-header-edit:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="ComboBox.zoom">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="8,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="ComboBox.zoom:pressed /template/ Border#Background">
+        <Setter Property="Background" Value="{DynamicResource ComboBoxBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ComboBoxBorderBrush}" />
+    </Style>
+    <Style Selector="ComboBox.zoom:focus-within /template/ Border#Background,
+                     ComboBox.zoom:focus-within /template/ Border#HighlightBackground">
+        <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrushFocused}" />
+    </Style>
+    <Style Selector="ComboBox.zoom:focus-within /template/ Border#HighlightBackground">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ComboBox.zoom /template/ Border#DropDownOverlay">
+        <Setter Property="IsVisible" Value="True" />
+        <Setter Property="Width" Value="24" />
+        <Setter Property="CornerRadius" Value="0,3,3,0" />
+    </Style>
+    <Style Selector="ComboBox.zoom /template/ Border#DropDownOverlay:pointerover">
+        <Setter Property="Background" Value="{DynamicResource ButtonBackgroundPointerOver}" />
+    </Style>
+    <Style Selector="ComboBox.zoom:pressed /template/ Border#DropDownOverlay,
+                     ComboBox.zoom:dropdownopen /template/ Border#DropDownOverlay">
+        <Setter Property="Background" Value="{DynamicResource ButtonBackgroundPressed}" />
+    </Style>
+    <Style Selector="ComboBox.zoom /template/ PathIcon#DropDownGlyph">
+        <Setter Property="Width" Value="10" />
+        <Setter Property="Height" Value="10" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+    </Style>
+    <Style Selector="ComboBox.zoom /template/ TextBox#PART_EditableTextBox">
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Padding" Value="4,0,1,0" />
+        <Setter Property="Margin" Value="0,0,24,0" />
+        <Setter Property="Grid.ColumnSpan" Value="2" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="ComboBox.zoom /template/ TextBox#PART_EditableTextBox /template/ Border#PART_BorderElement">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.detected-path">
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0,1" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox.detected-path /template/ Border#PART_BorderElement">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > Separator">
+        <Setter Property="Width" Value="1" />
+        <Setter Property="MinWidth" Value="1" />
+        <Setter Property="Margin" Value="2,8" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="Background" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Width="1" Background="{TemplateBinding Background}" VerticalAlignment="Stretch" />
+            </ControlTemplate>
+        </Setter>
+    </Style>
+</Styles>

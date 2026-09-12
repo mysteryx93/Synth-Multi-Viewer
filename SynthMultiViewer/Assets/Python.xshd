@@ -1,0 +1,86 @@
+<SyntaxDefinition name="Python" extensions=".py;.vpy" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+	<Color name="Comment" foreground="Green" />
+	<Color name="String" foreground="Red" />
+	<Color name="BuiltIn" foreground="MidnightBlue" fontWeight="bold" />
+	<Color name="Keyword" foreground="Blue" fontWeight="bold" />
+	<Color name="Exception" foreground="Teal" fontWeight="bold" />
+	<Color name="Import" foreground="Green" fontWeight="bold" />
+	<Color name="Jump" foreground="Navy" />
+	<Color name="Operator" foreground="DarkCyan" fontWeight="bold" />
+	<Color name="Boolean" foreground="Blue" />
+	<Color name="Pass" foreground="Gray" />
+	<Color name="With" foreground="DarkViolet" />
+	<Color name="Digits" foreground="DarkBlue" />
+	<Color name="MethodName" foreground="MidnightBlue" fontWeight="bold" />
+	<RuleSet>
+		<Span color="Comment" multiline="true">
+			<Begin>"""</Begin>
+			<End>"""</End>
+		</Span>
+		<Span color="Comment">
+			<Begin>\#</Begin>
+		</Span>
+		<Span color="String">
+			<Begin>"</Begin>
+			<End>"</End>
+		</Span>
+		<Span color="String">
+			<Begin>'</Begin>
+			<End>'</End>
+		</Span>
+		<Keywords color="BuiltIn">
+			<Word>assert</Word>
+			<Word>del</Word>
+			<Word>exec</Word>
+			<Word>global</Word>
+			<Word>lambda</Word>
+			<Word>print</Word>
+		</Keywords>
+		<Keywords color="Keyword">
+			<Word>class</Word>
+			<Word>def</Word>
+			<Word>for</Word>
+			<Word>in</Word>
+			<Word>while</Word>
+			<Word>elif</Word>
+			<Word>else</Word>
+			<Word>if</Word>
+		</Keywords>
+		<Keywords color="Exception">
+			<Word>except</Word>
+			<Word>finally</Word>
+			<Word>raise</Word>
+			<Word>try</Word>
+		</Keywords>
+		<Keywords color="Import">
+			<Word>import</Word>
+			<Word>from</Word>
+		</Keywords>
+		<Keywords color="Jump">
+			<Word>break</Word>
+			<Word>continue</Word>
+			<Word>yield</Word>
+			<Word>return</Word>
+		</Keywords>
+		<Keywords color="Operator">
+			<Word>and</Word>
+			<Word>as</Word>
+			<Word>is</Word>
+			<Word>not</Word>
+			<Word>or</Word>
+		</Keywords>
+		<Keywords color="Boolean">
+			<Word>True</Word>
+			<Word>False</Word>
+			<Word>None</Word>
+		</Keywords>
+		<Keywords color="Pass">
+			<Word>pass</Word>
+		</Keywords>
+		<Keywords color="With">
+			<Word>with</Word>
+		</Keywords>
+		<Rule color="MethodName">\b[\w_]+(?=\()</Rule>
+		<Rule color="Digits">\b\d+(\.\d+)?\b</Rule>
+	</RuleSet>
+</SyntaxDefinition>

@@ -1,0 +1,11 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:HanumanInstitute.SynthMultiViewer.Controls"
+             xmlns:vm="using:HanumanInstitute.SynthMultiViewer.ViewModels"
+             xmlns:h="using:HanumanInstitute.SynthMultiViewer.Helpers"
+             x:Class="HanumanInstitute.SynthMultiViewer.Views.EditorView"
+             x:DataType="vm:EditorViewModel">
+    <controls:BindableTextEditor x:Name="Editor" ScriptText="{Binding Script, Mode=TwoWay}"
+                                 h:FocusBehavior.WhenVisible="True"
+                                 h:SyntaxHighlight.Source="{Binding HighlightSource}" />
+</UserControl>

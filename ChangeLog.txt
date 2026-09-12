@@ -1,5 +1,13 @@
 VapourSynth Multi-Viewer Change Log
 
+v1.0 (2026-09-12)
+- Cross-platform support (Windows, Linux, MacOS)
+- Both VapourSynth and AviSynth support
+- Auto-detection of library and plugin paths across platforms
+- Light/Dark theme
+- Added copy frame to clipboard
+
+
 v0.9.3 (2018-07-26)
 - Fixed multi-threading mode not activating
 - Added option to display square pixels when zooming

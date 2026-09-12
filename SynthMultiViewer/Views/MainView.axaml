@@ -1,0 +1,170 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HanumanInstitute.SynthMultiViewer.ViewModels"
+        xmlns:h="using:HanumanInstitute.SynthMultiViewer.Helpers"
+        x:Class="HanumanInstitute.SynthMultiViewer.Views.MainView"
+        x:DataType="vm:MainViewModel"
+        Title="Synth Multi-Viewer"
+        Width="800" Height="450"
+        WindowState="Maximized"
+        Icon="/Assets/App.ico"
+        x:Name="UI"
+        DragDrop.AllowDrop="True"
+        h:FileDropBehavior.Command="{Binding DropFiles}"
+        h:EventCommands.Loaded="{Binding Load}"
+        h:ViewerKeys.Seek="{Binding Seek}"
+        h:ViewerKeys.PlayPause="{Binding PlayPause}"
+        h:ViewerKeys.CopyFrame="{Binding CopyFrame}">
+    <Window.Resources>
+        <h:ZoomConverter x:Key="ZoomConverter" ZeroText="Scale to Fit" />
+    </Window.Resources>
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding New}" />
+        <KeyBinding Gesture="Ctrl+M" Command="{Binding NewAviSynth}" />
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding Open}" />
+        <KeyBinding Gesture="Ctrl+S" Command="{Binding Save}" />
+        <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAs}" />
+        <KeyBinding Gesture="Ctrl+G" Command="{Binding GoTo}" />
+        <KeyBinding Gesture="F1" Command="{Binding Help}" />
+        <KeyBinding Gesture="F2" Command="{Binding Settings}" />
+        <KeyBinding Gesture="F5" Command="{Binding Run}" />
+        <KeyBinding Gesture="Ctrl+F6" Command="{Binding UpdateAll}" />
+        <KeyBinding Gesture="F8" Command="{Binding ToggleMultiThreaded}" />
+        <KeyBinding Gesture="F9" Command="{Binding ToggleSquarePixels}" />
+        <KeyBinding Gesture="Ctrl+F4" Command="{Binding SelectedItem.Close}" />
+        <KeyBinding Gesture="Add" Command="{Binding ZoomIn}" />
+        <KeyBinding Gesture="Subtract" Command="{Binding ZoomOut}" />
+        <KeyBinding Gesture="OemPlus" Command="{Binding ZoomIn}" />
+        <KeyBinding Gesture="OemMinus" Command="{Binding ZoomOut}" />
+        <KeyBinding Gesture="Ctrl+Tab" Command="{Binding NextTab}" />
+        <KeyBinding Gesture="Ctrl+Shift+Tab" Command="{Binding PreviousTab}" />
+        <KeyBinding Gesture="Ctrl+D1" Command="{Binding SelectEditor}" CommandParameter="0" />
+        <KeyBinding Gesture="Ctrl+D2" Command="{Binding SelectEditor}" CommandParameter="1" />
+        <KeyBinding Gesture="Ctrl+D3" Command="{Binding SelectEditor}" CommandParameter="2" />
+        <KeyBinding Gesture="Ctrl+D4" Command="{Binding SelectEditor}" CommandParameter="3" />
+        <KeyBinding Gesture="Ctrl+D5" Command="{Binding SelectEditor}" CommandParameter="4" />
+        <KeyBinding Gesture="Ctrl+D6" Command="{Binding SelectEditor}" CommandParameter="5" />
+        <KeyBinding Gesture="Ctrl+D7" Command="{Binding SelectEditor}" CommandParameter="6" />
+        <KeyBinding Gesture="Ctrl+D8" Command="{Binding SelectEditor}" CommandParameter="7" />
+        <KeyBinding Gesture="Ctrl+D9" Command="{Binding SelectEditor}" CommandParameter="8" />
+        <KeyBinding Gesture="Ctrl+D0" Command="{Binding SelectEditor}" CommandParameter="9" />
+        <KeyBinding Gesture="Alt+D1" Command="{Binding SelectViewer}" CommandParameter="0" />
+        <KeyBinding Gesture="Alt+D2" Command="{Binding SelectViewer}" CommandParameter="1" />
+        <KeyBinding Gesture="Alt+D3" Command="{Binding SelectViewer}" CommandParameter="2" />
+        <KeyBinding Gesture="Alt+D4" Command="{Binding SelectViewer}" CommandParameter="3" />
+        <KeyBinding Gesture="Alt+D5" Command="{Binding SelectViewer}" CommandParameter="4" />
+        <KeyBinding Gesture="Alt+D6" Command="{Binding SelectViewer}" CommandParameter="5" />
+        <KeyBinding Gesture="Alt+D7" Command="{Binding SelectViewer}" CommandParameter="6" />
+        <KeyBinding Gesture="Alt+D8" Command="{Binding SelectViewer}" CommandParameter="7" />
+        <KeyBinding Gesture="Alt+D9" Command="{Binding SelectViewer}" CommandParameter="8" />
+    </Window.KeyBindings>
+    <DockPanel>
+        <DockPanel DockPanel.Dock="Top">
+            <StackPanel DockPanel.Dock="Right" Classes="toolbar">
+                <Button ToolTip.Tip="Run script (F5)" Command="{Binding Run}"
+                        IsVisible="{Binding IsEditorSelected}">
+                    <Image Source="/Assets/Icons/Run.png" Classes="enabled" />
+                </Button>
+                <Button ToolTip.Tip="Save (Ctrl+S)" Command="{Binding Save}"
+                        IsVisible="{Binding IsEditorSelected}">
+                    <Image Source="/Assets/Icons/Save.png" Classes="enabled" />
+                </Button>
+                <Button ToolTip.Tip="Save as... (Ctrl+Shift+S)" Command="{Binding SaveAs}"
+                        IsVisible="{Binding IsEditorSelected}">
+                    <Image Source="/Assets/Icons/SaveAs.png" Classes="enabled" />
+                </Button>
+                <Separator IsVisible="{Binding IsEditorSelected}" />
+                <Button ToolTip.Tip="Go to frame... (Ctrl+G)" Command="{Binding GoTo}"
+                        IsVisible="{Binding IsViewerSelected}">
+                    <Image Source="/Assets/Icons/GoTo.png" Classes="enabled" />
+                </Button>
+                <Button ToolTip.Tip="Copy frame to clipboard (Ctrl+C)" Command="{Binding CopyFrame}"
+                        CommandParameter="{Binding #UI}" IsVisible="{Binding IsViewerSelected}">
+                    <Image Source="/Assets/Icons/CopyFrame.png" Classes="enabled" />
+                </Button>
+                <Separator IsVisible="{Binding IsViewerSelected}" />
+                <ToggleButton ToolTip.Tip="Enable multi-threading (F8)" IsChecked="{Binding IsMultiThreaded}"
+                              IsVisible="{Binding IsVapourSynthViewerSelected}">
+                    <Image Source="/Assets/Icons/MultiThreading.png" Classes="enabled" />
+                </ToggleButton>
+                <ToggleButton ToolTip.Tip="Square Pixels (F9)" IsChecked="{Binding SquarePixels}"
+                              IsVisible="{Binding IsViewerSelected}">
+                    <Image Source="/Assets/Icons/SquarePixels.png" Classes="enabled" />
+                </ToggleButton>
+                <Button ToolTip.Tip="Load frame in all tabs (Ctrl+F6)" Command="{Binding UpdateAll}"
+                        IsVisible="{Binding IsViewerSelected}">
+                    <Image Source="/Assets/Icons/Refresh.png" Classes="enabled" />
+                </Button>
+                <Separator IsVisible="{Binding IsViewerSelected}" />
+                <ComboBox x:Name="ZoomCombo" Classes="zoom" Width="95"
+                          IsEditable="True" IsTextSearchEnabled="False"
+                          IsVisible="{Binding IsViewerSelected}"
+                          ToolTip.Tip="Zoom (+/-)" ItemsSource="{Binding ZoomList}"
+                          h:ComboBoxCommit.Enabled="True"
+                          SelectedItem="{Binding Zoom, Converter={StaticResource ZoomConverter}, Mode=TwoWay}"
+                          Text="{Binding Zoom, Converter={StaticResource ZoomConverter}, Mode=TwoWay,
+                                 UpdateSourceTrigger=Explicit}" />
+                <Separator IsVisible="{Binding IsViewerSelected}" />
+                <Button ToolTip.Tip="New VapourSynth script (Ctrl+N)" Command="{Binding New}">
+                    <Image Source="/Assets/Icons/New.png" Classes="enabled" />
+                </Button>
+                <Button ToolTip.Tip="New AviSynth script (Ctrl+M)" Command="{Binding NewAviSynth}">
+                    <Image Source="/Assets/Icons/New.png" Classes="enabled" />
+                </Button>
+                <Button ToolTip.Tip="Open file... (Ctrl+O)" Command="{Binding Open}">
+                    <Image Source="/Assets/Icons/Open.png" Classes="enabled" />
+                </Button>
+                <Separator />
+                <Button ToolTip.Tip="Settings (F2)" Command="{Binding Settings}">
+                    <Image Source="/Assets/Icons/Settings.png" Classes="enabled" />
+                </Button>
+                <Button ToolTip.Tip="Help (F1)" Command="{Binding Help}">
+                    <Image Source="/Assets/Icons/Help.png" Classes="enabled" />
+                </Button>
+            </StackPanel>
+            <TabStrip ItemsSource="{Binding ScriptList}" SelectedItem="{Binding SelectedItem}"
+                      Margin="2,0" Padding="0">
+                <TabStrip.ItemTemplate>
+                    <DataTemplate x:DataType="vm:IScriptViewModel">
+                        <Grid ColumnDefinitions="Auto,Auto">
+                            <Grid Grid.Column="0" h:EventCommands.SingleClick="{Binding BeginHeaderEdit}">
+                                <TextBlock Text="{Binding DisplayName}" Classes="tab-header" Opacity="{Binding !IsEditingHeader}" />
+                                <Canvas IsHitTestVisible="{Binding IsEditingHeader}">
+                                    <TextBox Classes="tab-header-edit" Text="{Binding DisplayName, Mode=TwoWay,
+                                             UpdateSourceTrigger=PropertyChanged}"
+                                             Width="{Binding $parent[Grid].Bounds.Width}"
+                                             Height="{Binding $parent[Grid].Bounds.Height}"
+                                             IsVisible="{Binding IsEditingHeader}" h:FocusBehavior.WhenVisible="True"
+                                             h:MouseCapture.HasCapture="{Binding IsEditingHeader, Mode=TwoWay}"
+                                             h:EventCommands.LostFocus="{Binding HeaderEditDone}">
+                                        <TextBox.KeyBindings>
+                                            <KeyBinding Gesture="Enter" Command="{Binding HeaderEditDone}" />
+                                            <KeyBinding Gesture="Escape" Command="{Binding HeaderEditCancel}" />
+                                        </TextBox.KeyBindings>
+                                    </TextBox>
+                                </Canvas>
+                            </Grid>
+                            <Button Grid.Column="1" Command="{Binding Close}" Classes="tab-close"
+                                    IsVisible="{Binding CanClose}">
+                                <TextBlock Text="×" />
+                            </Button>
+                        </Grid>
+                    </DataTemplate>
+                </TabStrip.ItemTemplate>
+            </TabStrip>
+        </DockPanel>
+        <ItemsControl ItemsSource="{Binding ScriptList}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Grid />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:IScriptViewModel">
+                    <ContentControl Content="{Binding}" IsVisible="{Binding IsActive}"
+                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </DockPanel>
+</Window>

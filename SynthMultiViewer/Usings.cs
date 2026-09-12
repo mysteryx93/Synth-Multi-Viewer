@@ -1,0 +1,11 @@
+global using System;
+global using System.Collections.ObjectModel;
+global using System.Collections.Generic;
+global using System.Linq;
+global using System.Threading.Tasks;
+global using HanumanInstitute.MediaSynthUI;
+global using HanumanInstitute.SynthMultiViewer.ViewModels;
+global using ReactiveUI;
+global using ReactiveUI.SourceGenerators;
+global using RxVoid = ReactiveUI.Primitives.RxVoid;
+global using RxCommandVoid = ReactiveUI.ReactiveCommand<ReactiveUI.Primitives.RxVoid, ReactiveUI.Primitives.RxVoid>;

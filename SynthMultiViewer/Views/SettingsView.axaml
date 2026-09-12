@@ -1,0 +1,79 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:h="using:HanumanInstitute.SynthMultiViewer.Helpers"
+        xmlns:vm="using:HanumanInstitute.SynthMultiViewer.ViewModels"
+        x:Class="HanumanInstitute.SynthMultiViewer.Views.SettingsView"
+        x:DataType="vm:SettingsViewModel"
+        Title="Settings"
+        Width="520"
+        SizeToContent="Height"
+        Classes="dialog"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Classes="dialog-content">
+        <StackPanel DockPanel.Dock="Bottom" Classes="dialog-actions">
+            <Button Content="Default" Command="{Binding RestoreDefault}" />
+            <Button Content="Apply" Command="{Binding Apply}" />
+            <Button Content="OK" IsDefault="True" Command="{Binding Ok}" />
+            <Button Content="Cancel" IsCancel="True" Command="{Binding Cancel}" />
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <TextBlock Text="Theme" Classes="field-label" Width="72" />
+                <ComboBox Width="140" ItemsSource="{Binding ThemeList}" SelectedItem="{Binding Theme}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Classes="section-heading" Text="VapourSynth" />
+                <TextBlock x:Name="VapourSynthStatus" Text="{Binding VapourSynthStatus}" Classes="status" />
+            </StackPanel>
+            <DockPanel>
+                <TextBlock Text="Library: " Classes="field-label" />
+                <TextBox x:Name="VapourSynthDetectedLibrary" Classes="detected-path"
+                         Text="{Binding VapourSynthLibraryDisplay, Mode=OneWay}" />
+            </DockPanel>
+            <TextBox x:Name="VapourSynthLibraryPath" Text="{Binding VapourSynthPath}"
+                     PlaceholderText="Override detected library" />
+            <DockPanel>
+                <TextBlock Text="Plugin folders: " Classes="field-label" />
+                <TextBox x:Name="VapourSynthDetectedPlugins" Classes="detected-path"
+                         Text="{Binding VapourSynthPluginsDisplay, Mode=OneWay}" />
+            </DockPanel>
+            <TextBox x:Name="VapourSynthPluginFolders" Text="{Binding VapourSynthPluginFolders}"
+                     PlaceholderText="Extra folders, separated by ;" />
+            <StackPanel Spacing="0">
+                <CheckBox Content="Do not load auto-detected plugin folders"
+                          IsChecked="{Binding VapourSynthReplacePlugins}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="VapourSynth threads" Classes="field-label" />
+                    <NumericUpDown x:Name="VapourSynthThreads" Width="80" Minimum="1" Maximum="256"
+                                   Increment="1" FormatString="0" ParsingNumberStyle="Integer"
+                                   ShowButtonSpinner="False" h:NumericKeep.RevertEmpty="True"
+                                   Value="{Binding VapourSynthThreads, Converter={x:Static h:KeepNumberConverter.Instance}}" />
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
+                <TextBlock Classes="section-heading" Text="AviSynth"
+                           ToolTip.Tip="AviSynth+, AviSynth 2.6, or a fork that exports the C API" />
+                <TextBlock x:Name="AviSynthStatus" Text="{Binding AviSynthStatus}" Classes="status"
+                           ToolTip.Tip="AviSynth+, AviSynth 2.6, or a fork that exports the C API" />
+            </StackPanel>
+            <DockPanel>
+                <TextBlock Text="Library: " Classes="field-label" />
+                <TextBox x:Name="AviSynthDetectedLibrary" Classes="detected-path"
+                         Text="{Binding AviSynthLibraryDisplay, Mode=OneWay}" />
+            </DockPanel>
+            <TextBox x:Name="AviSynthLibraryPath" Text="{Binding AviSynthPath}"
+                     PlaceholderText="Override detected library" />
+            <DockPanel>
+                <TextBlock Text="Plugin folders: " Classes="field-label" />
+                <TextBox x:Name="AviSynthDetectedPlugins" Classes="detected-path"
+                         Text="{Binding AviSynthPluginsDisplay, Mode=OneWay}" />
+            </DockPanel>
+            <TextBox x:Name="AviSynthPluginFolders" Text="{Binding AviSynthPluginFolders}"
+                     PlaceholderText="Extra folders, separated by ;" />
+            <CheckBox Content="Do not load auto-detected plugin folders"
+                      IsChecked="{Binding AviSynthReplacePlugins}" />
+        </StackPanel>
+    </DockPanel>
+</Window>

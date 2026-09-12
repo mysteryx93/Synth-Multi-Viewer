@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>SynthMultiViewer</AssemblyName>
+    <RootNamespace>HanumanInstitute.SynthMultiViewer</RootNamespace>
+    <ApplicationIcon>Assets/App.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <Version>1.0</Version>
+    <Product>Synth Multi-Viewer</Product>
+  </PropertyGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" />
+    <PackageReference Include="ReactiveUI" />
+    <PackageReference Include="ReactiveUI.Avalonia" />
+    <PackageReference Include="ReactiveUI.SourceGenerators">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Splat" />
+    <PackageReference Include="Splat.DependencyInjection.SourceGenerator">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="HanumanInstitute.MvvmDialogs" />
+    <PackageReference Include="HanumanInstitute.MvvmDialogs.Avalonia" />
+    <PackageReference Include="HanumanInstitute.MvvmDialogs.Avalonia.MessageBox" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MediaSynthPlayer\MediaSynthPlayer.csproj" />
+    <ProjectReference Include="..\..\MediaPlayerUI.NET\Avalonia\MediaPlayer.Avalonia.csproj" />
+  </ItemGroup>
+</Project>

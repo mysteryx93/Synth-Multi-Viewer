@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:h="using:HanumanInstitute.SynthMultiViewer.Helpers"
+        xmlns:vm="using:HanumanInstitute.SynthMultiViewer.ViewModels"
+        x:Class="HanumanInstitute.SynthMultiViewer.Views.InputView"
+        x:DataType="vm:InputViewModel"
+        Title="{Binding DisplayName}"
+        Width="240" Height="140"
+        Classes="dialog"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Classes="dialog-content">
+        <StackPanel DockPanel.Dock="Bottom" Classes="dialog-actions">
+            <Button Content="OK" IsDefault="True" Command="{Binding Ok}" />
+            <Button Content="Cancel" IsCancel="True" Command="{Binding Close}" />
+        </StackPanel>
+        <StackPanel Spacing="8" Margin="0,8,0,0">
+            <TextBlock Text="{Binding Text}" />
+            <TextBox x:Name="ValueBox" h:FocusBehavior.WhenVisible="True" Text="{Binding Value}"
+                     Width="150" HorizontalAlignment="Left" />
+        </StackPanel>
+    </DockPanel>
+</Window>

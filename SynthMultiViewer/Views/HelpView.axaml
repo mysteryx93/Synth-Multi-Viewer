@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HanumanInstitute.SynthMultiViewer.ViewModels"
+        x:Class="HanumanInstitute.SynthMultiViewer.Views.HelpView"
+        x:DataType="vm:HelpViewModel"
+        Title="About Synth Multi-Viewer"
+        Width="430"
+        SizeToContent="Height"
+        Classes="dialog"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Classes="dialog-content">
+        <StackPanel DockPanel.Dock="Bottom" Classes="dialog-actions">
+            <Button Content="Close" IsCancel="True" IsDefault="True" Command="{Binding Close}" />
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <TextBlock FontSize="20" Text="{Binding AppVersion, StringFormat='Synth Multi-Viewer v{0}'}" />
+            <TextBlock Text="Editor and viewer for VapourSynth and AviSynth" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal">
+                <TextBlock FontSize="14" Text="by " VerticalAlignment="Center" />
+                <HyperlinkButton Content="Etienne Charland" NavigateUri="https://www.hanumaninstitute.com"
+                                 FontSize="14" Padding="0" VerticalAlignment="Center" />
+                <TextBlock FontSize="14" Text=" — Coherence programming" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Margin="0,12,0,0" TextWrapping="Wrap">
+                <Run FontWeight="Bold" Text="Mouse actions:" /><LineBreak />
+                <Run Text="Left click (hold): Pan and scroll" /><LineBreak />
+                <Run Text="Scroll up: Zoom in" /><LineBreak />
+                <Run Text="Scroll down: Zoom out" /><LineBreak />
+                <Run Text="Right click: Reset zoom" /><LineBreak />
+                <Run Text="Wheel click: Toggle full-screen" /><LineBreak />
+                <Run Text="Click tab name: Rename" /><LineBreak /><LineBreak />
+                <Run FontWeight="Bold" Text="Keyboard shortcuts:" /><LineBreak />
+                <Run Text="F2: Settings" /><LineBreak />
+                <Run Text="Space: Play/Pause" /><LineBreak />
+                <Run Text="Left: Seek 1 frame back" /><LineBreak />
+                <Run Text="Right: Seek 1 frame forward" /><LineBreak />
+                <Run Text="Ctrl+Left: Seek 10 frames back" /><LineBreak />
+                <Run Text="Ctrl+Right: Seek 10 frames forward" /><LineBreak />
+                <Run Text="Ctrl+C: Copy frame to clipboard" /><LineBreak />
+                <Run Text="+: Zoom in" /><LineBreak />
+                <Run Text="-: Zoom out" /><LineBreak />
+                <Run Text="Ctrl+Tab: Next tab" /><LineBreak />
+                <Run Text="Ctrl+Shift+Tab: Previous tab" /><LineBreak />
+                <Run Text="Alt+1-9: Select viewer tab" /><LineBreak />
+                <Run Text="Ctrl+1-9: Select editor tab" /><LineBreak />
+                <Run Text="Ctrl+N: New VapourSynth script" /><LineBreak />
+                <Run Text="Ctrl+M: New AviSynth script" /><LineBreak />
+                <Run Text="F5: Run script" /><LineBreak />
+                <Run Text="Alt+Enter: Toggle full-screen" /><LineBreak />
+                <Run Text="Ctrl+F4: Close current tab" />
+            </TextBlock>
+        </StackPanel>
+    </DockPanel>
+</Window>
