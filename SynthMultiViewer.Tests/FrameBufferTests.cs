@@ -37,6 +37,38 @@ public class FrameBufferTests
     }
 
     [Fact]
+    public void CopyFrom_FlipVertical_PositiveStride_ReversesRowsToTopDown()
+    {
+        byte[] nativeRows = [10, 11, 12, 13, 99, 99, 20, 21, 22, 23, 99, 99];
+        using var source = new NativeBuffer(nativeRows.Length);
+        Marshal.Copy(nativeRows, 0, source.Address, nativeRows.Length);
+        using var destination = new NativeBuffer(8);
+        var actual = new byte[8];
+
+        using var pixels = FrameBuffer.CopyFrom(source.Address, 6, 4, 2, flipVertical: true);
+        pixels.CopyTo(destination.Address, 4);
+        Marshal.Copy(destination.Address, actual, 0, actual.Length);
+
+        Assert.Equal([20, 21, 22, 23, 10, 11, 12, 13], actual);
+    }
+
+    [Fact]
+    public void CopyFrom_FlipVertical_NegativeStride_KeepsTopDown()
+    {
+        byte[] nativeRows = [10, 11, 12, 13, 99, 99, 20, 21, 22, 23, 99, 99];
+        using var source = new NativeBuffer(nativeRows.Length);
+        Marshal.Copy(nativeRows, 0, source.Address, nativeRows.Length);
+        using var destination = new NativeBuffer(8);
+        var actual = new byte[8];
+
+        using var pixels = FrameBuffer.CopyFrom(source.Address + 6, -6, 4, 2, flipVertical: true);
+        pixels.CopyTo(destination.Address, 4);
+        Marshal.Copy(destination.Address, actual, 0, actual.Length);
+
+        Assert.Equal([20, 21, 22, 23, 10, 11, 12, 13], actual);
+    }
+
+    [Fact]
     public void CopyRgbToBgra_PlanarRgb_ProducesOpaqueBgraPixels()
     {
         using var red = new NativeBuffer(2);

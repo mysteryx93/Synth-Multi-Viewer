@@ -91,26 +91,51 @@ public sealed class VsScript : IDisposable
     public static VsScript LoadScript(string script, string? scriptPath)
     {
         script.CheckNotNullOrEmpty();
-        script = AppendDisplayConversion(script);
-
         var environment = CreateEmpty();
+        try
+        {
+            environment.EvaluateBuffer(script, scriptPath);
+            environment.ConvertOutputToRgb24();
+            return environment;
+        }
+        catch
+        {
+            environment.Dispose();
+            throw;
+        }
+    }
+
+    private void EvaluateBuffer(string script, string? scriptPath)
+    {
         var resolvedPath = string.IsNullOrWhiteSpace(scriptPath) ? null : ResolveScriptPath(scriptPath);
         using var buffer = new Utf8Ptr(script);
         using var fileName = resolvedPath is null ? null : new Utf8Ptr(resolvedPath);
 
-        if (environment._scriptApi.EvaluateBuffer(environment._handle, buffer.ptr, fileName?.ptr ?? IntPtr.Zero) == 0)
+        if (resolvedPath != null)
         {
-            return environment;
+            _scriptApi.SetWorkingDirectory(_handle, true);
         }
 
-        var error = environment.GetError();
-        environment.Dispose();
-        throw new VsException(error ?? "VapourSynth could not evaluate the script.");
+        if (_scriptApi.EvaluateBuffer(_handle, buffer.ptr, fileName?.ptr ?? IntPtr.Zero) != 0)
+        {
+            throw new VsException(GetError() ?? "VapourSynth could not evaluate the script.");
+        }
     }
 
-    private static string AppendDisplayConversion(string script) =>
-        script + """
+    /// <summary>
+    /// Converts output 0 to RGB24 after the user script has finished, so display packing
+    /// does not change the graph the script built.
+    /// </summary>
+    private void ConvertOutputToRgb24()
+    {
+        using var buffer = new Utf8Ptr(DisplayConversion);
+        if (_scriptApi.EvaluateBuffer(_handle, buffer.ptr, IntPtr.Zero) != 0)
+        {
+            throw new VsException(GetError() ?? "VapourSynth could not convert the output for display.");
+        }
+    }
 
+    private const string DisplayConversion = """
 import vapoursynth as synthmultiviewer_vs
 synthmultiviewer_outputs = synthmultiviewer_vs.get_outputs()
 if 0 not in synthmultiviewer_outputs:
@@ -120,10 +145,19 @@ synthmultiviewer_node = synthmultiviewer_out.clip if hasattr(synthmultiviewer_ou
 if not isinstance(synthmultiviewer_node, synthmultiviewer_vs.VideoNode):
     raise synthmultiviewer_vs.Error("Output 0 is not a video node.")
 synthmultiviewer_format = synthmultiviewer_node.format
-synthmultiviewer_args = {"format": synthmultiviewer_vs.RGB24}
-if synthmultiviewer_format is None or synthmultiviewer_format.color_family == synthmultiviewer_vs.YUV:
-    synthmultiviewer_args["matrix_in_s"] = "709" if synthmultiviewer_node.height > 480 else "170m"
-synthmultiviewer_node = synthmultiviewer_node.resize.Bicubic(**synthmultiviewer_args)
+synthmultiviewer_rgb24 = (
+    synthmultiviewer_format is not None
+    and synthmultiviewer_format.color_family == synthmultiviewer_vs.RGB
+    and synthmultiviewer_format.bits_per_sample == 8
+    and synthmultiviewer_format.sample_type == synthmultiviewer_vs.INTEGER
+    and synthmultiviewer_format.num_planes == 3
+)
+if not synthmultiviewer_rgb24:
+    synthmultiviewer_args = {"format": synthmultiviewer_vs.RGB24}
+    if synthmultiviewer_format is None or synthmultiviewer_format.color_family in (
+        synthmultiviewer_vs.YUV, synthmultiviewer_vs.GRAY):
+        synthmultiviewer_args["matrix_in_s"] = "709" if synthmultiviewer_node.height > 480 else "170m"
+    synthmultiviewer_node = synthmultiviewer_node.resize.Bicubic(**synthmultiviewer_args)
 synthmultiviewer_node.set_output()
 """;
 

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=${APP_FRIENDLY_NAME}
+Icon=${APP_ID}
+Comment=${APP_SHORT_SUMMARY}
+Exec=${INSTALL_EXEC} %F
+TryExec=${INSTALL_EXEC}
+NoDisplay=${DESKTOP_NODISPLAY}
+X-AppImage-Integrate=${DESKTOP_INTEGRATE}
+Terminal=${DESKTOP_TERMINAL}
+Categories=${PRIME_CATEGORY};
+MimeType=text/x-vpy;text/x-avs;text/x-avsi;application/x-vapoursynth-script;application/x-avisynth;
+Keywords=VapourSynth;AviSynth;video;script;
+StartupWMClass=SynthMultiViewer

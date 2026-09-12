@@ -12,5 +12,8 @@
 	<url type="homepage">https://github.com/mysteryx93/VapourSynthViewer.NET</url>
 	<provides>
 		<id>synthmultiviewer.desktop</id>
+		<mediatype>text/x-vpy</mediatype>
+		<mediatype>text/x-avs</mediatype>
+		<mediatype>text/x-avsi</mediatype>
 	</provides>
 </component>

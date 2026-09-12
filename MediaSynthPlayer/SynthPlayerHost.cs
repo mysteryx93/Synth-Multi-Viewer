@@ -167,7 +167,7 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
     /// </summary>
     public static readonly StyledProperty<string?> PathProperty = AvaloniaProperty.Register<SynthPlayerHost, string?>(nameof(Path));
     /// <summary>
-    /// Gets or sets the script file path, used when Script is empty.
+    /// Gets or sets the script file path. Used as <c>__file__</c> when Script is set, or loaded directly when Script is empty.
     /// </summary>
     public string? Path
     {
@@ -472,6 +472,11 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
     public override void Stop()
     {
         base.Stop();
+        if (IsPlaying)
+        {
+            IsPlaying = false;
+        }
+
         var bitmap = _bmp;
         _bmp = null;
         VideoSource = null;
@@ -624,7 +629,7 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
             }
             else if (script.HasValue())
             {
-                LoadScript(null, script, Kind);
+                LoadScript(path, script, Kind);
             }
             else if (path.HasValue())
             {

@@ -15,7 +15,13 @@
             <Button Content="Close" IsCancel="True" IsDefault="True" Command="{Binding Close}" />
         </StackPanel>
         <StackPanel Spacing="4">
-            <TextBlock FontSize="20" Text="{Binding AppVersion, StringFormat='Synth Multi-Viewer v{0}'}" />
+            <DockPanel>
+                <HyperlinkButton DockPanel.Dock="Right" Content="GitHub"
+                                 NavigateUri="https://github.com/mysteryx93/Synth-Multi-Viewer"
+                                 FontSize="14" VerticalAlignment="Center" />
+                <TextBlock FontSize="20" Text="{Binding AppVersion, StringFormat='Synth Multi-Viewer v{0}'}"
+                           VerticalAlignment="Center" />
+            </DockPanel>
             <TextBlock Text="Editor and viewer for VapourSynth and AviSynth" TextWrapping="Wrap" />
             <StackPanel Orientation="Horizontal">
                 <TextBlock FontSize="14" Text="by " VerticalAlignment="Center" />
@@ -32,7 +38,8 @@
                 <Run Text="Wheel click: Toggle full-screen" /><LineBreak />
                 <Run Text="Click tab name: Rename" /><LineBreak /><LineBreak />
                 <Run FontWeight="Bold" Text="Keyboard shortcuts:" /><LineBreak />
-                <Run Text="F2: Settings" /><LineBreak />
+                <Run Text="F2: Rename tab" /><LineBreak />
+                <Run Text="F3: Settings" /><LineBreak />
                 <Run Text="Space: Play/Pause" /><LineBreak />
                 <Run Text="Left: Seek 1 frame back" /><LineBreak />
                 <Run Text="Right: Seek 1 frame forward" /><LineBreak />

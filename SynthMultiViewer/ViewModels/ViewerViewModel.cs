@@ -6,6 +6,10 @@ namespace HanumanInstitute.SynthMultiViewer.ViewModels;
 public interface IViewerViewModel : IScriptViewModel
 {
     /// <summary>
+    /// Gets or sets the source script file path, or null for an unsaved script.
+    /// </summary>
+    string? FileName { get; set; }
+    /// <summary>
     /// Gets or sets the script to render; null releases the output.
     /// </summary>
     string? Script { get; set; }
@@ -52,6 +56,10 @@ public partial class ViewerViewModel : ScriptViewModel, IViewerViewModel
         CanClose = true;
         Sort = 1;
     }
+
+    /// <inheritdoc />
+    [Reactive]
+    public partial string? FileName { get; set; }
 
     /// <inheritdoc />
     [Reactive]

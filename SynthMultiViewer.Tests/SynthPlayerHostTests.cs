@@ -6,6 +6,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using HanumanInstitute.ApiAviSynth;
+using HanumanInstitute.ApiVapourSynth;
 using HanumanInstitute.MediaPlayer.Avalonia;
 using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
@@ -257,6 +258,51 @@ public class SynthPlayerHostTests
     }
 
     [AvaloniaFact]
+    public void Stop_WhileSlowVapourSynthFrameInFlight_DoesNotBlockUi()
+    {
+        SkipIfVapourSynthUnavailable();
+        var host = new SynthPlayerHost
+        {
+            Kind = ScriptKind.VapourSynth,
+            AutoPlay = false,
+            Threads = 1,
+            LimitFps = false
+        };
+        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+        host.Script = """
+            import vapoursynth as vs
+            import time
+            core = vs.core
+            src = core.std.BlankClip(width=64, height=48, length=30, format=vs.RGB24)
+            def slow(n):
+                time.sleep(2)
+                return src
+            clip = core.std.FrameEval(src, slow)
+            clip.set_output()
+            """;
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(host.IsMediaLoaded);
+        host.IsPlaying = true;
+        Dispatcher.UIThread.RunJobs();
+        Thread.Sleep(200);
+        Dispatcher.UIThread.RunJobs();
+
+        var started = DateTime.UtcNow;
+        host.Stop();
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(1),
+            "Stop blocked the UI thread while a VapourSynth frame was still in flight.");
+
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (host.IsMediaLoaded && DateTime.UtcNow < deadline)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(20);
+        }
+
+        Assert.False(host.IsMediaLoaded);
+    }
+
+    [AvaloniaFact]
     public void Script_AviSynthPaused_PresentsFirstFrame()
     {
         SkipIfAviSynthUnavailable();
@@ -289,4 +335,7 @@ public class SynthPlayerHostTests
 
     private static void SkipIfAviSynthUnavailable() =>
         Assert.SkipUnless(AvsScript.TryFindLibrary(out _), "AviSynth+ native library was not found.");
+
+    private static void SkipIfVapourSynthUnavailable() =>
+        Assert.SkipUnless(VsHelper.TryFindLibrary(out _), "VapourSynth native library was not found.");
 }

@@ -14,6 +14,7 @@ internal sealed class VsPlayback : ISynthPlayback
     private VsScript? _script;
     private VsOutput? _output;
     private VsVideoInfo? _video;
+    private bool _unloading;
 
     private VsPlayback(ISynthPlayerSink sink, VsScript script, VsOutput output, VsVideoInfo video)
     {
@@ -31,7 +32,7 @@ internal sealed class VsPlayback : ISynthPlayback
 
     public static VsPlayback Open(string? file, string? script, ISynthPlayerSink sink)
     {
-        var loaded = script != null ? VsScript.LoadScript(script) : VsScript.LoadFile(file!);
+        var loaded = script != null ? VsScript.LoadScript(script, file) : VsScript.LoadFile(file!);
         var output = loaded.GetOutput(0);
         return new VsPlayback(sink, loaded, output, output.VideoInfo);
     }
@@ -86,49 +87,65 @@ internal sealed class VsPlayback : ISynthPlayback
     public void Pause()
     {
         var sink = _sink;
+        VsOutput? output;
         lock (_gate)
         {
-            if (_output != null)
-            {
-                sink.PositionRequested -= _output.ClearQueue();
-            }
+            output = _output;
+        }
+
+        if (output != null)
+        {
+            sink.PositionRequested -= output.ClearQueue();
         }
     }
 
     public void Seek(int index, bool playing)
     {
         var sink = _sink;
+        VsOutput? output;
         lock (_gate)
         {
-            if (_output == null) { return; }
+            output = _output;
+            if (output == null || _unloading) { return; }
 
-            _output.ClearQueue();
             if (playing)
             {
                 sink.PositionRequested = index - 1;
-                FillQueueLocked(sink);
             }
-            else
-            {
-                Present(index);
-            }
+        }
+
+        output.ClearQueue();
+        if (playing)
+        {
+            FillQueue();
+        }
+        else
+        {
+            Present(index);
         }
     }
 
     public void Unload()
     {
         var sink = _sink;
+        VsOutput? output;
         lock (_gate)
         {
-            if (_output == null) { return; }
+            if (_output == null || _unloading) { return; }
 
-            _output.ClearQueue(() =>
-            {
-                Dispatcher.UIThread.Post(sink.ClearVideo);
-                DisposeSession();
-                Dispatcher.UIThread.Post(sink.ContinueAfterStop);
-            });
+            _unloading = true;
+            output = _output;
         }
+
+        output.ClearQueue(() =>
+        {
+            DisposeSession();
+            Dispatcher.UIThread.Post(() =>
+            {
+                sink.ClearVideo();
+                sink.ContinueAfterStop();
+            });
+        });
     }
 
     public void SetThreadCount(int threads)
@@ -150,7 +167,15 @@ internal sealed class VsPlayback : ISynthPlayback
         }
     }
 
-    public void Dispose() => DisposeSession();
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            _unloading = true;
+        }
+
+        DisposeSession();
+    }
 
     private void FillQueue()
     {
@@ -163,7 +188,7 @@ internal sealed class VsPlayback : ISynthPlayback
 
     private void FillQueueLocked(ISynthPlayerSink sink)
     {
-        if (_output == null) { return; }
+        if (_output == null || _unloading) { return; }
 
         var addCount = Math.Max(sink.ThreadCount - _output.GetQueueLength(VsFrameState.Requested), 0);
         for (var i = 0; i < addCount; i++)
@@ -183,7 +208,7 @@ internal sealed class VsPlayback : ISynthPlayback
 
     private void RequestNextLocked(ISynthPlayerSink sink, bool force)
     {
-        if (_output != null && (force || sink.IsPlaying) && _video != null &&
+        if (_output != null && !_unloading && (force || sink.IsPlaying) && _video != null &&
             sink.PositionRequested < _video.NumFrames - 1)
         {
             _output.GetFrameAsync(++sink.PositionRequested);
@@ -196,7 +221,7 @@ internal sealed class VsPlayback : ISynthPlayback
         VsOutput output;
         lock (_gate)
         {
-            if (_output == null) { return; }
+            if (_output == null || _unloading) { return; }
 
             output = _output;
         }
@@ -226,14 +251,16 @@ internal sealed class VsPlayback : ISynthPlayback
         VsOutput output;
         lock (_gate)
         {
-            if (_output == null || sender != _output || e.Error != null || e.Frame == null || sink.IsDisposed)
+            if (_output == null || _unloading || sender != _output || e.Error != null || e.Frame == null ||
+                sink.IsDisposed)
             {
                 return;
             }
 
             output = _output;
-            pixels = CopyRgb(e.Frame);
         }
+
+        pixels = CopyRgb(e.Frame!);
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -254,14 +281,19 @@ internal sealed class VsPlayback : ISynthPlayback
 
     private void DisposeSession()
     {
+        VsOutput? output;
+        VsScript? script;
         lock (_gate)
         {
-            _output?.Dispose();
+            output = _output;
+            script = _script;
             _output = null;
-            _script?.Dispose();
             _script = null;
             _video = null;
         }
+
+        output?.Dispose();
+        script?.Dispose();
     }
 
     private static FrameBuffer CopyRgb(VsFrame frame)

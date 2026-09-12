@@ -132,7 +132,6 @@
         <Setter Property="MinHeight" Value="16" />
         <Setter Property="Margin" Value="4,0,0,0" />
         <Setter Property="Padding" Value="0" />
-        <Setter Property="FontSize" Value="12" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -149,11 +148,16 @@
             </ControlTemplate>
         </Setter>
     </Style>
-    <Style Selector="Button.tab-close TextBlock">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="LineHeight" Value="12" />
+    <Style Selector="Button.tab-close Path">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="Stretch" Value="Uniform" />
+        <Setter Property="StrokeThickness" Value="1.25" />
+        <Setter Property="StrokeLineCap" Value="Round" />
+        <Setter Property="StrokeJoin" Value="Round" />
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" />
     </Style>
     <Style Selector="TextBlock.tab-header">
         <Setter Property="FontSize" Value="16" />

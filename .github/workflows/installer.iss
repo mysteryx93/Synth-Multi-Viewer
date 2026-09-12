@@ -26,12 +26,24 @@ OutputBaseFilename={#OutputFile}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+ChangesAssociations=yes
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppInternal}.exe"
+
+[Registry]
+Root: HKLM; Subkey: "Software\Classes\{#AppInternal}.Script"; ValueType: string; ValueName: ""; ValueData: "VapourSynth/AviSynth Script"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "Software\Classes\{#AppInternal}.Script\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#AppInternal}.exe,0"
+Root: HKLM; Subkey: "Software\Classes\{#AppInternal}.Script\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppInternal}.exe"" ""%1"""
+Root: HKLM; Subkey: "Software\Classes\.vpy\OpenWithProgids"; ValueType: string; ValueName: "{#AppInternal}.Script"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKLM; Subkey: "Software\Classes\.avs\OpenWithProgids"; ValueType: string; ValueName: "{#AppInternal}.Script"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKLM; Subkey: "Software\Classes\.avsi\OpenWithProgids"; ValueType: string; ValueName: "{#AppInternal}.Script"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKLM; Subkey: "Software\Classes\Applications\{#AppInternal}.exe\SupportedTypes"; ValueType: string; ValueName: ".vpy"; ValueData: ""
+Root: HKLM; Subkey: "Software\Classes\Applications\{#AppInternal}.exe\SupportedTypes"; ValueType: string; ValueName: ".avs"; ValueData: ""
+Root: HKLM; Subkey: "Software\Classes\Applications\{#AppInternal}.exe\SupportedTypes"; ValueType: string; ValueName: ".avsi"; ValueData: ""
 
 [Run]
 Filename: "{app}\{#AppInternal}.exe"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent

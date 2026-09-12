@@ -19,6 +19,7 @@ public class VsOutput : IDisposable
     private double _maxFps;
     private TimeSpan _maxFpsSpan;
     private Action? _clearQueueCallback;
+    private int _activeCallbacks;
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     internal delegate void VsFrameDoneCallback(IntPtr userData, IntPtr frameRef, int n, IntPtr nodeRef, IntPtr errorMsg);
@@ -56,7 +57,12 @@ public class VsOutput : IDisposable
     /// <summary>
     /// Releases the output node after outstanding frame requests have completed.
     /// </summary>
-    public void Dispose() => Api.FreeNode(_nodePtr);
+    public void Dispose()
+    {
+        ClearQueue();
+        WaitForIdle();
+        Api.FreeNode(_nodePtr);
+    }
 
     /// <summary>
     /// Gets or sets the display rate limit; zero disables throttling.
@@ -138,10 +144,22 @@ public class VsOutput : IDisposable
 
     private void GetFrameAsyncCallback(IntPtr userData, IntPtr frameRef, int n, IntPtr nodeRef, IntPtr errorMsg)
     {
+        Interlocked.Increment(ref _activeCallbacks);
+        try
+        {
+            HandleFrameCallback(frameRef, n, errorMsg);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _activeCallbacks);
+        }
+    }
+
+    private void HandleFrameCallback(IntPtr frameRef, int n, IntPtr errorMsg)
+    {
         var newFrame = new VsFrame(this, frameRef, n);
         var callbackList = new List<VsFrameStatus>();
         VsFrameStatus? found = null;
-        Action? callback = null;
         lock (_queue)
         {
             for (var i = 0; i < _queue.Count; i++)
@@ -169,15 +187,7 @@ public class VsOutput : IDisposable
             {
                 found.Frame!.Dispose();
                 _queue.Remove(found);
-                if (_clearQueueCallback != null && GetQueueLength(VsFrameState.Cancelled) == 0)
-                {
-                    callback = _clearQueueCallback;
-                    _clearQueueCallback = null;
-                }
-                else
-                {
-                    return;
-                }
+                return;
             }
 
             while (_queue.Count > 0 && _queue[0].State == VsFrameState.Completed)
@@ -185,12 +195,6 @@ public class VsOutput : IDisposable
                 callbackList.Add(_queue[0]);
                 _queue.RemoveAt(0);
             }
-        }
-
-        if (callback != null)
-        {
-            callback.Invoke();
-            return;
         }
 
         FrameDone?.Invoke(this, found);
@@ -275,15 +279,20 @@ public class VsOutput : IDisposable
                 }
             }
 
-            if (cleared > 0)
+            if (callback != null)
             {
                 _clearQueueCallback = callback;
             }
         }
 
-        if (cleared == 0)
+        if (callback != null)
         {
-            callback?.Invoke();
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                WaitForIdle();
+                var done = Interlocked.Exchange(ref _clearQueueCallback, null);
+                done?.Invoke();
+            });
         }
 
         return cleared;
@@ -307,5 +316,24 @@ public class VsOutput : IDisposable
 
             return result;
         }
+    }
+
+    private void WaitForIdle()
+    {
+        while (true)
+        {
+            lock (_queue)
+            {
+                if (_queue.Count == 0 && Volatile.Read(ref _activeCallbacks) == 0)
+                {
+                    break;
+                }
+            }
+
+            Thread.Sleep(1);
+        }
+
+        // Let the native getFrameAsync callback return before FreeNode.
+        Thread.Sleep(1);
     }
 }

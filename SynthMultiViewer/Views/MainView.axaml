@@ -26,7 +26,8 @@
         <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAs}" />
         <KeyBinding Gesture="Ctrl+G" Command="{Binding GoTo}" />
         <KeyBinding Gesture="F1" Command="{Binding Help}" />
-        <KeyBinding Gesture="F2" Command="{Binding Settings}" />
+        <KeyBinding Gesture="F2" Command="{Binding Rename}" />
+        <KeyBinding Gesture="F3" Command="{Binding Settings}" />
         <KeyBinding Gesture="F5" Command="{Binding Run}" />
         <KeyBinding Gesture="Ctrl+F6" Command="{Binding UpdateAll}" />
         <KeyBinding Gesture="F8" Command="{Binding ToggleMultiThreaded}" />
@@ -115,7 +116,7 @@
                     <Image Source="/Assets/Icons/Open.png" Classes="enabled" />
                 </Button>
                 <Separator />
-                <Button ToolTip.Tip="Settings (F2)" Command="{Binding Settings}">
+                <Button ToolTip.Tip="Settings (F3)" Command="{Binding Settings}">
                     <Image Source="/Assets/Icons/Settings.png" Classes="enabled" />
                 </Button>
                 <Button ToolTip.Tip="Help (F1)" Command="{Binding Help}">
@@ -146,7 +147,7 @@
                             </Grid>
                             <Button Grid.Column="1" Command="{Binding Close}" Classes="tab-close"
                                     IsVisible="{Binding CanClose}">
-                                <TextBlock Text="×" />
+                                <Path Data="M 0,0 L 8,8 M 8,0 L 0,8" />
                             </Button>
                         </Grid>
                     </DataTemplate>

@@ -49,13 +49,15 @@ public class TabStripLayoutTests
         using var window = TestSupport.Show(view);
         Dispatcher.UIThread.RunJobs();
         var close = view.GetVisualDescendants().OfType<Button>().First(button => button.Classes.Contains("tab-close"));
-        var glyph = close.GetVisualDescendants().OfType<TextBlock>().Single();
+        var glyph = close.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().Single();
         var origin = glyph.TranslatePoint(new Point(0, 0), close)!.Value;
+        var center = origin + new Vector(glyph.Bounds.Width / 2, glyph.Bounds.Height / 2);
 
-        Assert.Equal("×", glyph.Text);
-        Assert.True(origin.X >= -1);
-        Assert.True(origin.Y >= -1);
-        Assert.True(origin.X + glyph.Bounds.Width <= close.Bounds.Width + 1);
-        Assert.True(origin.Y + glyph.Bounds.Height <= close.Bounds.Height + 1);
+        Assert.Equal(16, close.Bounds.Width);
+        Assert.Equal(16, close.Bounds.Height);
+        Assert.Equal(8, glyph.Bounds.Width);
+        Assert.Equal(8, glyph.Bounds.Height);
+        Assert.InRange(center.X, close.Bounds.Width / 2 - 1, close.Bounds.Width / 2 + 1);
+        Assert.InRange(center.Y, close.Bounds.Height / 2 - 1, close.Bounds.Height / 2 + 1);
     }
 }

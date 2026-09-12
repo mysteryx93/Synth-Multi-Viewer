@@ -4,6 +4,7 @@ using System.Reactive.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.VisualTree;
+using HanumanInstitute.SynthMultiViewer.Helpers;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.MvvmDialogs;
@@ -385,6 +386,7 @@ public partial class MainViewModel : WorkspaceViewModel
 
         var viewer = _dialogService.CreateViewModel<ViewerViewModel>();
         viewer.Kind = editor.Kind;
+        viewer.FileName = editor.FileName;
         viewer.Script = editor.Script;
         AddTab(viewer, ++_viewerIndex, "Viewer " + _viewerIndex);
     }
@@ -558,7 +560,7 @@ public partial class MainViewModel : WorkspaceViewModel
         if (_loaded) { return; }
 
         _loaded = true;
-        foreach (var arg in _environmentService.CommandLineArguments.Skip(1))
+        foreach (var arg in CommandLineScripts.FromArguments(_environmentService.CommandLineArguments))
         {
             await ReadScriptFileAsync(arg);
         }

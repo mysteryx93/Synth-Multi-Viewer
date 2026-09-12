@@ -17,6 +17,20 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 public class MainViewModelTests
 {
     [AvaloniaFact]
+    public async Task Load_FileUriArgument_OpensScript()
+    {
+        using var file = new TestSupport.TemporaryScript("opened from uri");
+        var uri = new Uri(file.Path).AbsoluteUri;
+        var model = TestSupport.CreateMain(new TestSupport.TestEnvironment(["viewer", uri]));
+
+        await model.Load.Execute();
+
+        var editor = Assert.IsType<EditorViewModel>(Assert.Single(model.ScriptList));
+        Assert.Equal(file.Path, editor.FileName);
+        Assert.Equal("opened from uri", editor.Script);
+    }
+
+    [AvaloniaFact]
     public async Task Load_ExecutedTwice_OpensArgumentsOnce()
     {
         using var file = new TestSupport.TemporaryScript("script from file");
@@ -342,10 +356,23 @@ public class MainViewModelTests
         var help = new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) };
 
         using var shown = TestSupport.Show(help);
-        var link = help.GetVisualDescendants().OfType<HyperlinkButton>().Single();
+        var links = help.GetVisualDescendants().OfType<HyperlinkButton>().ToList();
+        var link = Assert.Single(links, x => Equals(x.Content, "Etienne Charland"));
 
-        Assert.Equal("Etienne Charland", link.Content);
         Assert.Equal(new Uri("https://www.hanumaninstitute.com"), link.NavigateUri);
+    }
+
+    [AvaloniaFact]
+    public void HelpView_GitHub_LinksToRepository()
+    {
+        var help = new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) };
+
+        using var shown = TestSupport.Show(help);
+        var link = Assert.Single(help.GetVisualDescendants().OfType<HyperlinkButton>(),
+            x => Equals(x.Content, "GitHub"));
+
+        Assert.Equal(new Uri("https://github.com/mysteryx93/Synth-Multi-Viewer"), link.NavigateUri);
+        Assert.Equal(Dock.Right, DockPanel.GetDock(link));
     }
 
     [AvaloniaFact]
@@ -540,7 +567,7 @@ public class MainViewModelTests
         Assert.Equal(viewer, TipVisible(view, "Square Pixels (F9)"));
         Assert.Equal(viewer, TipVisible(view, "Load frame in all tabs (Ctrl+F6)"));
         Assert.Equal(viewer, view.FindControl<ComboBox>("ZoomCombo")!.IsVisible);
-        Assert.True(TipVisible(view, "Settings (F2)"));
+        Assert.True(TipVisible(view, "Settings (F3)"));
         Assert.True(TipVisible(view, "Help (F1)"));
         var toolbar = view.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Classes.Contains("toolbar"));
         foreach (var image in toolbar.GetVisualDescendants().OfType<Image>())
@@ -565,11 +592,15 @@ public class MainViewModelTests
         var model = TestSupport.CreateMain();
         await model.NewAviSynth.Execute();
 
+        var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
+        editor.FileName = Path.Combine(Path.GetTempPath(), "clip.avs");
+
         await model.Run.Execute();
 
         var viewer = Assert.IsType<ViewerViewModel>(model.SelectedItem);
         Assert.Equal(ScriptKind.AviSynth, viewer.Kind);
-        Assert.Equal(model.ScriptList.OfType<EditorViewModel>().Single().Script, viewer.Script);
+        Assert.Equal(editor.Script, viewer.Script);
+        Assert.Equal(editor.FileName, viewer.FileName);
     }
 
     [AvaloniaFact]

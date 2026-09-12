@@ -58,7 +58,7 @@ internal sealed class AvsPlayback : ISynthPlayback
             index = Math.Clamp(index, 0, _video.FrameCount - 1);
             using var frame = script.GetFrame(index);
             var plane = frame.GetPlane(0);
-            using var pixels = FrameBuffer.CopyFrom(plane.Pointer, plane.Stride, plane.RowSize, plane.Height);
+            using var pixels = CopyPlane(plane);
             using (var framebuffer = bitmap.Lock())
             {
                 pixels.CopyTo(framebuffer.Address, framebuffer.RowBytes);
@@ -104,19 +104,22 @@ internal sealed class AvsPlayback : ISynthPlayback
     public void Unload()
     {
         var sink = _sink;
+        bool pending;
         lock (_gate)
         {
-            CancelQueue();
+            CancelQueueLocked();
             _stopping = true;
-            if (_inFlight > 0)
+            pending = _inFlight > 0;
+            if (!pending)
             {
-                return;
+                DisposeSessionLocked();
             }
-
-            DisposeSessionLocked();
         }
 
-        sink.ContinueAfterStop();
+        if (!pending)
+        {
+            sink.ContinueAfterStop();
+        }
     }
 
     public void SetThreadCount(int threads)
@@ -139,9 +142,14 @@ internal sealed class AvsPlayback : ISynthPlayback
     {
         lock (_gate)
         {
-            _requestId++;
-            _resume = false;
+            CancelQueueLocked();
         }
+    }
+
+    private void CancelQueueLocked()
+    {
+        _requestId++;
+        _resume = false;
     }
 
     private void Resume(ISynthPlayerSink sink)
@@ -192,25 +200,25 @@ internal sealed class AvsPlayback : ISynthPlayback
     private void GetFrame(int requestId, int index)
     {
         var sink = _sink;
-        FrameBuffer? pixels;
+        FrameBuffer? pixels = null;
+        AvsScript? script;
+        lock (_gate)
+        {
+            script = requestId == _requestId && !sink.IsDisposed ? _script : null;
+        }
+
         try
         {
-            lock (_gate)
+            if (script != null)
             {
-                if (_script == null || requestId != _requestId || sink.IsDisposed)
-                {
-                    return;
-                }
-
-                using var frame = _script.GetFrame(index);
+                using var frame = script.GetFrame(index);
                 var plane = frame.GetPlane(0);
-                pixels = FrameBuffer.CopyFrom(plane.Pointer, plane.Stride, plane.RowSize, plane.Height);
+                pixels = CopyPlane(plane);
             }
         }
         catch (Exception ex)
         {
             Dispatcher.UIThread.Post(() => sink.DisplayError(ex.InnerException?.Message ?? ex.Message));
-            return;
         }
         finally
         {
@@ -231,7 +239,7 @@ internal sealed class AvsPlayback : ISynthPlayback
                 lock (_gate)
                 {
                     bitmap = sink.Bitmap;
-                    if (requestId != _requestId || sink.IsDisposed || _script == null ||
+                    if (pixels == null || requestId != _requestId || sink.IsDisposed || _script == null ||
                         sink.IsErrorVisible || bitmap == null)
                     {
                         Resume(sink);
@@ -250,10 +258,9 @@ internal sealed class AvsPlayback : ISynthPlayback
 
             lock (_gate)
             {
-                if (_stopping && _inFlight == 0)
+                if (_stopping)
                 {
-                    DisposeSessionLocked();
-                    sink.ContinueAfterStop();
+                    Resume(sink);
                     return;
                 }
             }
@@ -269,6 +276,9 @@ internal sealed class AvsPlayback : ISynthPlayback
             }
         });
     }
+
+    private static FrameBuffer CopyPlane(AvsPlane plane) =>
+        FrameBuffer.CopyFrom(plane.Pointer, plane.Stride, plane.RowSize, plane.Height, true);
 
     private void DisposeSessionLocked()
     {

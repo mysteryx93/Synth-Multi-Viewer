@@ -77,4 +77,16 @@ public class ViewerBindingTests
 
         Assert.Equal(ScriptKind.AviSynth, host.Kind);
     }
+
+    [AvaloniaFact]
+    public void ViewerBindings_FileNameSet_AssignsHostPath()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "clip.vpy");
+        var model = new ViewerViewModel { FileName = path };
+        var view = new ViewerView { DataContext = model };
+        using var window = TestSupport.Show(new Window { DataContext = TestSupport.CreateMain(), Content = view });
+        var host = view.FindControl<SynthPlayerHost>("PlayerHost")!;
+
+        Assert.Equal(path, host.Path);
+    }
 }

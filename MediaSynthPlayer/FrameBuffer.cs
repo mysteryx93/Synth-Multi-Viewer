@@ -21,10 +21,12 @@ internal sealed class FrameBuffer : IDisposable
 
     /// <summary>
     /// Copies native image rows into an owned buffer, excluding row padding.
+    /// AviSynth RGB is stored bottom-up; pass <paramref name="flipVertical"/> to convert to top-down.
     /// </summary>
-    public static unsafe FrameBuffer CopyFrom(IntPtr source, int stride, int rowSize, int height)
+    public static unsafe FrameBuffer CopyFrom(IntPtr source, int stride, int rowSize, int height, bool flipVertical = false)
     {
-        if (stride < 0 && height > 0)
+        var invertRows = flipVertical ? stride > 0 : stride < 0;
+        if (invertRows && height > 0)
         {
             source = IntPtr.Add(source, checked((height - 1) * stride));
             stride = -stride;

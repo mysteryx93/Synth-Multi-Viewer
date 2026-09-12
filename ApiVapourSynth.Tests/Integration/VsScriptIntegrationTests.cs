@@ -75,6 +75,28 @@ public class VsScriptIntegrationTests
     }
 
     [Fact]
+    public void LoadScript_YuvFilterRejectsRgb_EvaluatesThenConvertsForDisplay()
+    {
+        SkipIfNativeUnavailable();
+        var scriptText = """
+            import vapoursynth as vs
+            core = vs.core
+            clip = core.std.BlankClip(width=32, height=32, length=2, format=vs.YUV420P8)
+            if clip.format.color_family not in (vs.YUV, vs.GRAY) or clip.format.bits_per_sample > 16:
+                raise vs.Error("input clip must be GRAY, 420, 422, 444, up to 16bits, with constant dimensions")
+            clip.set_output()
+            """;
+
+        using var script = VsScript.LoadScript(scriptText);
+        using var output = script.GetOutput();
+        using var frame = output.GetFrame(0);
+
+        Assert.Equal(VsColorFamily.RGB, output.VideoInfo.Format.ColorFamily);
+        Assert.Equal(8, output.VideoInfo.Format.BitsPerSample);
+        Assert.NotEqual(IntPtr.Zero, frame.GetPlane(0).Ptr);
+    }
+
+    [Fact]
     public void LoadScript_BlankClipYuv_ConvertsToRgb24()
     {
         SkipIfNativeUnavailable();
@@ -105,6 +127,40 @@ public class VsScriptIntegrationTests
         var error = Assert.Throws<VsException>(action);
         Assert.Contains("did not set video output", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Python exception: 0", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void LoadScript_WithPath_DefinesFileAndWorkingDirectory()
+    {
+        SkipIfNativeUnavailable();
+        var directory = Path.Combine(Path.GetTempPath(), $"SynthMultiViewer-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "script.vpy");
+        File.WriteAllText(Path.Combine(directory, "marker.txt"), "ok");
+        File.WriteAllText(path, """
+            import vapoursynth as vs
+            import os
+            if not os.path.isfile(__file__):
+                raise vs.Error("__file__ is not a file")
+            with open("marker.txt", encoding="utf-8") as marker:
+                if marker.read() != "ok":
+                    raise vs.Error("working directory is not the script directory")
+            clip = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.RGB24)
+            clip.set_output()
+            """);
+
+        try
+        {
+            using var script = VsScript.LoadScript(File.ReadAllText(path), path);
+            using var output = script.GetOutput();
+
+            Assert.Equal(16, output.VideoInfo.Width);
+            Assert.Equal(16, output.VideoInfo.Height);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 
     [Fact]
@@ -190,6 +246,46 @@ public class VsScriptIntegrationTests
         Assert.NotNull(status);
         Assert.Equal(0, status.Index);
         Assert.Equal(VsFrameState.Completed, status.State);
+    }
+
+    [Fact]
+    public void ClearQueue_SlowFrameInFlight_DisposeDoesNotDeadlock()
+    {
+        SkipIfNativeUnavailable();
+
+        const string slow = """
+            import vapoursynth as vs
+            import time
+            core = vs.core
+            src = core.std.BlankClip(width=16, height=16, length=5, format=vs.RGB24)
+            def slow(n):
+                time.sleep(1.5)
+                return src
+            clip = core.std.FrameEval(src, slow)
+            clip.set_output()
+            """;
+        var script = VsScript.LoadScript(slow);
+        var output = script.GetOutput();
+        var released = new ManualResetEventSlim(false);
+        output.GetFrameAsync(0);
+        var queuedUntil = DateTime.UtcNow.AddSeconds(2);
+        while (output.GetQueueLength(VsFrameState.Requested) == 0 && DateTime.UtcNow < queuedUntil)
+        {
+            Thread.Sleep(1);
+        }
+
+        Assert.True(output.GetQueueLength(VsFrameState.Requested) > 0);
+        var started = DateTime.UtcNow;
+        output.ClearQueue(() =>
+        {
+            output.Dispose();
+            script.Dispose();
+            released.Set();
+        });
+
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(1),
+            "ClearQueue blocked the caller while a VapourSynth frame was still in flight.");
+        Assert.True(released.Wait(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken));
     }
 
     [Fact]
