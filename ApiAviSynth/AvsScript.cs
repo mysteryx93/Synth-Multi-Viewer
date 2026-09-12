@@ -52,17 +52,38 @@ public sealed class AvsScript : IDisposable
     {
         var resolvedPath = ResolveScriptPath(path);
         return Load((native, environment) =>
-            native.Eval(environment, "ConvertToRGB32(Import(\"" + Escape(resolvedPath) + "\"))"));
+            native.Eval(environment, "Import(\"" + Escape(resolvedPath) + "\")\n" + DisplayConversion));
     }
 
     /// <summary>
     /// Evaluates AviSynth script text and returns its video clip.
     /// </summary>
-    public static AvsScript LoadScript(string script)
+    public static AvsScript LoadScript(string script) => LoadScript(script, null);
+
+    /// <summary>
+    /// Evaluates AviSynth script text. <paramref name="scriptPath"/> is not read; its directory
+    /// becomes the working directory for relative source paths.
+    /// </summary>
+    public static AvsScript LoadScript(string script, string? scriptPath)
     {
         script.CheckNotNullOrEmpty();
-        return Load((native, environment) => native.Eval(environment, script.TrimEnd() + "\nConvertToRGB32()"));
+        var directory = string.IsNullOrWhiteSpace(scriptPath) ? null : Path.GetDirectoryName(ResolveScriptPath(scriptPath));
+        var body = script.TrimEnd() + "\n" + DisplayConversion;
+        if (directory.HasValue() && Directory.Exists(directory))
+        {
+            body = "SetWorkingDir(\"" + Escape(directory) + "\")\n" + body;
+        }
+
+        return Load((native, environment) => native.Eval(environment, body));
     }
+
+    // _Matrix if tagged (1=709, 5/6=601, 9/10=2020); else Rec.709 at 720p+, Rec.601 below.
+    // Matches the VapourSynth display convert so the same YUV does not shift hue across hosts.
+    private const string DisplayConversion = """
+mx = FunctionExists("propNumElements") && propNumElements(last, "_Matrix") > 0 ? propGetInt(last, "_Matrix") : 0
+mat = mx == 1 ? "Rec709" : mx == 9 || mx == 10 ? "Rec2020" : mx == 5 || mx == 6 ? "Rec601" : last.Height >= 720 ? "Rec709" : "Rec601"
+IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
+""";
 
     private static string Escape(string value) => value.Replace("\"", "\"\"", StringComparison.Ordinal);
 

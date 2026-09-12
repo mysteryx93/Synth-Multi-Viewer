@@ -167,7 +167,8 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
     /// </summary>
     public static readonly StyledProperty<string?> PathProperty = AvaloniaProperty.Register<SynthPlayerHost, string?>(nameof(Path));
     /// <summary>
-    /// Gets or sets the script file path. Used as <c>__file__</c> when Script is set (the file need not exist), or loaded from disk when Script is empty.
+    /// Gets or sets the script file path. Used as <c>__file__</c> and the working directory
+    /// when Script is set; omit it for unsaved text. Loaded from disk when Script is empty.
     /// </summary>
     public string? Path
     {

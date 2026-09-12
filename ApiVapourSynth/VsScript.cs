@@ -87,7 +87,8 @@ public sealed class VsScript : IDisposable
 
     /// <summary>
     /// Loads script text using an optional source path for error messages, <c>__file__</c>,
-    /// and relative imports. VapourSynth evaluates the buffer; the path does not need to exist.
+    /// and relative imports. VapourSynth evaluates the buffer; the path is not read from disk.
+    /// Omit the path for unsaved text so evaluation does not invent a working directory.
     /// </summary>
     public static VsScript LoadScript(string script, string? scriptPath)
     {
@@ -108,10 +109,18 @@ public sealed class VsScript : IDisposable
 
     private void EvaluateBuffer(string script, string? scriptPath)
     {
-        // Null or <...> names make VapourSynth omit __file__. Any other path string is
-        // metadata only; the file is not read.
-        var resolvedPath = ResolveScriptPath(string.IsNullOrWhiteSpace(scriptPath) ? UntitledScriptName : scriptPath);
         using var buffer = new Utf8Ptr(script);
+        if (string.IsNullOrWhiteSpace(scriptPath))
+        {
+            if (_scriptApi.EvaluateBuffer(_handle, buffer.ptr, IntPtr.Zero) != 0)
+            {
+                throw new VsException(GetError() ?? "VapourSynth could not evaluate the script.");
+            }
+
+            return;
+        }
+
+        var resolvedPath = ResolveScriptPath(scriptPath);
         using var fileName = new Utf8Ptr(resolvedPath);
         var directory = Path.GetDirectoryName(resolvedPath);
         if (directory.HasValue() && Directory.Exists(directory))
@@ -124,8 +133,6 @@ public sealed class VsScript : IDisposable
             throw new VsException(GetError() ?? "VapourSynth could not evaluate the script.");
         }
     }
-
-    private const string UntitledScriptName = "untitled.vpy";
 
     /// <summary>
     /// Converts output 0 to RGB24 after the user script has finished, so display packing
@@ -161,7 +168,23 @@ if not synthmultiviewer_rgb24:
     synthmultiviewer_args = {"format": synthmultiviewer_vs.RGB24}
     if synthmultiviewer_format is None or synthmultiviewer_format.color_family in (
         synthmultiviewer_vs.YUV, synthmultiviewer_vs.GRAY):
-        synthmultiviewer_args["matrix_in_s"] = "709" if synthmultiviewer_node.height > 480 else "170m"
+        synthmultiviewer_mid = None
+        try:
+            synthmultiviewer_mid = synthmultiviewer_node.get_frame(0).props.get("_Matrix")
+        except Exception:
+            synthmultiviewer_mid = None
+        if synthmultiviewer_mid == 1:
+            synthmultiviewer_mat = "709"
+        elif synthmultiviewer_mid in (5, 6):
+            synthmultiviewer_mat = "170m"
+        elif synthmultiviewer_mid in (9, 10):
+            synthmultiviewer_mat = "2020ncl"
+        else:
+            synthmultiviewer_mat = "709" if synthmultiviewer_node.height >= 720 else "170m"
+        # zimg keeps _Matrix over matrix_in_s when they disagree, so tag must match.
+        synthmultiviewer_node = synthmultiviewer_node.std.SetFrameProps(
+            _Matrix={"709": 1, "170m": 6, "2020ncl": 9}[synthmultiviewer_mat])
+        synthmultiviewer_args["matrix_in_s"] = synthmultiviewer_mat
     synthmultiviewer_node = synthmultiviewer_node.resize.Bicubic(**synthmultiviewer_args)
 synthmultiviewer_node.set_output()
 """;

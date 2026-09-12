@@ -604,6 +604,27 @@ public class MainViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Run_UnsavedPastedScript_CopiesTextWithoutInventingAPath()
+    {
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+        var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
+        const string pasted = """
+            import vapoursynth as vs
+            clip = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.RGB24)
+            clip.set_output()
+            """;
+        editor.Script = pasted;
+
+        await model.Run.Execute();
+
+        var viewer = Assert.IsType<ViewerViewModel>(model.SelectedItem);
+        Assert.Null(viewer.FileName);
+        Assert.Equal(pasted, viewer.Script);
+        Assert.Equal(ScriptKind.VapourSynth, viewer.Kind);
+    }
+
+    [AvaloniaFact]
     public async Task ReadScriptFileAsync_AvsExtension_SetsAviSynthKind()
     {
         var path = Path.Combine(Path.GetTempPath(), $"SynthMultiViewer-{Guid.NewGuid():N}.avs");

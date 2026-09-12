@@ -184,6 +184,67 @@ public class BehaviorTests
     }
 
     [AvaloniaFact]
+    public async Task Load_CreatesDefaultEditor_FocusesScriptEditor()
+    {
+        var model = TestSupport.CreateMain();
+        var view = new MainView { DataContext = model };
+        using var window = TestSupport.Show(view);
+
+        await model.Load.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(VisibleEditor(view).TextArea.IsFocused);
+    }
+
+    [AvaloniaFact]
+    public async Task New_Executed_FocusesScriptEditor()
+    {
+        var model = TestSupport.CreateMain();
+        var view = new MainView { DataContext = model };
+        using var window = TestSupport.Show(view);
+        await model.Load.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        await model.New.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(VisibleEditor(view).TextArea.IsFocused);
+    }
+
+    [AvaloniaFact]
+    public async Task NewAviSynth_Executed_FocusesScriptEditor()
+    {
+        var model = TestSupport.CreateMain();
+        var view = new MainView { DataContext = model };
+        using var window = TestSupport.Show(view);
+        await model.Load.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        await model.NewAviSynth.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(VisibleEditor(view).TextArea.IsFocused);
+        Assert.Equal(ScriptKind.AviSynth, Assert.IsType<EditorViewModel>(model.SelectedItem).Kind);
+    }
+
+    [AvaloniaFact]
+    public async Task ReadScriptFileAsync_OpensDocument_FocusesScriptEditor()
+    {
+        using var file = new TestSupport.TemporaryScript("clip = core.std.BlankClip()");
+        var model = TestSupport.CreateMain();
+        var view = new MainView { DataContext = model };
+        using var window = TestSupport.Show(view);
+        await model.Load.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        await model.ReadScriptFileAsync(file.Path);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(VisibleEditor(view).TextArea.IsFocused);
+        Assert.Equal(file.Path, Assert.IsType<EditorViewModel>(model.SelectedItem).FileName);
+    }
+
+    [AvaloniaFact]
     public void LostFocus_CommandReplaced_DetachesOldHandler()
     {
         var control = new TextBox();
@@ -402,6 +463,7 @@ public class BehaviorTests
         Assert.Equal("clip = core.std.BlankClip()", opened.Script);
         Assert.Equal(original, editor.Text);
         Assert.DoesNotContain(file.Path, editor.Text);
+        Assert.True(VisibleEditor(view).TextArea.IsFocused);
     }
 
     [AvaloniaFact]
@@ -484,4 +546,7 @@ public class BehaviorTests
 
     private static WriteableBitmap CreateFrame() =>
         new(new PixelSize(8, 8), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+
+    private static BindableTextEditor VisibleEditor(Visual root) =>
+        root.GetVisualDescendants().OfType<BindableTextEditor>().First(x => x.IsEffectivelyVisible);
 }

@@ -29,7 +29,7 @@ internal sealed class AvsPlayback : ISynthPlayback
 
     public static AvsPlayback Open(string? file, string? script, ISynthPlayerSink sink)
     {
-        var loaded = script != null ? AvsScript.LoadScript(script) : AvsScript.LoadFile(file!);
+        var loaded = script != null ? AvsScript.LoadScript(script, file) : AvsScript.LoadFile(file!);
         return new AvsPlayback(sink, loaded);
     }
 

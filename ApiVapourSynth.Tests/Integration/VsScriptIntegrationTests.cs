@@ -130,14 +130,13 @@ public class VsScriptIntegrationTests
     }
 
     [Fact]
-    public void LoadScript_WithoutPath_DefinesFileWithoutRequiringARealFile()
+    public void LoadScript_WithoutPath_EvaluatesBufferWithoutAWorkingDirectory()
     {
         SkipIfNativeUnavailable();
         var scriptText = """
             import vapoursynth as vs
-            import os
-            if not isinstance(__file__, str) or not __file__:
-                raise vs.Error("__file__ was not set")
+            if "__file__" in globals():
+                raise vs.Error("unsaved evaluation must not invent __file__")
             clip = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.RGB24)
             clip.set_output()
             """;
