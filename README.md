@@ -37,7 +37,7 @@ This repo also contains .NET API wrapper for [VapourSynth](ApiVapourSynth/) and 
 
 ### License
 
-[MIT License](LICENSE)
+[MIT License](LICENSE.md)
 
 ### Author
 
