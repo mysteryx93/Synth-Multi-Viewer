@@ -30,10 +30,19 @@ Windows, Linux and MacOS
 
 TODO: Encode feature
 
+### MacOS Installation
+
+Download and extract the ZIP file into /Applications
+
+To remove code-signing security warnings, run this command in the terminal
+
+    /Applications % xattr -d com.apple.quarantine SynthMultiViewer.app
+
+Click on the folder to run it.
+
 ### VapourSynth / AviSynth API for .NET
 
 This repo also contains .NET API wrapper for [VapourSynth](ApiVapourSynth/) and [AviSynth](ApiAviSynth/).
-
 
 ### License
 
