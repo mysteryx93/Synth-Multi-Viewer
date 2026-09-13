@@ -181,7 +181,7 @@ public class MainViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task New_AfterClose_ReusesLowestScriptNumber()
+    public async Task New_AfterClose_ContinuesAfterHighestScriptNumber()
     {
         var model = TestSupport.CreateMain();
         await model.New.Execute();
@@ -192,13 +192,13 @@ public class MainViewModelTests
 
         await model.New.Execute();
 
-        Assert.Equal(["Script 2", "Script 1"], model.ScriptList.Select(x => x.DisplayName));
-        Assert.Equal("Script 1", model.SelectedItem!.DisplayName);
+        Assert.Equal(["Script 2", "Script 3"], model.ScriptList.Select(x => x.DisplayName));
+        Assert.Equal("Script 3", model.SelectedItem!.DisplayName);
         Assert.Same(second, model.ScriptList[0]);
     }
 
     [AvaloniaFact]
-    public async Task Run_AfterClose_ReusesLowestViewerNumber()
+    public async Task Run_AfterClose_ContinuesAfterHighestViewerNumber()
     {
         var model = TestSupport.CreateMain();
         await model.New.Execute();
@@ -209,7 +209,7 @@ public class MainViewModelTests
 
         await model.Run.Execute();
 
-        Assert.Equal(["Script 1", "Viewer 2", "Viewer 1"], model.ScriptList.Select(x => x.DisplayName));
+        Assert.Equal(["Script 1", "Viewer 2", "Viewer 3"], model.ScriptList.Select(x => x.DisplayName));
     }
 
     [AvaloniaFact]

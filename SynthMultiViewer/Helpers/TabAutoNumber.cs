@@ -3,33 +3,27 @@ using System.Globalization;
 namespace HanumanInstitute.SynthMultiViewer.Helpers;
 
 /// <summary>
-/// Picks the lowest unused "Prefix N" title among open tabs.
+/// Picks the next "Prefix N" title as one past the highest open tab of that prefix.
 /// </summary>
 public static class TabAutoNumber
 {
     /// <summary>
-    /// Returns the smallest positive integer not already used as <c>prefix N</c>.
+    /// Returns one greater than the largest <c>prefix N</c> among <paramref name="titles"/>, or 1 when none exist.
     /// </summary>
     public static int Next(IEnumerable<string> titles, string prefix)
     {
         var head = prefix + " ";
-        var used = new HashSet<int>();
+        var max = 0;
         foreach (var name in titles)
         {
             if (name.StartsWith(head, StringComparison.Ordinal) &&
                 int.TryParse(name.AsSpan(head.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var n) &&
-                n > 0)
+                n > max)
             {
-                used.Add(n);
+                max = n;
             }
         }
 
-        var next = 1;
-        while (used.Contains(next))
-        {
-            next++;
-        }
-
-        return next;
+        return max + 1;
     }
 }

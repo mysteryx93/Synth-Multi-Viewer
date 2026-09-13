@@ -12,15 +12,15 @@ public class TabAutoNumberTests
     }
 
     [Fact]
-    public void Next_AfterClose_ReusesLowest()
+    public void Next_OnlyHigherNumber_ContinuesAfterMax()
     {
-        Assert.Equal(1, TabAutoNumber.Next(["Script 2"], "Script"));
+        Assert.Equal(4, TabAutoNumber.Next(["Viewer 3"], "Viewer"));
     }
 
     [Fact]
-    public void Next_Gap_FillsLowestFree()
+    public void Next_Gap_DoesNotFillHole()
     {
-        Assert.Equal(2, TabAutoNumber.Next(["Script 1", "Script 3"], "Script"));
+        Assert.Equal(4, TabAutoNumber.Next(["Script 1", "Script 3"], "Script"));
     }
 
     [Fact]
