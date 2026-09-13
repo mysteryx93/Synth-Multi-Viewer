@@ -23,7 +23,7 @@ public static class EventCommands
     public static readonly AttachedProperty<ICommand?> LostFocusProperty = AvaloniaProperty.RegisterAttached<Control, ICommand?>("LostFocus", typeof(EventCommands));
 
     /// <summary>
-    /// Defines the command executed on a single left-button press.
+    /// Defines the command executed on a left click that does not drag.
     /// </summary>
     public static readonly AttachedProperty<ICommand?> SingleClickProperty = AvaloniaProperty.RegisterAttached<Control, ICommand?>("SingleClick", typeof(EventCommands));
 
@@ -37,12 +37,59 @@ public static class EventCommands
     /// </summary>
     public static readonly AttachedProperty<object?> ParameterProperty = AvaloniaProperty.RegisterAttached<Control, object?>("Parameter", typeof(EventCommands));
 
+    private static readonly AttachedProperty<Point?> SingleClickOriginProperty =
+        AvaloniaProperty.RegisterAttached<Control, Point?>("SingleClickOrigin", typeof(EventCommands));
+
+    private static readonly AttachedProperty<bool> SingleClickArmedProperty =
+        AvaloniaProperty.RegisterAttached<Control, bool>("SingleClickArmed", typeof(EventCommands));
+
     static EventCommands()
     {
         Connect(LoadedProperty, Control.LoadedEvent);
         Connect(LostFocusProperty, InputElement.LostFocusEvent);
-        Connect(SingleClickProperty, InputElement.PointerPressedEvent, e => e.ClickCount == 1 && e.GetCurrentPoint(null).Properties.IsLeftButtonPressed);
         Connect(MediaLoadedProperty, PlayerHostBase.MediaLoadedEvent);
+        InputElement.PointerPressedEvent.AddClassHandler<Control>(OnSingleClickPressed);
+        InputElement.PointerReleasedEvent.AddClassHandler<Control>(OnSingleClickReleased);
+    }
+
+    private static void OnSingleClickPressed(Control control, PointerPressedEventArgs e)
+    {
+        var command = GetSingleClick(control);
+        var point = e.GetCurrentPoint(control);
+        if (command == null || e.ClickCount != 1 || !point.Properties.IsLeftButtonPressed)
+        {
+            control.SetValue(SingleClickOriginProperty, null);
+            control.SetValue(SingleClickArmedProperty, false);
+            return;
+        }
+
+        control.SetValue(SingleClickOriginProperty, e.GetPosition(control));
+        control.SetValue(SingleClickArmedProperty, command.CanExecute(GetParameter(control)));
+    }
+
+    private static void OnSingleClickReleased(Control control, PointerReleasedEventArgs e)
+    {
+        var command = GetSingleClick(control);
+        var origin = control.GetValue(SingleClickOriginProperty);
+        var armed = control.GetValue(SingleClickArmedProperty);
+        control.SetValue(SingleClickOriginProperty, null);
+        control.SetValue(SingleClickArmedProperty, false);
+        if (command == null || origin == null || !armed || e.InitialPressMouseButton != MouseButton.Left)
+        {
+            return;
+        }
+
+        var delta = e.GetPosition(control) - origin.Value;
+        if (Math.Abs(delta.X) > 3 || Math.Abs(delta.Y) > 3)
+        {
+            return;
+        }
+
+        var parameter = GetParameter(control);
+        if (command.CanExecute(parameter))
+        {
+            command.Execute(parameter);
+        }
     }
 
     /// <summary>

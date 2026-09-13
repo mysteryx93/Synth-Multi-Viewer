@@ -1,76 +1,92 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:edit="using:AvaloniaEdit">
+        xmlns:edit="using:AvaloniaEdit"
+        xmlns:vm="using:HanumanInstitute.SynthMultiViewer.ViewModels"
+        xmlns:i="using:Avalonia.Xaml.Interactivity"
+        xmlns:drag="using:Avalonia.Xaml.Interactions.Draggable">
     <Styles.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://MediaPlayer.Avalonia/Styles/Default/Theme.axaml" />
             </ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ToolbarButtonPointerOver" Color="#14000000" />
+                    <SolidColorBrush x:Key="ToolbarButtonPressed" Color="#1A000000" />
+                    <SolidColorBrush x:Key="ToolbarButtonChecked" Color="#18000000" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ToolbarButtonPointerOver" Color="#33FFFFFF" />
+                    <SolidColorBrush x:Key="ToolbarButtonPressed" Color="#44FFFFFF" />
+                    <SolidColorBrush x:Key="ToolbarButtonChecked" Color="#28FFFFFF" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
             <ControlTheme x:Key="{x:Type TabStripItem}" TargetType="TabStripItem">
                 <Setter Property="FontSize" Value="16" />
                 <Setter Property="FontWeight" Value="{DynamicResource TabItemHeaderThemeFontWeight}" />
-                <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundUnselected}" />
+                <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource TabItemHeaderForegroundUnselected}" />
-                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="Padding" Value="12,0" />
                 <Setter Property="Margin" Value="0" />
                 <Setter Property="MinHeight" Value="40" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
                 <Setter Property="Template">
                     <ControlTemplate>
-                        <Border Name="PART_LayoutRoot"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{TemplateBinding CornerRadius}"
-                                Padding="{TemplateBinding Padding}">
-                            <Panel>
-                                <ContentPresenter Name="PART_ContentPresenter"
-                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                                  Content="{TemplateBinding Content}"
-                                                  ContentTemplate="{TemplateBinding ContentTemplate}" />
-                                <Border Name="PART_SelectedPipe"
-                                        Background="{DynamicResource TabItemHeaderSelectedPipeFill}"
-                                        CornerRadius="{DynamicResource ControlCornerRadius}"
-                                        Height="{DynamicResource TabStripItemPipeThickness}"
-                                        Margin="0,0,0,3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
-                                        IsVisible="False" />
-                            </Panel>
-                        </Border>
+                        <Panel>
+                            <Border Name="PART_Tint"
+                                    Background="{Binding TabBackground, x:DataType=vm:IScriptViewModel}"
+                                    IsHitTestVisible="False" />
+                            <Border Name="PART_LayoutRoot"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    Padding="{TemplateBinding Padding}">
+                                <Panel>
+                                    <ContentPresenter Name="PART_ContentPresenter"
+                                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                      Content="{TemplateBinding Content}"
+                                                      ContentTemplate="{TemplateBinding ContentTemplate}" />
+                                    <Border Name="PART_SelectedPipe"
+                                            Background="{DynamicResource TabItemHeaderSelectedPipeFill}"
+                                            CornerRadius="{DynamicResource ControlCornerRadius}"
+                                            Height="{DynamicResource TabStripItemPipeThickness}"
+                                            Margin="0,0,0,3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                                            IsVisible="False" />
+                                </Panel>
+                            </Border>
+                        </Panel>
                     </ControlTemplate>
                 </Setter>
                 <Style Selector="^:selected">
-                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundSelected}" />
                     <Setter Property="Foreground" Value="{DynamicResource TabItemHeaderForegroundSelected}" />
                 </Style>
                 <Style Selector="^:selected /template/ Border#PART_SelectedPipe">
                     <Setter Property="IsVisible" Value="True" />
                 </Style>
-                <Style Selector="^:pointerover /template/ Border#PART_LayoutRoot">
-                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundUnselectedPointerOver}" />
-                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundUnselectedPointerOver}" />
-                </Style>
-                <Style Selector="^:selected:pointerover /template/ Border#PART_LayoutRoot">
-                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundSelectedPointerOver}" />
-                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundSelectedPointerOver}" />
-                </Style>
-                <Style Selector="^:pressed /template/ Border#PART_LayoutRoot">
-                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundUnselectedPressed}" />
-                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundUnselectedPressed}" />
-                </Style>
-                <Style Selector="^:selected:pressed /template/ Border#PART_LayoutRoot">
-                    <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundSelectedPressed}" />
-                    <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundSelectedPressed}" />
-                </Style>
                 <Style Selector="^:disabled /template/ Border#PART_LayoutRoot">
                     <Setter Property="Background" Value="{DynamicResource TabItemHeaderBackgroundDisabled}" />
                     <Setter Property="TextElement.Foreground" Value="{DynamicResource TabItemHeaderForegroundDisabled}" />
+                </Style>
+                <Style Selector="^:dragging">
+                    <Setter Property="ZIndex" Value="1" />
+                    <Setter Property="Opacity" Value="0.9" />
                 </Style>
             </ControlTheme>
         </ResourceDictionary>
     </Styles.Resources>
     <FluentTheme />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+    <Style Selector="TabStripItem">
+        <Setter Property="(i:Interaction.Behaviors)">
+            <BehaviorCollectionTemplate>
+                <BehaviorCollection>
+                    <drag:ItemDragBehavior Orientation="Horizontal" />
+                </BehaviorCollection>
+            </BehaviorCollectionTemplate>
+        </Setter>
+    </Style>
     <!-- Shared control alignment and dialog layout. -->
     <Style Selector="Window">
         <Setter Property="UseLayoutRounding" Value="True" />
@@ -96,6 +112,13 @@
         <Setter Property="MinHeight" Value="28" />
         <Setter Property="Padding" Value="10,5" />
     </Style>
+    <Style Selector="Button.browse">
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="Margin" Value="4,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
     <Style Selector="NumericUpDown">
         <Setter Property="ShowButtonSpinner" Value="False" />
     </Style>
@@ -119,6 +142,26 @@
     </Style>
     <Style Selector="StackPanel.toolbar > Button, StackPanel.toolbar > ToggleButton">
         <Setter Property="Padding" Value="6" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > Button:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     StackPanel.toolbar > ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ToolbarButtonPointerOver}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > Button:pressed /template/ ContentPresenter#PART_ContentPresenter,
+                     StackPanel.toolbar > ToggleButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ToolbarButtonPressed}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ToolbarButtonChecked}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ToolbarButtonPointerOver}" />
     </Style>
     <Style Selector="StackPanel.toolbar Image">
         <Setter Property="Width" Value="24" />

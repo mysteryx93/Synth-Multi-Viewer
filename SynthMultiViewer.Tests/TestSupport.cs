@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.MvvmDialogs;
 using HanumanInstitute.MvvmDialogs.Avalonia;
+using HanumanInstitute.MvvmDialogs.FileSystem;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
@@ -49,17 +50,28 @@ internal static class TestSupport
     }
 
     public static DialogService CreateDialogs(
-        ISettingsProvider<AppSettingsData>? settings = null, IAppTheme? theme = null) => new(
-        new DialogManager(viewLocator: new ViewLocator()),
+        ISettingsProvider<AppSettingsData>? settings = null, IAppTheme? theme = null,
+        IDialogManager? manager = null) => new(
+        manager ?? new DialogManager(viewLocator: new ViewLocator()),
         viewModelFactory: type => CreateViewModel(type, settings, theme));
+
+    public static SettingsViewModel CreateSettings(
+        ISettingsProvider<AppSettingsData>? settings = null,
+        IAppTheme? theme = null,
+        IFrameworkDetectionService? detection = null,
+        IDialogService? dialogs = null) =>
+        new(
+            settings ?? new MemorySettingsProvider(),
+            theme ?? new MemoryAppTheme(),
+            detection ?? new MemoryFrameworkDetection(),
+            dialogs ?? CreateDialogs());
 
     public static object CreateViewModel(
         Type type, ISettingsProvider<AppSettingsData>? settings = null, IAppTheme? theme = null)
     {
         if (type == typeof(SettingsViewModel))
         {
-            return new SettingsViewModel(
-                settings ?? new MemorySettingsProvider(), theme ?? new MemoryAppTheme(), new MemoryFrameworkDetection());
+            return CreateSettings(settings, theme);
         }
 
         if (type == typeof(HelpViewModel))
@@ -68,6 +80,33 @@ internal static class TestSupport
         }
 
         return Activator.CreateInstance(type)!;
+    }
+
+    public sealed class FakeDialogManager : DialogManager
+    {
+        public FakeDialogManager() : base(viewLocator: new ViewLocator()) { }
+
+        public object? NextFrameworkResult { get; set; }
+        public object? LastFrameworkSettings { get; private set; }
+        public int FrameworkDialogCount { get; private set; }
+
+        public void ReturnFile(string? path) =>
+            NextFrameworkResult = path == null
+                ? Array.Empty<IDialogStorageFile>()
+                : new IDialogStorageFile[] { new DesktopDialogStorageFile(path) };
+
+        public void ReturnFolder(string? path) =>
+            NextFrameworkResult = path == null
+                ? Array.Empty<IDialogStorageFolder>()
+                : new IDialogStorageFolder[] { new DesktopDialogStorageFolder(path) };
+
+        public override Task<object?> ShowFrameworkDialogAsync<TSettings>(
+            INotifyPropertyChanged? ownerViewModel, TSettings settings, Func<object?, string>? resultToString = null)
+        {
+            LastFrameworkSettings = settings;
+            FrameworkDialogCount++;
+            return Task.FromResult(NextFrameworkResult);
+        }
     }
 
     public sealed class OwnerDialogManager(Window owner) : DialogManager(viewLocator: new ViewLocator())

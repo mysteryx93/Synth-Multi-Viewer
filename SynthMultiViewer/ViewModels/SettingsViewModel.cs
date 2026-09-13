@@ -1,4 +1,6 @@
 using HanumanInstitute.MvvmDialogs;
+using HanumanInstitute.MvvmDialogs.FileSystem;
+using HanumanInstitute.MvvmDialogs.FrameworkDialogs;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 
@@ -12,16 +14,19 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
     private readonly ISettingsProvider<AppSettingsData> _settingsProvider;
     private readonly IAppTheme _appTheme;
     private readonly IFrameworkDetectionService _frameworks;
+    private readonly IDialogService _dialogService;
 
     /// <summary>
     /// Creates a settings dialog with a working copy of the current theme and library paths.
     /// </summary>
     public SettingsViewModel(
-        ISettingsProvider<AppSettingsData> settingsProvider, IAppTheme appTheme, IFrameworkDetectionService frameworks)
+        ISettingsProvider<AppSettingsData> settingsProvider, IAppTheme appTheme, IFrameworkDetectionService frameworks,
+        IDialogService dialogService)
     {
         _settingsProvider = settingsProvider;
         _appTheme = appTheme;
         _frameworks = frameworks;
+        _dialogService = dialogService;
         DisplayName = "Settings";
         Theme = settingsProvider.Value.Theme;
         VapourSynthPath = settingsProvider.Value.VapourSynthPath;
@@ -169,6 +174,112 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
     /// Restores default settings in the working copy.
     /// </summary>
     public RxCommandVoid RestoreDefault => field ??= ReactiveCommand.Create(RestoreDefaultImpl);
+
+    /// <summary>
+    /// Shows a file picker for the VapourSynth library override.
+    /// </summary>
+    public RxCommandVoid BrowseVapourSynthLibrary =>
+        field ??= ReactiveCommand.CreateFromTask(BrowseVapourSynthLibraryAsync);
+
+    /// <summary>
+    /// Shows a folder picker and appends a VapourSynth plugin folder.
+    /// </summary>
+    public RxCommandVoid BrowseVapourSynthPlugins =>
+        field ??= ReactiveCommand.CreateFromTask(BrowseVapourSynthPluginsAsync);
+
+    /// <summary>
+    /// Shows a file picker for the AviSynth library override.
+    /// </summary>
+    public RxCommandVoid BrowseAviSynthLibrary =>
+        field ??= ReactiveCommand.CreateFromTask(BrowseAviSynthLibraryAsync);
+
+    /// <summary>
+    /// Shows a folder picker and appends an AviSynth plugin folder.
+    /// </summary>
+    public RxCommandVoid BrowseAviSynthPlugins =>
+        field ??= ReactiveCommand.CreateFromTask(BrowseAviSynthPluginsAsync);
+
+    private Task BrowseVapourSynthLibraryAsync() =>
+        BrowseLibraryAsync(path => VapourSynthPath = path, VapourSynthPath, "Select VapourSynth library");
+
+    private Task BrowseVapourSynthPluginsAsync() =>
+        BrowsePluginFolderAsync(folders => VapourSynthPluginFolders = folders, VapourSynthPluginFolders,
+            "Select VapourSynth plugin folder");
+
+    private Task BrowseAviSynthLibraryAsync() =>
+        BrowseLibraryAsync(path => AviSynthPath = path, AviSynthPath, "Select AviSynth library");
+
+    private Task BrowseAviSynthPluginsAsync() =>
+        BrowsePluginFolderAsync(folders => AviSynthPluginFolders = folders, AviSynthPluginFolders,
+            "Select AviSynth plugin folder");
+
+    private async Task BrowseLibraryAsync(Action<string> setPath, string current, string title)
+    {
+        var settings = new OpenFileDialogSettings
+        {
+            Title = title,
+            SuggestedStartLocation = ExistingFolder(current),
+            SuggestedFileName = FileNameIfExists(current),
+            Filters =
+            {
+                new FileFilter("Library", LibraryExtensions()),
+                new FileFilter("All files", "*")
+            }
+        };
+        var file = await _dialogService.ShowOpenFileDialogAsync(this, settings);
+        if (file != null)
+        {
+            setPath(file.LocalPath);
+        }
+    }
+
+    private async Task BrowsePluginFolderAsync(Action<string> setFolders, string current, string title)
+    {
+        var settings = new OpenFolderDialogSettings
+        {
+            Title = title,
+            SuggestedStartLocation = ExistingFolder(FolderListText.Last(current) ?? current)
+        };
+        var folder = await _dialogService.ShowOpenFolderDialogAsync(this, settings);
+        if (folder != null)
+        {
+            setFolders(FolderListText.Append(current, folder.LocalPath));
+        }
+    }
+
+    private static IReadOnlyList<string> LibraryExtensions() =>
+        OperatingSystem.IsWindows() ? ["dll"] : OperatingSystem.IsMacOS() ? ["dylib"] : ["so"];
+
+    private static string FileNameIfExists(string path) =>
+        !string.IsNullOrWhiteSpace(path) && File.Exists(path) ? Path.GetFileName(path) : "";
+
+    private static IDialogStorageFolder? ExistingFolder(string? path)
+    {
+        var folder = FolderPath(path);
+        return folder != null && Directory.Exists(folder) ? new DesktopDialogStorageFolder(folder) : null;
+    }
+
+    private static string? FolderPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        if (Directory.Exists(path))
+        {
+            return path;
+        }
+
+        try
+        {
+            return Path.GetDirectoryName(path);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+    }
 
     private void OkImpl()
     {

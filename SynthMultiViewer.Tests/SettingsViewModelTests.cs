@@ -1,8 +1,10 @@
+using System.Reactive.Linq;
 using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using HanumanInstitute.MvvmDialogs.FrameworkDialogs;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
@@ -18,7 +20,7 @@ public class SettingsViewModelTests
     {
         var settings = new TestSupport.MemorySettingsProvider();
         var theme = new TestSupport.MemoryAppTheme();
-        var model = new SettingsViewModel(settings, theme, new TestSupport.MemoryFrameworkDetection());
+        var model = TestSupport.CreateSettings(settings, theme);
         model.Theme = AppTheme.Dark;
 
         ((ICommand)model.Ok).Execute(null);
@@ -34,7 +36,7 @@ public class SettingsViewModelTests
     {
         var settings = new TestSupport.MemorySettingsProvider { Value = { Theme = AppTheme.Light } };
         var theme = new TestSupport.MemoryAppTheme();
-        var model = new SettingsViewModel(settings, theme, new TestSupport.MemoryFrameworkDetection());
+        var model = TestSupport.CreateSettings(settings, theme);
         model.Theme = AppTheme.Dark;
 
         ((ICommand)model.Cancel).Execute(null);
@@ -50,7 +52,7 @@ public class SettingsViewModelTests
     {
         var settings = new TestSupport.MemorySettingsProvider();
         var theme = new TestSupport.MemoryAppTheme();
-        var model = new SettingsViewModel(settings, theme, new TestSupport.MemoryFrameworkDetection());
+        var model = TestSupport.CreateSettings(settings, theme);
         var closed = false;
         model.RequestClose += (_, _) => closed = true;
         model.Theme = AppTheme.Dark;
@@ -68,11 +70,8 @@ public class SettingsViewModelTests
     public void RestoreDefault_DarkThemeSelected_ResetsWorkingCopy()
     {
         var settings = new TestSupport.MemorySettingsProvider { Value = { Theme = AppTheme.Dark } };
-        var model = new SettingsViewModel(
-            settings, new TestSupport.MemoryAppTheme(), new TestSupport.MemoryFrameworkDetection())
-        {
-            Theme = AppTheme.Dark
-        };
+        var model = TestSupport.CreateSettings(settings);
+        model.Theme = AppTheme.Dark;
 
         ((ICommand)model.RestoreDefault).Execute(null);
 
@@ -92,7 +91,7 @@ public class SettingsViewModelTests
     public void SettingsView_DarkTheme_SelectsDarkComboItem()
     {
         var settings = new TestSupport.MemorySettingsProvider { Value = { Theme = AppTheme.Dark } };
-        var model = new SettingsViewModel(settings, new TestSupport.MemoryAppTheme(), new TestSupport.MemoryFrameworkDetection());
+        var model = TestSupport.CreateSettings(settings);
         var view = new SettingsView { DataContext = model };
 
         using var window = TestSupport.Show(view);
@@ -104,10 +103,7 @@ public class SettingsViewModelTests
     [AvaloniaFact]
     public void SettingsView_DialogButtons_CenterLabelInsidePadding()
     {
-        var model = new SettingsViewModel(
-            new TestSupport.MemorySettingsProvider(),
-            new TestSupport.MemoryAppTheme(),
-            new TestSupport.MemoryFrameworkDetection());
+        var model = TestSupport.CreateSettings();
         var view = new SettingsView { DataContext = model };
 
         using var window = TestSupport.Show(view);
@@ -133,8 +129,7 @@ public class SettingsViewModelTests
             VapourSynth = new(true, "/usr/lib/libvsscript.so", ["/usr/lib/vapoursynth", "/usr/lib64/vapoursynth"]),
             AviSynth = new(false)
         };
-        var model = new SettingsViewModel(
-            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryAppTheme(), detection);
+        var model = TestSupport.CreateSettings(detection: detection);
         var view = new SettingsView { DataContext = model };
 
         using var window = TestSupport.Show(view);
@@ -179,7 +174,7 @@ public class SettingsViewModelTests
             AviSynth = new(false)
         };
 
-        var model = new SettingsViewModel(settings, new TestSupport.MemoryAppTheme(), detection);
+        var model = TestSupport.CreateSettings(settings, detection: detection);
 
         Assert.True(model.VapourSynthFound);
         Assert.False(model.AviSynthFound);
@@ -203,8 +198,7 @@ public class SettingsViewModelTests
             AviSynth = new(FrameworkStatus.Error)
         };
 
-        var model = new SettingsViewModel(
-            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryAppTheme(), detection);
+        var model = TestSupport.CreateSettings(detection: detection);
 
         Assert.Equal("(Error)", model.VapourSynthStatus);
         Assert.False(model.VapourSynthFound);
@@ -227,8 +221,7 @@ public class SettingsViewModelTests
                 "AviSynth could not evaluate the script.")
         };
 
-        var model = new SettingsViewModel(
-            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryAppTheme(), detection);
+        var model = TestSupport.CreateSettings(detection: detection);
 
         Assert.Equal("(Error)", model.VapourSynthStatus);
         Assert.False(model.VapourSynthFound);
@@ -243,14 +236,12 @@ public class SettingsViewModelTests
     {
         var settings = new TestSupport.MemorySettingsProvider();
         var detection = new TestSupport.MemoryFrameworkDetection();
-        var model = new SettingsViewModel(settings, new TestSupport.MemoryAppTheme(), detection)
-        {
-            VapourSynthPath = " /opt/vs ",
-            VapourSynthPluginFolders = " /opt/vs/plugins ",
-            VapourSynthReplacePlugins = true,
-            AviSynthPath = "/opt/avs",
-            AviSynthPluginFolders = "/opt/avs/plugins"
-        };
+        var model = TestSupport.CreateSettings(settings, detection: detection);
+        model.VapourSynthPath = " /opt/vs ";
+        model.VapourSynthPluginFolders = " /opt/vs/plugins ";
+        model.VapourSynthReplacePlugins = true;
+        model.AviSynthPath = "/opt/avs";
+        model.AviSynthPluginFolders = "/opt/avs/plugins";
 
         ((ICommand)model.Ok).Execute(null);
 
@@ -268,11 +259,8 @@ public class SettingsViewModelTests
     public void Ok_VapourSynthThreadsEntered_SavesThreadCount()
     {
         var settings = new TestSupport.MemorySettingsProvider();
-        var model = new SettingsViewModel(
-            settings, new TestSupport.MemoryAppTheme(), new TestSupport.MemoryFrameworkDetection())
-        {
-            VapourSynthThreads = 4
-        };
+        var model = TestSupport.CreateSettings(settings);
+        model.VapourSynthThreads = 4;
 
         ((ICommand)model.Ok).Execute(null);
 
@@ -284,8 +272,7 @@ public class SettingsViewModelTests
     {
         var settings = new TestSupport.MemorySettingsProvider { Value = { VapourSynthThreads = 0 } };
 
-        var model = new SettingsViewModel(
-            settings, new TestSupport.MemoryAppTheme(), new TestSupport.MemoryFrameworkDetection());
+        var model = TestSupport.CreateSettings(settings);
 
         Assert.Equal(Environment.ProcessorCount, model.VapourSynthThreads);
     }
@@ -294,8 +281,7 @@ public class SettingsViewModelTests
     public void SettingsView_VapourSynthThreads_ShowsNumericUpDownWithoutSpinner()
     {
         var settings = new TestSupport.MemorySettingsProvider { Value = { VapourSynthThreads = 6 } };
-        var model = new SettingsViewModel(
-            settings, new TestSupport.MemoryAppTheme(), new TestSupport.MemoryFrameworkDetection());
+        var model = TestSupport.CreateSettings(settings);
         var view = new SettingsView { DataContext = model };
 
         using var window = TestSupport.Show(view);
@@ -312,5 +298,108 @@ public class SettingsViewModelTests
         Assert.Equal(6, box.Value);
         Assert.Equal(6, model.VapourSynthThreads);
         Assert.False(DataValidationErrors.GetHasErrors(box));
+    }
+
+    [Fact]
+    public async Task BrowseVapourSynthLibrary_Select_SetsPath()
+    {
+        var dialogs = new TestSupport.FakeDialogManager();
+        dialogs.ReturnFile("/opt/vs/libvsscript.so");
+        var model = TestSupport.CreateSettings(dialogs: TestSupport.CreateDialogs(manager: dialogs));
+
+        await model.BrowseVapourSynthLibrary.Execute();
+
+        Assert.Equal("/opt/vs/libvsscript.so", model.VapourSynthPath);
+        Assert.IsType<OpenFileDialogSettings>(dialogs.LastFrameworkSettings);
+        Assert.Equal(1, dialogs.FrameworkDialogCount);
+    }
+
+    [Fact]
+    public async Task BrowseVapourSynthLibrary_Cancel_KeepsPath()
+    {
+        var dialogs = new TestSupport.FakeDialogManager();
+        dialogs.ReturnFile(null);
+        var model = TestSupport.CreateSettings(dialogs: TestSupport.CreateDialogs(manager: dialogs));
+        model.VapourSynthPath = "/keep";
+
+        await model.BrowseVapourSynthLibrary.Execute();
+
+        Assert.Equal("/keep", model.VapourSynthPath);
+        Assert.Equal(1, dialogs.FrameworkDialogCount);
+    }
+
+    [Fact]
+    public async Task BrowseVapourSynthPlugins_Select_AppendsFolder()
+    {
+        var dialogs = new TestSupport.FakeDialogManager();
+        dialogs.ReturnFolder("/opt/vs/plugins2");
+        var model = TestSupport.CreateSettings(dialogs: TestSupport.CreateDialogs(manager: dialogs));
+        model.VapourSynthPluginFolders = "/opt/vs/plugins";
+
+        await model.BrowseVapourSynthPlugins.Execute();
+
+        Assert.Equal("/opt/vs/plugins; /opt/vs/plugins2", model.VapourSynthPluginFolders);
+        Assert.IsType<OpenFolderDialogSettings>(dialogs.LastFrameworkSettings);
+    }
+
+    [Fact]
+    public async Task BrowseVapourSynthPlugins_SelectExisting_DoesNotDuplicate()
+    {
+        var dialogs = new TestSupport.FakeDialogManager();
+        dialogs.ReturnFolder("/opt/vs/plugins");
+        var model = TestSupport.CreateSettings(dialogs: TestSupport.CreateDialogs(manager: dialogs));
+        model.VapourSynthPluginFolders = "/opt/vs/plugins";
+
+        await model.BrowseVapourSynthPlugins.Execute();
+
+        Assert.Equal("/opt/vs/plugins", model.VapourSynthPluginFolders);
+    }
+
+    [Fact]
+    public async Task BrowseAviSynthLibrary_Select_SetsPath()
+    {
+        var dialogs = new TestSupport.FakeDialogManager();
+        dialogs.ReturnFile("/opt/avs/libavisynth.so");
+        var model = TestSupport.CreateSettings(dialogs: TestSupport.CreateDialogs(manager: dialogs));
+
+        await model.BrowseAviSynthLibrary.Execute();
+
+        Assert.Equal("/opt/avs/libavisynth.so", model.AviSynthPath);
+        Assert.IsType<OpenFileDialogSettings>(dialogs.LastFrameworkSettings);
+    }
+
+    [Fact]
+    public async Task BrowseAviSynthPlugins_Select_AppendsFolder()
+    {
+        var dialogs = new TestSupport.FakeDialogManager();
+        dialogs.ReturnFolder("/opt/avs/plugins");
+        var model = TestSupport.CreateSettings(dialogs: TestSupport.CreateDialogs(manager: dialogs));
+
+        await model.BrowseAviSynthPlugins.Execute();
+
+        Assert.Equal("/opt/avs/plugins", model.AviSynthPluginFolders);
+        Assert.IsType<OpenFolderDialogSettings>(dialogs.LastFrameworkSettings);
+    }
+
+    [AvaloniaFact]
+    public void SettingsView_BrowseButtons_SitBesidePathFields()
+    {
+        var model = TestSupport.CreateSettings();
+        var view = new SettingsView { DataContext = model };
+
+        using var window = TestSupport.Show(view);
+        var library = view.FindControl<TextBox>("VapourSynthLibraryPath")!;
+        var browse = view.FindControl<Button>("BrowseVapourSynthLibrary")!;
+        var buttons = new[]
+        {
+            view.FindControl<Button>("BrowseVapourSynthLibrary")!,
+            view.FindControl<Button>("BrowseVapourSynthPlugins")!,
+            view.FindControl<Button>("BrowseAviSynthLibrary")!,
+            view.FindControl<Button>("BrowseAviSynthPlugins")!
+        };
+
+        Assert.All(buttons, button => Assert.Equal("...", button.Content));
+        Assert.True(browse.Bounds.Left > library.Bounds.Right);
+        Assert.True(browse.Bounds.Height >= 28);
     }
 }

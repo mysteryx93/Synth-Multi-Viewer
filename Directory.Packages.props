@@ -21,5 +21,6 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
     <PackageVersion Include="xunit.v3" Version="4.0.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <PackageVersion Include="Xaml.Behaviors.Interactions.Draggable" Version="12.0.7" />
   </ItemGroup>
 </Project>

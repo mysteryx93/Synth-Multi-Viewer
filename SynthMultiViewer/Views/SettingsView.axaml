@@ -33,15 +33,23 @@
                 <TextBox x:Name="VapourSynthDetectedLibrary" Classes="detected-path"
                          Text="{Binding VapourSynthLibraryDisplay, Mode=OneWay}" />
             </DockPanel>
-            <TextBox x:Name="VapourSynthLibraryPath" Text="{Binding VapourSynthPath}"
-                     PlaceholderText="Override detected library" />
+            <DockPanel>
+                <Button x:Name="BrowseVapourSynthLibrary" DockPanel.Dock="Right" Classes="browse" Content="..."
+                        ToolTip.Tip="Browse for library" Command="{Binding BrowseVapourSynthLibrary}" />
+                <TextBox x:Name="VapourSynthLibraryPath" Text="{Binding VapourSynthPath}"
+                         PlaceholderText="Override detected library" />
+            </DockPanel>
             <DockPanel>
                 <TextBlock Text="Plugin folders: " Classes="field-label" />
                 <TextBox x:Name="VapourSynthDetectedPlugins" Classes="detected-path"
                          Text="{Binding VapourSynthPluginsDisplay, Mode=OneWay}" />
             </DockPanel>
-            <TextBox x:Name="VapourSynthPluginFolders" Text="{Binding VapourSynthPluginFolders}"
-                     PlaceholderText="Extra folders, separated by ;" />
+            <DockPanel>
+                <Button x:Name="BrowseVapourSynthPlugins" DockPanel.Dock="Right" Classes="browse" Content="..."
+                        ToolTip.Tip="Browse for plugin folder" Command="{Binding BrowseVapourSynthPlugins}" />
+                <TextBox x:Name="VapourSynthPluginFolders" Text="{Binding VapourSynthPluginFolders}"
+                         PlaceholderText="Extra folders, separated by ;" />
+            </DockPanel>
             <StackPanel Spacing="0">
                 <CheckBox Content="Do not load auto-detected plugin folders"
                           IsChecked="{Binding VapourSynthReplacePlugins}" />
@@ -64,15 +72,23 @@
                 <TextBox x:Name="AviSynthDetectedLibrary" Classes="detected-path"
                          Text="{Binding AviSynthLibraryDisplay, Mode=OneWay}" />
             </DockPanel>
-            <TextBox x:Name="AviSynthLibraryPath" Text="{Binding AviSynthPath}"
-                     PlaceholderText="Override detected library" />
+            <DockPanel>
+                <Button x:Name="BrowseAviSynthLibrary" DockPanel.Dock="Right" Classes="browse" Content="..."
+                        ToolTip.Tip="Browse for library" Command="{Binding BrowseAviSynthLibrary}" />
+                <TextBox x:Name="AviSynthLibraryPath" Text="{Binding AviSynthPath}"
+                         PlaceholderText="Override detected library" />
+            </DockPanel>
             <DockPanel>
                 <TextBlock Text="Plugin folders: " Classes="field-label" />
                 <TextBox x:Name="AviSynthDetectedPlugins" Classes="detected-path"
                          Text="{Binding AviSynthPluginsDisplay, Mode=OneWay}" />
             </DockPanel>
-            <TextBox x:Name="AviSynthPluginFolders" Text="{Binding AviSynthPluginFolders}"
-                     PlaceholderText="Extra folders, separated by ;" />
+            <DockPanel>
+                <Button x:Name="BrowseAviSynthPlugins" DockPanel.Dock="Right" Classes="browse" Content="..."
+                        ToolTip.Tip="Browse for plugin folder" Command="{Binding BrowseAviSynthPlugins}" />
+                <TextBox x:Name="AviSynthPluginFolders" Text="{Binding AviSynthPluginFolders}"
+                         PlaceholderText="Extra folders, separated by ;" />
+            </DockPanel>
             <CheckBox Content="Do not load auto-detected plugin folders"
                       IsChecked="{Binding AviSynthReplacePlugins}" />
         </StackPanel>

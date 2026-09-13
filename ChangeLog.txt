@@ -5,6 +5,10 @@ v1.0 (2026-09-12)
 - Both VapourSynth and AviSynth support
 - Auto-detection of library and plugin paths across platforms
 - Light/Dark theme
+- Drag tabs to reorder; Alt+Left/Right moves the current tab; Ctrl+1-9 selects by strip order
+- New, Open, and Run always add a tab at the end of the strip
+- Auto-numbered Script and Viewer titles reuse the lowest free number
+- Subtle tab colors mixed from VapourSynth green and AviSynth blue for light and dark themes
 - Added copy frame to clipboard
 - Fixed many bugs
 

@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using HanumanInstitute.MediaSynthUI;
+using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
 using Xunit;
@@ -50,32 +51,15 @@ public class MainViewModelTests
     [InlineData("-1")]
     [InlineData(10)]
     [InlineData("invalid")]
-    public async Task SelectEditor_InvalidIndex_LeavesSelectionUnchanged(object index)
+    public async Task SelectTab_InvalidIndex_LeavesSelectionUnchanged(object index)
     {
         var model = TestSupport.CreateMain();
         await model.New.Execute();
         var editor = model.SelectedItem;
 
-        await model.SelectEditor.Execute(index);
+        await model.SelectTab.Execute(index);
 
         Assert.Same(editor, model.SelectedItem);
-    }
-
-    [AvaloniaTheory]
-    [InlineData(-1)]
-    [InlineData("-1")]
-    [InlineData(10)]
-    [InlineData("invalid")]
-    public async Task SelectViewer_InvalidIndex_LeavesSelectionUnchanged(object index)
-    {
-        var model = TestSupport.CreateMain();
-        await model.New.Execute();
-        await model.Run.Execute();
-        var viewer = model.SelectedItem;
-
-        await model.SelectViewer.Execute(index);
-
-        Assert.Same(viewer, model.SelectedItem);
     }
 
     [AvaloniaFact]
@@ -122,7 +106,46 @@ public class MainViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task SelectViewer_FromEditor_SelectsViewer()
+    public async Task MoveTabRight_FromFirst_SwapsWithNeighborAndKeepsSelection()
+    {
+        var model = TestSupport.CreateMain();
+        var view = new MainView { DataContext = model };
+        using var window = TestSupport.Show(view);
+        await model.New.Execute();
+        var first = model.SelectedItem;
+        await model.New.Execute();
+        var second = model.SelectedItem;
+        model.SelectedItem = first;
+        Dispatcher.UIThread.RunJobs();
+
+        await model.MoveTabRight.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        var strip = view.GetVisualDescendants().OfType<TabStrip>().First();
+        Assert.Same(second, model.ScriptList[0]);
+        Assert.Same(first, model.ScriptList[1]);
+        Assert.Same(first, model.SelectedItem);
+        Assert.Same(first, strip.SelectedItem);
+        Assert.True(first!.IsActive);
+    }
+
+    [AvaloniaFact]
+    public async Task MoveTabLeft_AtStart_LeavesOrderUnchanged()
+    {
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+        var first = model.SelectedItem;
+        await model.New.Execute();
+        model.SelectedItem = first;
+
+        await model.MoveTabLeft.Execute();
+
+        Assert.Same(first, model.ScriptList[0]);
+        Assert.Same(first, model.SelectedItem);
+    }
+
+    [AvaloniaFact]
+    public async Task SelectTab_ByStripIndex_SelectsMixedTabs()
     {
         var model = TestSupport.CreateMain();
         await model.New.Execute();
@@ -131,9 +154,93 @@ public class MainViewModelTests
         var viewer = model.SelectedItem;
         model.SelectedItem = editor;
 
-        await model.SelectViewer.Execute(0);
+        await model.SelectTab.Execute(1);
 
         Assert.Same(viewer, model.SelectedItem);
+        await model.SelectTab.Execute("0");
+        Assert.Same(editor, model.SelectedItem);
+    }
+
+    [AvaloniaFact]
+    public async Task Run_FromEditor_AppendsViewerAtEnd()
+    {
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+        var first = model.SelectedItem;
+        await model.New.Execute();
+        var second = model.SelectedItem;
+        model.SelectedItem = first;
+
+        await model.Run.Execute();
+
+        Assert.Equal(3, model.ScriptList.Count);
+        Assert.Same(first, model.ScriptList[0]);
+        Assert.Same(second, model.ScriptList[1]);
+        Assert.IsType<ViewerViewModel>(model.ScriptList[2]);
+        Assert.Same(model.ScriptList[2], model.SelectedItem);
+    }
+
+    [AvaloniaFact]
+    public async Task New_AfterClose_ReusesLowestScriptNumber()
+    {
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+        var first = model.SelectedItem!;
+        await model.New.Execute();
+        var second = model.SelectedItem!;
+        await first.Close.Execute();
+
+        await model.New.Execute();
+
+        Assert.Equal(["Script 2", "Script 1"], model.ScriptList.Select(x => x.DisplayName));
+        Assert.Equal("Script 1", model.SelectedItem!.DisplayName);
+        Assert.Same(second, model.ScriptList[0]);
+    }
+
+    [AvaloniaFact]
+    public async Task Run_AfterClose_ReusesLowestViewerNumber()
+    {
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+        await model.Run.Execute();
+        var first = model.SelectedItem!;
+        await model.Run.Execute();
+        await first.Close.Execute();
+
+        await model.Run.Execute();
+
+        Assert.Equal(["Script 1", "Viewer 2", "Viewer 1"], model.ScriptList.Select(x => x.DisplayName));
+    }
+
+    [AvaloniaFact]
+    public async Task New_AfterOpenFile_DoesNotConsumeScriptNumbers()
+    {
+        using var file = new TestSupport.TemporaryScript("opened");
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+
+        await model.ReadScriptFileAsync(file.Path);
+        await model.New.Execute();
+
+        Assert.Equal(["Script 1", Path.GetFileName(file.Path), "Script 2"],
+            model.ScriptList.Select(x => x.DisplayName));
+    }
+
+    [AvaloniaFact]
+    public async Task New_AfterViewer_AppendsEditorAtEnd()
+    {
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+        await model.Run.Execute();
+        var viewer = model.SelectedItem;
+
+        await model.NewAviSynth.Execute();
+
+        Assert.Equal(3, model.ScriptList.Count);
+        Assert.Same(viewer, model.ScriptList[1]);
+        var editor = Assert.IsType<EditorViewModel>(model.ScriptList[2]);
+        Assert.Equal(ScriptKind.AviSynth, editor.Kind);
+        Assert.Same(editor, model.SelectedItem);
     }
 
     [AvaloniaTheory]
@@ -335,10 +442,7 @@ public class MainViewModelTests
         var help = new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) };
         var settings = new SettingsView
         {
-            DataContext = new SettingsViewModel(
-                new TestSupport.MemorySettingsProvider(),
-                new TestSupport.MemoryAppTheme(),
-                new TestSupport.MemoryFrameworkDetection())
+            DataContext = TestSupport.CreateSettings()
         };
 
         using var helpWindow = TestSupport.Show(help);
@@ -585,6 +689,71 @@ public class MainViewModelTests
 
     private static bool TipVisible(Visual root, string tip) =>
         root.GetVisualDescendants().OfType<Control>().Single(c => Equals(ToolTip.GetTip(c), tip)).IsVisible;
+
+    [AvaloniaFact]
+    public async Task TabBackground_DefaultSettings_UsesEngineTypeColors()
+    {
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+        await model.NewAviSynth.Execute();
+        var avs = Assert.IsType<EditorViewModel>(model.SelectedItem);
+        model.SelectedItem = model.ScriptList[0];
+        await model.Run.Execute();
+        var vsViewer = Assert.IsType<ViewerViewModel>(model.SelectedItem);
+
+        Assert.Equal(TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Light),
+            BrushColor(model.ScriptList[0].TabBackground));
+        Assert.Equal(TabColors.For(ScriptKind.VapourSynth, true, AppTheme.Light),
+            BrushColor(vsViewer.TabBackground));
+        Assert.Equal(TabColors.For(ScriptKind.AviSynth, false, AppTheme.Light),
+            BrushColor(avs.TabBackground));
+    }
+
+    [AvaloniaFact]
+    public async Task TabBackground_ThemeChanged_RecalculatesFill()
+    {
+        var settings = new TestSupport.MemorySettingsProvider();
+        var model = TestSupport.CreateMain(settings: settings);
+        await model.New.Execute();
+        settings.Value.Theme = AppTheme.Dark;
+        settings.Save();
+
+        Assert.Equal(TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Dark),
+            BrushColor(model.ScriptList[0].TabBackground));
+    }
+
+    [AvaloniaFact]
+    public async Task TabBackground_TabColorOverride_MixesCustomHue()
+    {
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+        model.SelectedItem!.TabColor = Colors.HotPink;
+
+        Assert.Equal(TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Light, Colors.HotPink),
+            BrushColor(model.SelectedItem.TabBackground));
+    }
+
+    [AvaloniaFact]
+    public void HelpView_Shortcuts_SelectTabByStripOrder()
+    {
+        var help = new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) };
+
+        using var shown = TestSupport.Show(help);
+        var text = string.Concat(help.GetVisualDescendants().OfType<TextBlock>()
+            .SelectMany(block => block.Inlines ?? [])
+            .OfType<Avalonia.Controls.Documents.Run>()
+            .Select(run => run.Text));
+
+        Assert.Contains("Ctrl+1-9: Select tab", text, StringComparison.Ordinal);
+        Assert.Contains("Alt+Left: Move tab left", text, StringComparison.Ordinal);
+        Assert.Contains("Alt+Right: Move tab right", text, StringComparison.Ordinal);
+        Assert.Contains("Drag tab: Reorder", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Alt+1-9", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Select editor tab", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Select viewer tab", text, StringComparison.Ordinal);
+    }
+
+    private static Color BrushColor(IBrush brush) => Assert.IsType<SolidColorBrush>(brush).Color;
 
     [AvaloniaFact]
     public async Task Run_AviSynthEditor_CopiesKindToViewer()

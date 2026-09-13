@@ -1,4 +1,6 @@
 using System.Reactive.Linq;
+using Avalonia.Media;
+using HanumanInstitute.SynthMultiViewer.Models;
 
 namespace HanumanInstitute.SynthMultiViewer.ViewModels;
 
@@ -28,17 +30,29 @@ public interface IScriptViewModel : IWorkspaceViewModel
     /// </summary>
     RxCommandVoid HeaderEditCancel { get; }
     /// <summary>
-    /// Gets the tab group order, with editors before viewers.
-    /// </summary>
-    int Sort { get; }
-    /// <summary>
-    /// Gets or sets the creation index used to order tabs within a group.
+    /// Gets or sets the creation index used for default tab titles.
     /// </summary>
     int Index { get; set; }
     /// <summary>
     /// Gets or sets whether this tab is selected.
     /// </summary>
     bool IsActive { get; set; }
+    /// <summary>
+    /// Gets or sets which native engine evaluates the script.
+    /// </summary>
+    ScriptKind Kind { get; set; }
+    /// <summary>
+    /// Gets or sets an optional per-tab hue; null uses the VapourSynth or AviSynth hue.
+    /// </summary>
+    Color? TabColor { get; set; }
+    /// <summary>
+    /// Gets the brush painted on the tab, mixed from the hue toward the current theme.
+    /// </summary>
+    IBrush TabBackground { get; }
+    /// <summary>
+    /// Updates <see cref="TabBackground"/> from the current override or settings.
+    /// </summary>
+    void ApplyTabColor(AppSettingsData settings);
 }
 
 /// <summary>
@@ -53,7 +67,12 @@ public partial class ScriptViewModel : WorkspaceViewModel, IScriptViewModel
     /// <summary>
     /// Creates an editable tab.
     /// </summary>
-    public ScriptViewModel() { }
+    public ScriptViewModel()
+    {
+        this.WhenAnyValue(x => x.Kind, x => x.TabColor)
+            .Subscribe(_ => RefreshTabBackground());
+        RefreshTabBackground();
+    }
 
     /// <summary>
     /// Creates an editable tab with the specified title and close permission.
@@ -90,7 +109,18 @@ public partial class ScriptViewModel : WorkspaceViewModel, IScriptViewModel
     public partial bool IsActive { get; set; }
 
     /// <inheritdoc />
-    public int Sort { get; protected set; }
+    [Reactive]
+    public partial ScriptKind Kind { get; set; }
+
+    /// <inheritdoc />
+    [Reactive]
+    public partial Color? TabColor { get; set; }
+
+    /// <inheritdoc />
+    [Reactive]
+    public partial IBrush TabBackground { get; private set; } = Brushes.Transparent;
+
+    private AppSettingsData? _tabColorSettings;
 
     /// <summary>
     /// Begins renaming an active tab when its header is editable.
@@ -126,5 +156,25 @@ public partial class ScriptViewModel : WorkspaceViewModel, IScriptViewModel
         _applyingHeader = true;
         IsEditingHeader = false;
         _applyingHeader = false;
+    }
+
+    /// <inheritdoc />
+    public void ApplyTabColor(AppSettingsData settings)
+    {
+        _tabColorSettings = settings;
+        RefreshTabBackground();
+    }
+
+    private void RefreshTabBackground()
+    {
+        var viewer = this is IViewerViewModel;
+        var theme = _tabColorSettings?.Theme ?? AppTheme.Light;
+        var color = TabColors.For(Kind, viewer, theme, TabColor);
+        if (TabBackground is SolidColorBrush brush && brush.Color == color)
+        {
+            return;
+        }
+
+        TabBackground = new SolidColorBrush(color);
     }
 }

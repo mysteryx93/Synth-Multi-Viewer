@@ -36,7 +36,8 @@
                 <Run Text="Scroll down: Zoom out" /><LineBreak />
                 <Run Text="Right click: Reset zoom" /><LineBreak />
                 <Run Text="Wheel click: Toggle full-screen" /><LineBreak />
-                <Run Text="Click tab name: Rename" /><LineBreak /><LineBreak />
+                <Run Text="Click tab name: Rename" /><LineBreak />
+                <Run Text="Drag tab: Reorder" /><LineBreak /><LineBreak />
                 <Run FontWeight="Bold" Text="Keyboard shortcuts:" /><LineBreak />
                 <Run Text="F2: Rename tab" /><LineBreak />
                 <Run Text="F3: Settings" /><LineBreak />
@@ -50,8 +51,9 @@
                 <Run Text="-: Zoom out" /><LineBreak />
                 <Run Text="Ctrl+Tab: Next tab" /><LineBreak />
                 <Run Text="Ctrl+Shift+Tab: Previous tab" /><LineBreak />
-                <Run Text="Alt+1-9: Select viewer tab" /><LineBreak />
-                <Run Text="Ctrl+1-9: Select editor tab" /><LineBreak />
+                <Run Text="Ctrl+1-9: Select tab" /><LineBreak />
+                <Run Text="Alt+Left: Move tab left" /><LineBreak />
+                <Run Text="Alt+Right: Move tab right" /><LineBreak />
                 <Run Text="Ctrl+N: New VapourSynth script" /><LineBreak />
                 <Run Text="Ctrl+M: New AviSynth script" /><LineBreak />
                 <Run Text="F5: Run script" /><LineBreak />

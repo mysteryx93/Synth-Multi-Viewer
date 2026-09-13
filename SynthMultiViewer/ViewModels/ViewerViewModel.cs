@@ -37,10 +37,6 @@ public interface IViewerViewModel : IScriptViewModel
     /// Gets or sets the vertical scroll offset in display units.
     /// </summary>
     double ScrollVerticalOffset { get; set; }
-    /// <summary>
-    /// Gets or sets which native engine evaluates the script.
-    /// </summary>
-    ScriptKind Kind { get; set; }
 }
 
 /// <summary>
@@ -54,7 +50,6 @@ public partial class ViewerViewModel : ScriptViewModel, IViewerViewModel
     public ViewerViewModel()
     {
         CanClose = true;
-        Sort = 1;
     }
 
     /// <inheritdoc />
@@ -88,8 +83,4 @@ public partial class ViewerViewModel : ScriptViewModel, IViewerViewModel
     /// <inheritdoc />
     [Reactive]
     public partial double ScrollVerticalOffset { get; set; }
-
-    /// <inheritdoc />
-    [Reactive]
-    public partial ScriptKind Kind { get; set; }
 }

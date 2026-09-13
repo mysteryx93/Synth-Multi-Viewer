@@ -14,7 +14,9 @@
         h:EventCommands.Loaded="{Binding Load}"
         h:ViewerKeys.Seek="{Binding Seek}"
         h:ViewerKeys.PlayPause="{Binding PlayPause}"
-        h:ViewerKeys.CopyFrame="{Binding CopyFrame}">
+        h:ViewerKeys.CopyFrame="{Binding CopyFrame}"
+        h:TabKeys.MoveLeft="{Binding MoveTabLeft}"
+        h:TabKeys.MoveRight="{Binding MoveTabRight}">
     <Window.Resources>
         <h:ZoomConverter x:Key="ZoomConverter" ZeroText="Scale to Fit" />
     </Window.Resources>
@@ -39,25 +41,15 @@
         <KeyBinding Gesture="OemMinus" Command="{Binding ZoomOut}" />
         <KeyBinding Gesture="Ctrl+Tab" Command="{Binding NextTab}" />
         <KeyBinding Gesture="Ctrl+Shift+Tab" Command="{Binding PreviousTab}" />
-        <KeyBinding Gesture="Ctrl+D1" Command="{Binding SelectEditor}" CommandParameter="0" />
-        <KeyBinding Gesture="Ctrl+D2" Command="{Binding SelectEditor}" CommandParameter="1" />
-        <KeyBinding Gesture="Ctrl+D3" Command="{Binding SelectEditor}" CommandParameter="2" />
-        <KeyBinding Gesture="Ctrl+D4" Command="{Binding SelectEditor}" CommandParameter="3" />
-        <KeyBinding Gesture="Ctrl+D5" Command="{Binding SelectEditor}" CommandParameter="4" />
-        <KeyBinding Gesture="Ctrl+D6" Command="{Binding SelectEditor}" CommandParameter="5" />
-        <KeyBinding Gesture="Ctrl+D7" Command="{Binding SelectEditor}" CommandParameter="6" />
-        <KeyBinding Gesture="Ctrl+D8" Command="{Binding SelectEditor}" CommandParameter="7" />
-        <KeyBinding Gesture="Ctrl+D9" Command="{Binding SelectEditor}" CommandParameter="8" />
-        <KeyBinding Gesture="Ctrl+D0" Command="{Binding SelectEditor}" CommandParameter="9" />
-        <KeyBinding Gesture="Alt+D1" Command="{Binding SelectViewer}" CommandParameter="0" />
-        <KeyBinding Gesture="Alt+D2" Command="{Binding SelectViewer}" CommandParameter="1" />
-        <KeyBinding Gesture="Alt+D3" Command="{Binding SelectViewer}" CommandParameter="2" />
-        <KeyBinding Gesture="Alt+D4" Command="{Binding SelectViewer}" CommandParameter="3" />
-        <KeyBinding Gesture="Alt+D5" Command="{Binding SelectViewer}" CommandParameter="4" />
-        <KeyBinding Gesture="Alt+D6" Command="{Binding SelectViewer}" CommandParameter="5" />
-        <KeyBinding Gesture="Alt+D7" Command="{Binding SelectViewer}" CommandParameter="6" />
-        <KeyBinding Gesture="Alt+D8" Command="{Binding SelectViewer}" CommandParameter="7" />
-        <KeyBinding Gesture="Alt+D9" Command="{Binding SelectViewer}" CommandParameter="8" />
+        <KeyBinding Gesture="Ctrl+D1" Command="{Binding SelectTab}" CommandParameter="0" />
+        <KeyBinding Gesture="Ctrl+D2" Command="{Binding SelectTab}" CommandParameter="1" />
+        <KeyBinding Gesture="Ctrl+D3" Command="{Binding SelectTab}" CommandParameter="2" />
+        <KeyBinding Gesture="Ctrl+D4" Command="{Binding SelectTab}" CommandParameter="3" />
+        <KeyBinding Gesture="Ctrl+D5" Command="{Binding SelectTab}" CommandParameter="4" />
+        <KeyBinding Gesture="Ctrl+D6" Command="{Binding SelectTab}" CommandParameter="5" />
+        <KeyBinding Gesture="Ctrl+D7" Command="{Binding SelectTab}" CommandParameter="6" />
+        <KeyBinding Gesture="Ctrl+D8" Command="{Binding SelectTab}" CommandParameter="7" />
+        <KeyBinding Gesture="Ctrl+D9" Command="{Binding SelectTab}" CommandParameter="8" />
     </Window.KeyBindings>
     <DockPanel>
         <DockPanel DockPanel.Dock="Top">

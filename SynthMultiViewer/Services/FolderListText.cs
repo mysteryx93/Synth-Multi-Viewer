@@ -21,4 +21,33 @@ public static class FolderListText
             .Distinct(StringComparer.Ordinal)
             .ToList();
     }
+
+    /// <summary>
+    /// Returns the last parsed folder, or null when the list is empty.
+    /// </summary>
+    public static string? Last(string? text)
+    {
+        var folders = Parse(text);
+        return folders.Count > 0 ? folders[^1] : null;
+    }
+
+    /// <summary>
+    /// Adds a folder to the list when it is not already present.
+    /// </summary>
+    public static string Append(string? text, string folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return text ?? "";
+        }
+
+        var folders = Parse(text).ToList();
+        var trimmed = folder.Trim();
+        if (!folders.Contains(trimmed, StringComparer.Ordinal))
+        {
+            folders.Add(trimmed);
+        }
+
+        return string.Join("; ", folders);
+    }
 }

@@ -24,8 +24,6 @@ public partial class MainViewModel : WorkspaceViewModel
     private double _scrollHorizontalOffset;
     private double _scrollVerticalOffset;
     private TimeSpan _playerPosition;
-    private int _editorIndex;
-    private int _viewerIndex;
     private IScriptViewModel? _previousItem;
     private bool _loaded;
 
@@ -45,8 +43,8 @@ public partial class MainViewModel : WorkspaceViewModel
         DisplayName = "Synth Multi-Viewer";
         CanClose = false;
 
-        _settings.Saving += (_, _) => this.RaisePropertyChanged(nameof(Threads));
-        _settings.Changed += (_, _) => this.RaisePropertyChanged(nameof(Threads));
+        _settings.Saving += (_, _) => OnSettingsChanged();
+        _settings.Changed += (_, _) => OnSettingsChanged();
         this.WhenAnyValue(x => x.IsMultiThreaded)
             .Subscribe(_ => this.RaisePropertyChanged(nameof(Threads)));
 
@@ -71,7 +69,7 @@ public partial class MainViewModel : WorkspaceViewModel
     }
 
     /// <summary>
-    /// Gets the open tabs, ordered with editors before viewers.
+    /// Gets the open tabs in strip order.
     /// </summary>
     public ObservableCollection<IScriptViewModel> ScriptList { get; } = [];
 
@@ -243,13 +241,9 @@ public partial class MainViewModel : WorkspaceViewModel
     public RxCommandVoid Rename => field ??= ReactiveCommand.Create(RenameImpl,
         this.WhenAnyValue(x => x.SelectedItem).Select(x => x?.CanEditHeader == true));
     /// <summary>
-    /// Selects an editor by its zero-based index, supplied as an integer or string.
+    /// Selects a tab by its zero-based strip index, supplied as an integer or string.
     /// </summary>
-    public ReactiveCommand<object?, RxVoid> SelectEditor => field ??= ReactiveCommand.Create<object?>(SelectEditorImpl);
-    /// <summary>
-    /// Selects a viewer by its zero-based index, supplied as an integer or string.
-    /// </summary>
-    public ReactiveCommand<object?, RxVoid> SelectViewer => field ??= ReactiveCommand.Create<object?>(SelectViewerImpl);
+    public ReactiveCommand<object?, RxVoid> SelectTab => field ??= ReactiveCommand.Create<object?>(SelectTabImpl);
     /// <summary>
     /// Selects the next tab, wrapping from last to first.
     /// </summary>
@@ -260,12 +254,28 @@ public partial class MainViewModel : WorkspaceViewModel
     /// </summary>
     public RxCommandVoid PreviousTab => field ??= ReactiveCommand.Create(PreviousTabImpl,
         this.WhenAnyValue(x => x.SelectedItem).Select(_ => ScriptList.Count > 0));
+    /// <summary>
+    /// Moves the selected tab one place left.
+    /// </summary>
+    public RxCommandVoid MoveTabLeft => field ??= ReactiveCommand.Create(MoveTabLeftImpl, WhenMultipleTabs);
+    /// <summary>
+    /// Moves the selected tab one place right.
+    /// </summary>
+    public RxCommandVoid MoveTabRight => field ??= ReactiveCommand.Create(MoveTabRightImpl, WhenMultipleTabs);
 
     private IObservable<bool> WhenEditorSelected =>
         this.WhenAnyValue(x => x.SelectedItem).Select(x => x is IEditorViewModel);
 
     private IObservable<bool> WhenViewerSelected =>
         this.WhenAnyValue(x => x.SelectedItem).Select(x => x is IViewerViewModel);
+
+    private IObservable<bool> WhenMultipleTabs =>
+        Observable.FromEventPattern<NotifyCollectionChangedEventHandler, NotifyCollectionChangedEventArgs>(
+                h => ScriptList.CollectionChanged += h,
+                h => ScriptList.CollectionChanged -= h)
+            .Select(_ => RxVoid.Default)
+            .StartWith(RxVoid.Default)
+            .Select(_ => ScriptList.Count > 1);
 
     private IObservable<bool> CanUpdateAll =>
         Observable.FromEventPattern<NotifyCollectionChangedEventHandler, NotifyCollectionChangedEventArgs>(
@@ -319,7 +329,9 @@ public partial class MainViewModel : WorkspaceViewModel
         var editor = _dialogService.CreateViewModel<EditorViewModel>();
         editor.Kind = kind;
         editor.Script = script;
-        AddTab(editor, ++_editorIndex, "Script " + _editorIndex);
+        var index = TabAutoNumber.Next(ScriptList.Select(x => x.DisplayName), "Script");
+        editor.Index = index;
+        AddTab(editor, "Script " + index);
     }
 
     private async Task OpenImplAsync()
@@ -388,7 +400,9 @@ public partial class MainViewModel : WorkspaceViewModel
         viewer.Kind = editor.Kind;
         viewer.FileName = editor.FileName;
         viewer.Script = editor.Script;
-        AddTab(viewer, ++_viewerIndex, "Viewer " + _viewerIndex);
+        var index = TabAutoNumber.Next(ScriptList.Select(x => x.DisplayName), "Viewer");
+        viewer.Index = index;
+        AddTab(viewer, "Viewer " + index);
     }
 
     private async Task GoToImplAsync()
@@ -470,25 +484,13 @@ public partial class MainViewModel : WorkspaceViewModel
         }
     }
 
-    private void SelectEditorImpl(object? parameter)
+    private void SelectTabImpl(object? parameter)
     {
         if (!TryIndex(parameter, out var index)) { return; }
 
-        var editors = ScriptList.OfType<IEditorViewModel>().ToList();
-        if (index >= 0 && index < editors.Count)
+        if (index >= 0 && index < ScriptList.Count)
         {
-            SelectedItem = editors[index];
-        }
-    }
-
-    private void SelectViewerImpl(object? parameter)
-    {
-        if (!TryIndex(parameter, out var index)) { return; }
-
-        var viewers = ScriptList.OfType<IViewerViewModel>().ToList();
-        if (index >= 0 && index < viewers.Count)
-        {
-            SelectedItem = viewers[index];
+            SelectedItem = ScriptList[index];
         }
     }
 
@@ -511,6 +513,21 @@ public partial class MainViewModel : WorkspaceViewModel
         }
 
         SelectedItem = ScriptList[(pos - 1 + ScriptList.Count) % ScriptList.Count];
+    }
+
+    private void MoveTabLeftImpl() => MoveSelectedTab(-1);
+
+    private void MoveTabRightImpl() => MoveSelectedTab(1);
+
+    private void MoveSelectedTab(int delta)
+    {
+        var item = SelectedItem;
+        if (!TabOrder.TryMove(ScriptList, item, delta) || item is null)
+        {
+            return;
+        }
+
+        SelectedItem = item;
     }
 
     private void ZoomInImpl()
@@ -605,7 +622,7 @@ public partial class MainViewModel : WorkspaceViewModel
                 editor.Kind = kind;
             }
             editor.Script = content;
-            AddTab(editor, ++_editorIndex, Path.GetFileName(file));
+            AddTab(editor, Path.GetFileName(file));
             return true;
         }
         catch (Exception ex)
@@ -615,24 +632,22 @@ public partial class MainViewModel : WorkspaceViewModel
         }
     }
 
-    private void AddTab(IScriptViewModel viewModel, int index, string title)
+    private void AddTab(IScriptViewModel viewModel, string title)
     {
         viewModel.DisplayName = title;
-        viewModel.Index = index;
         viewModel.RequestClose += ScriptOnRequestClose;
-        var insertAt = ScriptList.Count;
-        for (var i = 0; i < ScriptList.Count; i++)
-        {
-            if (ScriptList[i].Sort > viewModel.Sort ||
-                (ScriptList[i].Sort == viewModel.Sort && ScriptList[i].Index > index))
-            {
-                insertAt = i;
-                break;
-            }
-        }
-
-        ScriptList.Insert(insertAt, viewModel);
+        viewModel.ApplyTabColor(_settings.Value);
+        ScriptList.Add(viewModel);
         SelectedItem = viewModel;
+    }
+
+    private void OnSettingsChanged()
+    {
+        this.RaisePropertyChanged(nameof(Threads));
+        foreach (var tab in ScriptList)
+        {
+            tab.ApplyTabColor(_settings.Value);
+        }
     }
 
     private void ScriptOnRequestClose(object? sender, EventArgs e)

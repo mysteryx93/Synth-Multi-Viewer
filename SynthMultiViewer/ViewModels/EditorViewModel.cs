@@ -15,10 +15,6 @@ public interface IEditorViewModel : IScriptViewModel
     /// Gets or sets the script text.
     /// </summary>
     string Script { get; set; }
-    /// <summary>
-    /// Gets or sets which native engine evaluates the script.
-    /// </summary>
-    ScriptKind Kind { get; set; }
 }
 
 /// <summary>
@@ -33,7 +29,6 @@ public partial class EditorViewModel : ScriptViewModel, IEditorViewModel
     {
         CanClose = true;
         DisplayName = "Script";
-        Sort = 0;
         this.WhenAnyValue(x => x.Kind)
             .Subscribe(_ => this.RaisePropertyChanged(nameof(HighlightSource)));
     }
@@ -45,10 +40,6 @@ public partial class EditorViewModel : ScriptViewModel, IEditorViewModel
     /// <inheritdoc />
     [Reactive]
     public partial string Script { get; set; } = string.Empty;
-
-    /// <inheritdoc />
-    [Reactive]
-    public partial ScriptKind Kind { get; set; }
 
     /// <summary>
     /// Gets the syntax highlighting asset for the current script kind.

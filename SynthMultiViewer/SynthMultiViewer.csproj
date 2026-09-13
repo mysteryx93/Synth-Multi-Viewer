@@ -17,6 +17,7 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Xaml.Behaviors.Interactions.Draggable" />
     <PackageReference Include="Avalonia.AvaloniaEdit" />
     <PackageReference Include="ReactiveUI" />
     <PackageReference Include="ReactiveUI.Avalonia" />
