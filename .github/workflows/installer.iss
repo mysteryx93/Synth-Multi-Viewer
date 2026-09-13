@@ -5,6 +5,7 @@
 #define OutputDir "__OUTPUT_DIR__"
 #define OutputFile "__OUTPUT_FILE__"
 #define IconFile "__ICON_FILE__"
+#define X64 "__X64__"
 
 [Setup]
 AppName={#AppName}
@@ -12,8 +13,10 @@ AppVersion={#AppVersion}
 AppVerName={#AppName} v{#AppVersion}
 UninstallDisplayName={#AppName}
 AppPublisher=Hanuman Institute
+#if X64 == "1"
 ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
+#endif
 SetupIconFile={#IconFile}
 UninstallDisplayIcon={app}\{#AppInternal}.exe
 DefaultDirName={autopf}\Hanuman Institute\{#AppInternal}

@@ -14,7 +14,7 @@ to_win_path() {
 
 if [[ -z "${1:-}" ]]; then
   echo "Syntax: publish-win AppName [runtime]"
-  echo "Runtime: win-x64"
+  echo "Runtime: win-x64 or win-x86"
   exit 1
 fi
 
@@ -26,6 +26,9 @@ require_supported_app "$app"
 case "$runtime" in
   win-x64)
     arch=Win_x64
+    ;;
+  win-x86)
+    arch=Win_x86
     ;;
   *)
     echo "Unsupported Windows runtime: $runtime" >&2
@@ -109,6 +112,12 @@ product=$(read_product "$app")
   exit 1
 }
 
+if [[ "$runtime" == "win-x64" ]]; then
+  x64="1"
+else
+  x64="0"
+fi
+
 icon_file="$deploy/App.ico"
 [[ -f "$icon_file" ]] || {
   echo "Icon not found: $icon_file" >&2
@@ -132,7 +141,8 @@ replace_tokens \
   "__PUBLISH_DIR__" "$publishPath_win" \
   "__OUTPUT_DIR__" "$outDir_win" \
   "__OUTPUT_FILE__" "$outFile" \
-  "__ICON_FILE__" "$icon_file_win"
+  "__ICON_FILE__" "$icon_file_win" \
+  "__X64__" "$x64"
 
 "$iscc" "$issFile"
 

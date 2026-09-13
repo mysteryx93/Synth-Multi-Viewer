@@ -12,7 +12,7 @@ Comparing script variants is also very time-consuming and difficult without prop
 
 VapourSynth and AviSynth
 
-x64 and ARM64
+x64, Windows x86, and ARM64
 
 Windows, Linux and MacOS
 

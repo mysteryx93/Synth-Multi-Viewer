@@ -1,7 +1,7 @@
 VapourSynth Multi-Viewer Change Log
 
 v1.0 (2026-09-12)
-- Cross-platform support (Windows x64, Linux x64/ARM64, macOS Intel/Apple Silicon)
+- Cross-platform support (Windows x64/x86, Linux x64/ARM64, macOS Intel/Apple Silicon)
 - Both VapourSynth and AviSynth support
 - Auto-detection of library and plugin paths across platforms
 - Light/Dark theme
