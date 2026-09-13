@@ -107,14 +107,53 @@ public sealed class VsScript : IDisposable
         }
     }
 
+    /// <summary>
+    /// Evaluates a tiny RGB clip to verify the loaded VapourSynth can run scripts.
+    /// </summary>
+    public static bool TryEvaluate(out string? error)
+    {
+        try
+        {
+            using var script = LoadScript(ProbeScript);
+            error = null;
+            return true;
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or VsException)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
     private void EvaluateBuffer(string script, string? scriptPath)
     {
         using var buffer = new Utf8Ptr(script);
+        EvaluateNamedBuffer(buffer.ptr, scriptPath, "VapourSynth could not evaluate the script.");
+    }
+
+    /// <summary>
+    /// Converts output 0 to RGB24 after the user script has finished, so display packing
+    /// does not change the graph the script built.
+    /// </summary>
+    private void ConvertOutputToRgb24()
+    {
+        using var buffer = new Utf8Ptr(DisplayConversion);
+        EvaluateNamedBuffer(buffer.ptr, null, "VapourSynth could not convert the output for display.");
+    }
+
+    // VSScript uses "<string>" when the filename is NULL. Some releases still pass that
+    // NULL into compile()/os.path and raise "expected str, bytes or os.PathLike object,
+    // not NoneType" on unsaved buffers, so always send the placeholder name.
+    private const string UnsavedScriptName = "<string>";
+
+    private void EvaluateNamedBuffer(IntPtr buffer, string? scriptPath, string fallbackError)
+    {
         if (string.IsNullOrWhiteSpace(scriptPath))
         {
-            if (_scriptApi.EvaluateBuffer(_handle, buffer.ptr, IntPtr.Zero) != 0)
+            using var unsaved = new Utf8Ptr(UnsavedScriptName);
+            if (_scriptApi.EvaluateBuffer(_handle, buffer, unsaved.ptr) != 0)
             {
-                throw new VsException(GetError() ?? "VapourSynth could not evaluate the script.");
+                throw new VsException(GetError() ?? fallbackError);
             }
 
             return;
@@ -128,24 +167,18 @@ public sealed class VsScript : IDisposable
             _scriptApi.SetWorkingDirectory(_handle, true);
         }
 
-        if (_scriptApi.EvaluateBuffer(_handle, buffer.ptr, fileName.ptr) != 0)
+        if (_scriptApi.EvaluateBuffer(_handle, buffer, fileName.ptr) != 0)
         {
-            throw new VsException(GetError() ?? "VapourSynth could not evaluate the script.");
+            throw new VsException(GetError() ?? fallbackError);
         }
     }
 
-    /// <summary>
-    /// Converts output 0 to RGB24 after the user script has finished, so display packing
-    /// does not change the graph the script built.
-    /// </summary>
-    private void ConvertOutputToRgb24()
-    {
-        using var buffer = new Utf8Ptr(DisplayConversion);
-        if (_scriptApi.EvaluateBuffer(_handle, buffer.ptr, IntPtr.Zero) != 0)
-        {
-            throw new VsException(GetError() ?? "VapourSynth could not convert the output for display.");
-        }
-    }
+    private const string ProbeScript = """
+        import vapoursynth as vs
+        core = vs.core
+        clip = core.std.BlankClip(width=16, height=16, length=1, format=vs.RGB24)
+        clip.set_output()
+        """;
 
     private const string DisplayConversion = """
 import vapoursynth as synthmultiviewer_vs

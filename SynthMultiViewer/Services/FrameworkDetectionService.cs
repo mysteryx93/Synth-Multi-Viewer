@@ -31,28 +31,44 @@ public sealed class FrameworkDetectionService : IFrameworkDetectionService
             FolderListText.Parse(settings.AviSynthPluginFolders), settings.AviSynthReplacePlugins);
 
         var vapourSynthFound = VsHelper.TryFindLibrary(out var vapourSynthPath);
+        var vapourSynthUsable = VsHelper.TryEvaluate(out var vapourSynthError);
         VapourSynth = CreateInstall(
-            vapourSynthFound, vapourSynthPath, settings.VapourSynthPath,
-            VsHelper.GetPluginDirectories(vapourSynthPath));
+            vapourSynthFound, vapourSynthUsable, vapourSynthPath, settings.VapourSynthPath,
+            VsHelper.GetPluginDirectories(vapourSynthPath), vapourSynthError);
 
         var aviSynthFound = AvsScript.TryFindLibrary(out var aviSynthPath);
+        var aviSynthUsable = AvsScript.TryEvaluate(out var aviSynthError);
         AviSynth = CreateInstall(
-            aviSynthFound, aviSynthPath, settings.AviSynthPath, AvsScript.GetPluginDirectories(aviSynthPath));
+            aviSynthFound, aviSynthUsable, aviSynthPath, settings.AviSynthPath,
+            AvsScript.GetPluginDirectories(aviSynthPath), aviSynthError);
     }
 
     private static FrameworkInstall CreateInstall(
-        bool found, string? libraryPath, string configuredPath, IReadOnlyList<string> pluginDirectories)
+        bool found, bool usable, string? libraryPath, string configuredPath,
+        IReadOnlyList<string> pluginDirectories, string? error)
     {
-        if (found)
+        if (found && usable)
         {
             return new FrameworkInstall(FrameworkStatus.Detected, libraryPath, pluginDirectories);
         }
 
+        if (found)
+        {
+            return new FrameworkInstall(
+                FrameworkStatus.Error, libraryPath, pluginDirectories,
+                FirstMessage(error, "The library could not run a script."));
+        }
+
         if (!string.IsNullOrWhiteSpace(configuredPath))
         {
-            return new FrameworkInstall(FrameworkStatus.Error, libraryPath, pluginDirectories);
+            return new FrameworkInstall(
+                FrameworkStatus.Error, libraryPath, pluginDirectories,
+                FirstMessage(error, "Could not load from '" + configuredPath.Trim() + "'."));
         }
 
         return new FrameworkInstall(FrameworkStatus.NotFound, libraryPath, pluginDirectories);
     }
+
+    private static string FirstMessage(string? error, string fallback) =>
+        string.IsNullOrWhiteSpace(error) ? fallback : error;
 }

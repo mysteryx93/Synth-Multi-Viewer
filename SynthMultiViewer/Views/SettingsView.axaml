@@ -25,7 +25,8 @@
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Classes="section-heading" Text="VapourSynth" />
-                <TextBlock x:Name="VapourSynthStatus" Text="{Binding VapourSynthStatus}" Classes="status" />
+                <TextBlock x:Name="VapourSynthStatus" Text="{Binding VapourSynthStatus}" Classes="status"
+                           ToolTip.Tip="{Binding VapourSynthStatusTip}" />
             </StackPanel>
             <DockPanel>
                 <TextBlock Text="Library: " Classes="field-label" />
@@ -56,7 +57,7 @@
                 <TextBlock Classes="section-heading" Text="AviSynth"
                            ToolTip.Tip="AviSynth+, AviSynth 2.6, or a fork that exports the C API" />
                 <TextBlock x:Name="AviSynthStatus" Text="{Binding AviSynthStatus}" Classes="status"
-                           ToolTip.Tip="AviSynth+, AviSynth 2.6, or a fork that exports the C API" />
+                           ToolTip.Tip="{Binding AviSynthStatusTip}" />
             </StackPanel>
             <DockPanel>
                 <TextBlock Text="Library: " Classes="field-label" />

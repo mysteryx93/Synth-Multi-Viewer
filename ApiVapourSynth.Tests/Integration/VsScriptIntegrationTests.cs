@@ -149,6 +149,17 @@ public class VsScriptIntegrationTests
     }
 
     [Fact]
+    public void TryEvaluate_NativeLibrary_ReturnsTrue()
+    {
+        SkipIfNativeUnavailable();
+
+        var usable = VsScript.TryEvaluate(out var error);
+
+        Assert.True(usable);
+        Assert.Null(error);
+    }
+
+    [Fact]
     public void LoadScript_WithMissingPath_DefinesFileAndEvaluatesBuffer()
     {
         SkipIfNativeUnavailable();

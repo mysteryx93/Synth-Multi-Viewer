@@ -46,6 +46,24 @@ public sealed class AvsScript : IDisposable
     public static bool TryFindLibrary(out string? path) => AvsNative.TryFindLibrary(out path);
 
     /// <summary>
+    /// Evaluates a tiny RGB clip to verify the loaded AviSynth can run scripts.
+    /// </summary>
+    public static bool TryEvaluate(out string? error)
+    {
+        try
+        {
+            using var script = LoadScript(ProbeScript);
+            error = null;
+            return true;
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or AvsException)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Loads an AviSynth script file with its directory as the working directory.
     /// </summary>
     public static AvsScript LoadFile(string path)
@@ -76,6 +94,8 @@ public sealed class AvsScript : IDisposable
 
         return Load((native, environment) => native.Eval(environment, body));
     }
+
+    private const string ProbeScript = """BlankClip(length=1, width=16, height=16, pixel_type="RGB24")""";
 
     // _Matrix if tagged (1=709, 5/6=601, 9/10=2020); else Rec.709 at 720p+, Rec.601 below.
     // Matches the VapourSynth display convert so the same YUV does not shift hue across hosts.

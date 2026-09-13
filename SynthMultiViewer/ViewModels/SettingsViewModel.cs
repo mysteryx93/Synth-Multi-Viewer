@@ -103,6 +103,12 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
     public partial string VapourSynthStatus { get; set; } = "(Not Found)";
 
     /// <summary>
+    /// Gets the VapourSynth probe details shown as a tooltip.
+    /// </summary>
+    [Reactive]
+    public partial string? VapourSynthStatusTip { get; set; }
+
+    /// <summary>
     /// Gets whether AviSynth can be loaded with the current path.
     /// </summary>
     [Reactive]
@@ -113,6 +119,12 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
     /// </summary>
     [Reactive]
     public partial string AviSynthStatus { get; set; } = "(Not Found)";
+
+    /// <summary>
+    /// Gets the AviSynth probe details shown as a tooltip.
+    /// </summary>
+    [Reactive]
+    public partial string? AviSynthStatusTip { get; set; }
 
     /// <summary>
     /// Gets the detected VapourSynth library path.
@@ -198,7 +210,9 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         VapourSynthFound = vapourSynth.Found;
         AviSynthFound = aviSynth.Found;
         VapourSynthStatus = FormatStatus(vapourSynth.Status);
+        VapourSynthStatusTip = FormatStatusTip(vapourSynth);
         AviSynthStatus = FormatStatus(aviSynth.Status);
+        AviSynthStatusTip = FormatStatusTip(aviSynth);
         VapourSynthLibraryDisplay = vapourSynth.LibraryPath ?? "";
         VapourSynthPluginsDisplay = FormatPlugins(vapourSynth);
         AviSynthLibraryDisplay = aviSynth.LibraryPath ?? "";
@@ -211,6 +225,18 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         FrameworkStatus.Error => "(Error)",
         _ => "(Not Found)"
     };
+
+    private static string? FormatStatusTip(FrameworkInstall install)
+    {
+        if (!string.IsNullOrWhiteSpace(install.Message))
+        {
+            return install.Message;
+        }
+
+        return install.Status == FrameworkStatus.Error
+            ? "The library could not be loaded or could not run a script."
+            : null;
+    }
 
     private static string FormatPlugins(FrameworkInstall install) =>
         install.PluginDirectories is { Count: > 0 } directories ? string.Join("; ", directories) : "";

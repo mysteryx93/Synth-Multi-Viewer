@@ -30,6 +30,11 @@ public static class VsHelper
     public static bool TryFindLibrary(out string? path) => NativeLibraryLocator.TryFindLibrary(out path);
 
     /// <summary>
+    /// Returns whether the loaded VapourSynth can evaluate a script, and the error when it cannot.
+    /// </summary>
+    public static bool TryEvaluate(out string? error) => VsScript.TryEvaluate(out error);
+
+    /// <summary>
     /// Returns the version requested from the VapourSynth 4 core API.
     /// </summary>
     public static int GetApiVersion() => VsInvoke.ApiVersion;

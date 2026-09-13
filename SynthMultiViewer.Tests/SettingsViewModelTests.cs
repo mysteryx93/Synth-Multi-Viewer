@@ -194,11 +194,13 @@ public class SettingsViewModelTests
     }
 
     [Fact]
-    public void Constructor_ConfiguredPathMissing_ShowsErrorStatus()
+    public void Constructor_ConfiguredPathMissing_ShowsErrorStatusAndTip()
     {
         var detection = new TestSupport.MemoryFrameworkDetection
         {
-            VapourSynth = new(FrameworkStatus.Error)
+            VapourSynth = new(
+                FrameworkStatus.Error, null, null, "Could not load VapourSynth from '/missing/vs'."),
+            AviSynth = new(FrameworkStatus.Error)
         };
 
         var model = new SettingsViewModel(
@@ -206,6 +208,34 @@ public class SettingsViewModelTests
 
         Assert.Equal("(Error)", model.VapourSynthStatus);
         Assert.False(model.VapourSynthFound);
+        Assert.Contains("/missing/vs", model.VapourSynthStatusTip, StringComparison.Ordinal);
+        Assert.Equal("(Error)", model.AviSynthStatus);
+        Assert.False(model.AviSynthFound);
+        Assert.Contains("could not be loaded", model.AviSynthStatusTip, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Constructor_LibraryFailsToRun_ShowsErrorStatusAndTip()
+    {
+        var detection = new TestSupport.MemoryFrameworkDetection
+        {
+            VapourSynth = new(
+                FrameworkStatus.Error, "/vs/VSScript.dll", null,
+                "expected str, bytes or os.PathLike object, not NoneType"),
+            AviSynth = new(
+                FrameworkStatus.Error, "/avs/AviSynth.dll", null,
+                "AviSynth could not evaluate the script.")
+        };
+
+        var model = new SettingsViewModel(
+            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryAppTheme(), detection);
+
+        Assert.Equal("(Error)", model.VapourSynthStatus);
+        Assert.False(model.VapourSynthFound);
+        Assert.Contains("PathLike", model.VapourSynthStatusTip, StringComparison.Ordinal);
+        Assert.Equal("(Error)", model.AviSynthStatus);
+        Assert.False(model.AviSynthFound);
+        Assert.Contains("evaluate", model.AviSynthStatusTip, StringComparison.Ordinal);
     }
 
     [Fact]

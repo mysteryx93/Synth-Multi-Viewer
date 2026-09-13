@@ -71,4 +71,22 @@ public class VsHelperTests
             VsHelper.SetDllPath("");
         }
     }
+
+    [Fact]
+    public void TryEvaluate_MissingOverride_ReturnsFalse()
+    {
+        try
+        {
+            VsHelper.SetDllPath(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "libvsscript.so"));
+
+            var usable = VsHelper.TryEvaluate(out var error);
+
+            Assert.False(usable);
+            Assert.False(string.IsNullOrWhiteSpace(error));
+        }
+        finally
+        {
+            VsHelper.SetDllPath("");
+        }
+    }
 }

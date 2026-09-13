@@ -18,7 +18,7 @@ public enum FrameworkStatus
     Detected,
 
     /// <summary>
-    /// A configured path was set but the library could not be loaded.
+    /// A configured path was set but the library could not be loaded, or a found library failed to run a script.
     /// </summary>
     Error
 }
@@ -29,7 +29,8 @@ public enum FrameworkStatus
 public sealed record FrameworkInstall(
     FrameworkStatus Status,
     string? LibraryPath = null,
-    IReadOnlyList<string>? PluginDirectories = null)
+    IReadOnlyList<string>? PluginDirectories = null,
+    string? Message = null)
 {
     /// <summary>
     /// Creates an install report from a found/not-found probe.
