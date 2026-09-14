@@ -22,23 +22,30 @@ internal sealed class FrameBuffer : IDisposable
     /// <summary>
     /// Copies native image rows into an owned buffer, excluding row padding.
     /// AviSynth RGB is stored bottom-up; pass <paramref name="flipVertical"/> to convert to top-down.
+    /// Pass <paramref name="opaqueBgra"/> when the source is packed BGRA with an unused alpha channel.
     /// </summary>
-    public static unsafe FrameBuffer CopyFrom(IntPtr source, int stride, int rowSize, int height, bool flipVertical = false)
+    public static unsafe FrameBuffer CopyFrom(
+        IntPtr source, int stride, int rowSize, int height, bool flipVertical = false, bool opaqueBgra = false)
     {
-        var invertRows = flipVertical ? stride > 0 : stride < 0;
-        if (invertRows && height > 0)
-        {
-            source = IntPtr.Add(source, checked((height - 1) * stride));
-            stride = -stride;
-        }
+        (source, stride) = PointToTopRow(source, stride, height, flipVertical);
 
-        var pixels = ArrayPool<byte>.Shared.Rent(checked(rowSize * height));
+        var length = checked(rowSize * height);
+        var pixels = ArrayPool<byte>.Shared.Rent(length);
         try
         {
             fixed (byte* target = pixels)
             {
                 VsHelper.BitBlt((IntPtr)target, rowSize, source, stride, rowSize, height);
             }
+
+            if (opaqueBgra)
+            {
+                for (var i = 3; i < length; i += 4)
+                {
+                    pixels[i] = byte.MaxValue;
+                }
+            }
+
             return new FrameBuffer(pixels, rowSize, height);
         }
         catch
@@ -54,6 +61,10 @@ internal sealed class FrameBuffer : IDisposable
     public static unsafe FrameBuffer CopyRgbToBgra(
         IntPtr red, int redStride, IntPtr green, int greenStride, IntPtr blue, int blueStride, int width, int height)
     {
+        (red, redStride) = PointToTopRow(red, redStride, height, false);
+        (green, greenStride) = PointToTopRow(green, greenStride, height, false);
+        (blue, blueStride) = PointToTopRow(blue, blueStride, height, false);
+
         var rowSize = checked(width * 4);
         var pixels = ArrayPool<byte>.Shared.Rent(checked(rowSize * height));
         try
@@ -95,6 +106,21 @@ internal sealed class FrameBuffer : IDisposable
         {
             VsHelper.BitBlt(target, stride, (IntPtr)source, _rowSize, _rowSize, _height);
         }
+    }
+
+    /// <summary>
+    /// Starts at the visual top row and walks downward.
+    /// </summary>
+    private static (IntPtr source, int stride) PointToTopRow(IntPtr source, int stride, int height, bool flipVertical)
+    {
+        var invertRows = flipVertical ? stride > 0 : stride < 0;
+        if (invertRows && height > 0)
+        {
+            source = IntPtr.Add(source, checked((height - 1) * stride));
+            stride = -stride;
+        }
+
+        return (source, stride);
     }
 
     /// <summary>

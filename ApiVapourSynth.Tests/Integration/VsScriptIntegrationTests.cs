@@ -96,6 +96,121 @@ public class VsScriptIntegrationTests
         Assert.NotEqual(IntPtr.Zero, frame.GetPlane(0).Ptr);
     }
 
+    public static TheoryData<string> DisplayFormats =>
+    [
+        "RGB24",
+        "RGB48",
+        "RGBS",
+        "GRAY8",
+        "GRAY16",
+        "GRAYS",
+        "YUV420P8",
+        "YUV422P8",
+        "YUV444P8",
+        "YUV410P8",
+        "YUV411P8",
+        "YUV440P8",
+        "YUV420P10",
+        "YUV422P16",
+        "YUV444PS"
+    ];
+
+    [Theory]
+    [MemberData(nameof(DisplayFormats))]
+    public void LoadScript_Format_ConvertsToRgb24(string format)
+    {
+        SkipIfNativeUnavailable();
+        var scriptText = $"""
+            import vapoursynth as vs
+            core = vs.core
+            clip = core.std.BlankClip(width=32, height=16, length=2, format=vs.{format})
+            clip.set_output()
+            """;
+
+        using var script = VsScript.LoadScript(scriptText);
+        using var output = script.GetOutput();
+        var info = output.VideoInfo;
+        using var frame = output.GetFrame(0);
+
+        Assert.Equal(VsColorFamily.RGB, info.Format.ColorFamily);
+        Assert.Equal(8, info.Format.BitsPerSample);
+        Assert.Equal(3, info.Format.NumPlanes);
+        Assert.Equal(32, info.Width);
+        Assert.Equal(16, info.Height);
+        Assert.Equal(32, frame.GetPlane(0).Width);
+        Assert.Equal(16, frame.GetPlane(0).Height);
+        Assert.NotEqual(IntPtr.Zero, frame.GetPlane(0).Ptr);
+        Assert.NotEqual(IntPtr.Zero, frame.GetPlane(1).Ptr);
+        Assert.NotEqual(IntPtr.Zero, frame.GetPlane(2).Ptr);
+    }
+
+    [Fact]
+    public void LoadScript_Yuv420Red_ConvertsToRedRgb24()
+    {
+        SkipIfNativeUnavailable();
+
+        using var script = VsScript.LoadScript("""
+            import vapoursynth as vs
+            core = vs.core
+            clip = core.std.BlankClip(width=16, height=16, length=1, format=vs.YUV420P8, color=[81, 90, 240])
+            clip.set_output()
+            """);
+        AssertRedRgb(script);
+    }
+
+    [Fact]
+    public void LoadScript_Ffms2Yuv420File_ConvertsToRedRgb24()
+    {
+        SkipIfNativeUnavailable();
+        var path = Path.Combine(Path.GetTempPath(), $"SynthMultiViewer-{Guid.NewGuid():N}.mp4");
+        try
+        {
+            var ffmpeg = Run("ffmpeg", $"-y -f lavfi -i color=c=red:s=32x16:d=1 -pix_fmt yuv420p \"{path}\"");
+            if (ffmpeg != 0 || !File.Exists(path))
+            {
+                Assert.Skip("ffmpeg is not available to create a YUV420 sample.");
+            }
+
+            using var script = VsScript.LoadScript($"""
+                import vapoursynth as vs
+                core = vs.core
+                clip = core.ffms2.Source(r"{path}")
+                clip.set_output()
+                """);
+            AssertRedRgb(script);
+        }
+        catch (VsException ex) when (ex.Message.Contains("ffms2", StringComparison.OrdinalIgnoreCase) ||
+                                     ex.Message.Contains("No attribute", StringComparison.OrdinalIgnoreCase))
+        {
+            Assert.Skip("VapourSynth FFMS2 plugin was not loaded.");
+        }
+        finally
+        {
+            foreach (var leftover in new[] { path, path + ".ffindex" })
+            {
+                if (File.Exists(leftover))
+                {
+                    File.Delete(leftover);
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void LoadScript_Yuv420IdentityMatrix_StillConvertsToRedRgb24()
+    {
+        SkipIfNativeUnavailable();
+
+        using var script = VsScript.LoadScript("""
+            import vapoursynth as vs
+            core = vs.core
+            clip = core.std.BlankClip(width=16, height=16, length=1, format=vs.YUV420P8, color=[81, 90, 240])
+            clip = clip.std.SetFrameProps(_Matrix=0)
+            clip.set_output()
+            """);
+        AssertRedRgb(script);
+    }
+
     [Fact]
     public void LoadScript_BlankClipYuv_ConvertsToRgb24()
     {
@@ -361,6 +476,46 @@ public class VsScriptIntegrationTests
         var threads = output.SetThreadCount(2);
 
         Assert.True(threads >= 1);
+    }
+
+    private static void AssertRedRgb(VsScript script)
+    {
+        using var output = script.GetOutput();
+        using var frame = output.GetFrame(0);
+        var red = Marshal.ReadByte(frame.GetPlane(0).Ptr);
+        var green = Marshal.ReadByte(frame.GetPlane(1).Ptr);
+        var blue = Marshal.ReadByte(frame.GetPlane(2).Ptr);
+
+        Assert.Equal(VsColorFamily.RGB, output.VideoInfo.Format.ColorFamily);
+        Assert.True(red > 200, $"red={red} green={green} blue={blue}");
+        Assert.True(red > green + 80);
+        Assert.True(red > blue + 80);
+    }
+
+    private static int Run(string fileName, string arguments)
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            });
+            if (process == null)
+            {
+                return -1;
+            }
+
+            process.WaitForExit(15000);
+            return process.HasExited ? process.ExitCode : -1;
+        }
+        catch (Exception)
+        {
+            return -1;
+        }
     }
 
     private static void SkipIfNativeUnavailable() =>

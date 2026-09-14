@@ -98,11 +98,12 @@ public sealed class AvsScript : IDisposable
     private const string ProbeScript = """BlankClip(length=1, width=16, height=16, pixel_type="RGB24")""";
 
     // _Matrix if tagged (1=709, 5/6=601, 9/10=2020); else Rec.709 at 720p+, Rec.601 below.
-    // Matches the VapourSynth display convert so the same YUV does not shift hue across hosts.
+    // Convert can prefer _Matrix over the matrix argument, so retag 0/2/other to match.
     private const string DisplayConversion = """
 mx = FunctionExists("propNumElements") && propNumElements(last, "_Matrix") > 0 ? propGetInt(last, "_Matrix") : 0
 mat = mx == 1 ? "Rec709" : mx == 9 || mx == 10 ? "Rec2020" : mx == 5 || mx == 6 ? "Rec601" : last.Height >= 720 ? "Rec709" : "Rec601"
-IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
+mid = mat == "Rec709" ? 1 : mat == "Rec2020" ? 9 : 6
+IsRGB() ? ConvertToRGB32() : FunctionExists("propSet") ? ConvertToRGB32(propSet("_Matrix", mid), matrix=mat) : ConvertToRGB32(matrix=mat)
 """;
 
     private static string Escape(string value) => value.Replace("\"", "\"\"", StringComparison.Ordinal);

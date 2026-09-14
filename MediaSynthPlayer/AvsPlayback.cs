@@ -278,7 +278,7 @@ internal sealed class AvsPlayback : ISynthPlayback
     }
 
     private static FrameBuffer CopyPlane(AvsPlane plane) =>
-        FrameBuffer.CopyFrom(plane.Pointer, plane.Stride, plane.RowSize, plane.Height, true);
+        FrameBuffer.CopyFrom(plane.Pointer, plane.Stride, plane.RowSize, plane.Height, flipVertical: true, opaqueBgra: true);
 
     private void DisposeSessionLocked()
     {

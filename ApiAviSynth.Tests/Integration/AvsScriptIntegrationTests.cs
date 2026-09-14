@@ -89,8 +89,9 @@ public class AvsScriptIntegrationTests
 
             Assert.NotEqual(IntPtr.Zero, plane.Pointer);
             Assert.Equal(120, plane.Height);
-            Assert.True(plane.RowSize >= 160 * 3);
+            Assert.True(plane.RowSize >= 160 * 4);
             Assert.True(plane.Stride >= plane.RowSize);
+            Assert.Equal(AvsCsBgr32, script.VideoInfo.PixelType);
         }
         finally
         {
@@ -145,8 +146,147 @@ public class AvsScriptIntegrationTests
         }
     }
 
+    public static TheoryData<string> DisplayPixelTypes =>
+    [
+        "RGB24",
+        "RGB32",
+        "YV12",
+        "YUY2",
+        "YV16",
+        "YV24",
+        "YV411",
+        "Y8",
+        "YUV420P10",
+        "YUV422P10",
+        "YUV444P10",
+        "YUV420PS",
+        "RGBP",
+        "RGBPS"
+    ];
+
+    [Theory]
+    [MemberData(nameof(DisplayPixelTypes))]
+    public void LoadScript_PixelType_ConvertsToPackedRgb32(string pixelType)
+    {
+        SkipIfNativeUnavailable();
+
+        using var script = AvsScript.LoadScript(
+            $"BlankClip(length=2, width=32, height=16, pixel_type=\"{pixelType}\")\n");
+        var info = script.VideoInfo;
+        using var frame = script.GetFrame(0);
+        var plane = frame.GetPlane(0);
+
+        Assert.Equal(AvsCsBgr32, info.PixelType);
+        Assert.Equal(32, info.Width);
+        Assert.Equal(16, info.Height);
+        Assert.Equal(16, plane.Height);
+        Assert.True(plane.RowSize >= 32 * 4);
+        Assert.NotEqual(IntPtr.Zero, plane.Pointer);
+    }
+
+    [Fact]
+    public void LoadScript_Yv12Red_ConvertsToRedRgb32()
+    {
+        SkipIfNativeUnavailable();
+
+        using var script = AvsScript.LoadScript(
+            "BlankClip(length=1, width=16, height=16, pixel_type=\"YV12\", color=$FF0000)\n");
+        AssertRedBgra(ReadBgra(script));
+    }
+
+    [Fact]
+    public void LoadScript_Ffms2Yuv420File_ConvertsToRedRgb32()
+    {
+        SkipIfNativeUnavailable();
+        var path = Path.Combine(Path.GetTempPath(), $"SynthMultiViewer-{Guid.NewGuid():N}.mp4");
+        try
+        {
+            var ffmpeg = Run("ffmpeg", $"-y -f lavfi -i color=c=red:s=32x16:d=1 -pix_fmt yuv420p \"{path}\"");
+            if (ffmpeg != 0 || !File.Exists(path))
+            {
+                Assert.Skip("ffmpeg is not available to create a YUV420 sample.");
+            }
+
+            using var script = AvsScript.LoadScript($"FFVideoSource(\"{path.Replace("\\", "\\\\")}\")\n");
+            Assert.Equal(AvsCsBgr32, script.VideoInfo.PixelType);
+            AssertRedBgra(ReadBgra(script));
+        }
+        catch (AvsException ex) when (ex.Message.Contains("FFVideoSource", StringComparison.OrdinalIgnoreCase) ||
+                                      ex.Message.Contains("I don't know what", StringComparison.OrdinalIgnoreCase))
+        {
+            Assert.Skip("AviSynth FFMS2 plugin was not autoloaded.");
+        }
+        finally
+        {
+            foreach (var leftover in new[] { path, path + ".ffindex" })
+            {
+                if (File.Exists(leftover))
+                {
+                    File.Delete(leftover);
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void LoadScript_Yv12IdentityMatrix_StillConvertsToRedRgb32()
+    {
+        SkipIfNativeUnavailable();
+
+        using var script = AvsScript.LoadScript("""
+            BlankClip(length=1, width=16, height=16, pixel_type="YV12", color=$FF0000)
+            propSet("_Matrix", 0)
+            """);
+
+        AssertRedBgra(ReadBgra(script));
+    }
+
+    private const int AvsCsBgr32 = (1 << 1) | (1 << 28) | (1 << 30);
+
+    private static byte[] ReadBgra(AvsScript script)
+    {
+        using var frame = script.GetFrame(0);
+        var plane = frame.GetPlane(0);
+        var pixel = new byte[4];
+        Marshal.Copy(plane.Pointer, pixel, 0, pixel.Length);
+        return pixel;
+    }
+
+    private static void AssertRedBgra(byte[] pixel)
+    {
+        Assert.True(pixel[2] > 200, $"red={pixel[2]} green={pixel[1]} blue={pixel[0]}");
+        Assert.True(pixel[2] > pixel[1] + 80);
+        Assert.True(pixel[2] > pixel[0] + 80);
+    }
+
     private static void SkipIfNativeUnavailable() =>
         Assert.SkipUnless(NativeAvailable.Value, "AviSynth+ native library was not found.");
+
+    private static int Run(string fileName, string arguments)
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            });
+            if (process == null)
+            {
+                return -1;
+            }
+
+            process.WaitForExit(15000);
+            return process.HasExited ? process.ExitCode : -1;
+        }
+        catch (Exception)
+        {
+            return -1;
+        }
+    }
 
     private static string WriteTempScript(string contents)
     {
