@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Avalonia.Xaml.Interactivity;
 using Avalonia.Xaml.Interactions.Draggable;
+using System.Windows.Input;
 using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
@@ -170,5 +171,30 @@ public class TabStripLayoutTests
         var secondLeft = items[1].TranslatePoint(default, view)!.Value.X;
 
         Assert.InRange(secondLeft - firstRight, 0, 1);
+    }
+
+    [AvaloniaFact]
+    public async Task CtrlT_OpensPickerForSelectedTab()
+    {
+        var manager = new TestSupport.ScriptedDialogManager
+        {
+            OnShow = dialog =>
+            {
+                var picker = Assert.IsType<TabColorViewModel>(dialog);
+                picker.Color = Colors.HotPink;
+                ((ICommand)picker.Ok).Execute(null);
+            }
+        };
+        var model = TestSupport.CreateMain(manager: manager);
+        var view = new MainView { DataContext = model };
+        using var window = TestSupport.Show(view);
+        await model.New.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        TestSupport.Press(view, Key.T, RawInputModifiers.Control);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(Colors.HotPink, model.SelectedItem!.TabColor);
+        Assert.IsType<TabColorViewModel>(manager.LastDialog);
     }
 }

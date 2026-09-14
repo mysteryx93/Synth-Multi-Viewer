@@ -8,69 +8,49 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 public class TabColorsTests
 {
     [Fact]
-    public void For_LightTheme_EditorIsNearWhiteAndViewerHasMoreHue()
+    public void For_DarkTheme_UsesConfiguredEditorAndScalesViewerBrightness()
     {
-        var editor = TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Light);
-        var viewer = TabColors.For(ScriptKind.VapourSynth, true, AppTheme.Light);
-
-        Assert.Equal(TabColors.Mix(TabColors.VapourSynth, false, false), editor);
-        Assert.True(Distance(editor, Color.FromRgb(0xF3, 0xF3, 0xF3)) <
-                    Distance(viewer, Color.FromRgb(0xF3, 0xF3, 0xF3)) * 0.5);
-        Assert.True(Distance(editor, Color.FromRgb(0xF3, 0xF3, 0xF3)) < 25);
-    }
-
-    [Fact]
-    public void For_DarkTheme_EditorIsNearBlackAndViewerHasMoreHue()
-    {
-        var editor = TabColors.For(ScriptKind.AviSynth, false, AppTheme.Dark);
-        var viewer = TabColors.For(ScriptKind.AviSynth, true, AppTheme.Dark);
-
-        var chrome = Color.FromRgb(0x20, 0x20, 0x20);
-        Assert.True(Distance(editor, chrome) < Distance(viewer, chrome) * 0.35);
-        Assert.True(editor.B > editor.G);
-        Assert.True(viewer.B - viewer.G > editor.B - editor.G);
-        Assert.True(Math.Max(editor.R, Math.Max(editor.G, editor.B)) < 40);
-        Assert.True(Math.Max(viewer.R, Math.Max(viewer.G, viewer.B)) < 72);
-    }
-
-    [Fact]
-    public void For_Engines_KeepDistinctHues()
-    {
-        var vs = TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Light);
-        var avs = TabColors.For(ScriptKind.AviSynth, false, AppTheme.Light);
-
-        Assert.True(vs.G > vs.B);
-        Assert.True(avs.B > avs.G);
-    }
-
-    [Fact]
-    public void For_DarkTheme_EnginesKeepDistinctHues()
-    {
-        var vsEditor = TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Dark);
-        var avsEditor = TabColors.For(ScriptKind.AviSynth, false, AppTheme.Dark);
+        var vs = TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Dark);
+        var avs = TabColors.For(ScriptKind.AviSynth, false, AppTheme.Dark);
         var vsViewer = TabColors.For(ScriptKind.VapourSynth, true, AppTheme.Dark);
         var avsViewer = TabColors.For(ScriptKind.AviSynth, true, AppTheme.Dark);
 
-        Assert.True(vsEditor.G > vsEditor.B);
-        Assert.True(avsEditor.B > avsEditor.G);
-        Assert.True(vsViewer.G - vsViewer.B > vsEditor.G - vsEditor.B);
-        Assert.True(avsViewer.B - avsViewer.G > avsEditor.B - avsEditor.G);
+        Assert.Equal(TabColors.VapourSynth, vs);
+        Assert.Equal(TabColors.AviSynth, avs);
+        Assert.Equal(Scale(vs, TabColors.ViewerBrightness), vsViewer);
+        Assert.Equal(Scale(avs, TabColors.ViewerBrightness), avsViewer);
     }
 
     [Fact]
-    public void For_CustomHue_MixesInsteadOfUsingRawColor()
+    public void For_LightTheme_InvertsDarkFill()
     {
-        var mixed = TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Light, Colors.HotPink);
+        foreach (var kind in new[] { ScriptKind.VapourSynth, ScriptKind.AviSynth })
+        {
+            foreach (var viewer in new[] { false, true })
+            {
+                var dark = TabColors.For(kind, viewer, AppTheme.Dark);
+                var light = TabColors.For(kind, viewer, AppTheme.Light);
 
-        Assert.Equal(TabColors.Mix(Colors.HotPink, false, false), mixed);
-        Assert.NotEqual(Colors.HotPink, mixed);
+                Assert.Equal(Invert(dark), light);
+            }
+        }
     }
 
-    private static double Distance(Color a, Color b)
+    [Fact]
+    public void For_CustomHue_UsesColorUnmixed()
     {
-        var dr = a.R - b.R;
-        var dg = a.G - b.G;
-        var db = a.B - b.B;
-        return Math.Sqrt(dr * dr + dg * dg + db * db);
+        var fill = TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Light, Colors.HotPink);
+
+        Assert.Equal(Colors.HotPink, fill);
+        Assert.NotEqual(TabColors.Mix(Colors.HotPink, false, false), fill);
     }
+
+    private static Color Scale(Color color, double factor) =>
+        Color.FromRgb(
+            (byte)Math.Clamp(Math.Round(color.R * factor), 0, 255),
+            (byte)Math.Clamp(Math.Round(color.G * factor), 0, 255),
+            (byte)Math.Clamp(Math.Round(color.B * factor), 0, 255));
+
+    private static Color Invert(Color color) =>
+        Color.FromRgb((byte)(255 - color.R), (byte)(255 - color.G), (byte)(255 - color.B));
 }

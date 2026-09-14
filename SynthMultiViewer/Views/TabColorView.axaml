@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HanumanInstitute.SynthMultiViewer.ViewModels"
+        x:Class="HanumanInstitute.SynthMultiViewer.Views.TabColorView"
+        x:DataType="vm:TabColorViewModel"
+        Title="{Binding DisplayName}"
+        Width="340"
+        SizeToContent="Height"
+        Classes="dialog"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Classes="dialog-content">
+        <StackPanel DockPanel.Dock="Bottom" Classes="dialog-actions">
+            <Button Content="Default" Command="{Binding RestoreDefault}" />
+            <Button Content="OK" IsDefault="True" Command="{Binding Ok}" />
+            <Button Content="Cancel" IsCancel="True" Command="{Binding Close}" />
+        </StackPanel>
+        <ColorView Color="{Binding Color, Mode=TwoWay}"
+                   IsAlphaEnabled="False"
+                   IsAlphaVisible="False" />
+    </DockPanel>
+</Window>

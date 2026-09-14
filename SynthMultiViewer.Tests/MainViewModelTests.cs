@@ -382,23 +382,23 @@ public class MainViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task UpdateAll_ViewerCountChanges_UpdatesAvailability()
+    public async Task UpdateAll_SingleViewer_RemainsEnabled()
     {
         var model = TestSupport.CreateMain();
         var command = (ICommand)model.UpdateAll;
-        var availability = new List<bool> { command.CanExecute(null) };
         await model.New.Execute();
         var editor = model.SelectedItem;
 
         await model.Run.Execute();
-        availability.Add(command.CanExecute(null));
-        model.SelectedItem = editor;
-        await model.Run.Execute();
-        availability.Add(command.CanExecute(null));
-        await model.SelectedItem!.Close.Execute();
-        availability.Add(command.CanExecute(null));
+        var viewer = Assert.IsType<ViewerViewModel>(model.SelectedItem);
+        viewer.Position = TimeSpan.FromSeconds(1.2);
 
-        Assert.Equal([false, false, true, false], availability);
+        Assert.True(command.CanExecute(null));
+        await model.UpdateAll.Execute();
+        Assert.Equal(TimeSpan.FromSeconds(1.2), viewer.Position);
+
+        model.SelectedItem = editor;
+        Assert.False(command.CanExecute(null));
     }
 
     [AvaloniaTheory(Timeout = 10000)]
@@ -723,13 +723,73 @@ public class MainViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task TabBackground_TabColorOverride_MixesCustomHue()
+    public async Task TabBackground_TabColorOverride_UsesCustomColor()
     {
         var model = TestSupport.CreateMain();
         await model.New.Execute();
         model.SelectedItem!.TabColor = Colors.HotPink;
 
-        Assert.Equal(TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Light, Colors.HotPink),
+        Assert.Equal(Colors.HotPink, BrushColor(model.SelectedItem.TabBackground));
+    }
+
+    [AvaloniaFact]
+    public async Task ChangeTabColor_Ok_AppliesSelectedHue()
+    {
+        var manager = new TestSupport.ScriptedDialogManager
+        {
+            OnShow = dialog =>
+            {
+                var picker = Assert.IsType<TabColorViewModel>(dialog);
+                Assert.Equal(TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Light), picker.Color);
+                picker.Color = Colors.HotPink;
+                ((ICommand)picker.Ok).Execute(null);
+            }
+        };
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+
+        await model.ChangeTabColor.Execute();
+
+        Assert.Equal(Colors.HotPink, model.SelectedItem!.TabColor);
+        Assert.Equal(Colors.HotPink, BrushColor(model.SelectedItem.TabBackground));
+    }
+
+    [AvaloniaFact]
+    public async Task ChangeTabColor_Cancel_LeavesExistingHue()
+    {
+        var manager = new TestSupport.ScriptedDialogManager
+        {
+            OnShow = dialog => ((ICommand)((TabColorViewModel)dialog).Close).Execute(null)
+        };
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        model.SelectedItem!.TabColor = Colors.Orange;
+
+        await model.ChangeTabColor.Execute();
+
+        Assert.Equal(Colors.Orange, model.SelectedItem.TabColor);
+    }
+
+    [AvaloniaFact]
+    public async Task ChangeTabColor_Default_ClearsOverride()
+    {
+        var manager = new TestSupport.ScriptedDialogManager
+        {
+            OnShow = dialog =>
+            {
+                var picker = Assert.IsType<TabColorViewModel>(dialog);
+                ((ICommand)picker.RestoreDefault).Execute(null);
+                ((ICommand)picker.Ok).Execute(null);
+            }
+        };
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        model.SelectedItem!.TabColor = Colors.HotPink;
+
+        await model.ChangeTabColor.Execute();
+
+        Assert.Null(model.SelectedItem.TabColor);
+        Assert.Equal(TabColors.For(ScriptKind.VapourSynth, false, AppTheme.Light),
             BrushColor(model.SelectedItem.TabBackground));
     }
 
@@ -748,6 +808,8 @@ public class MainViewModelTests
         Assert.Contains("Alt+Left: Move tab left", text, StringComparison.Ordinal);
         Assert.Contains("Alt+Right: Move tab right", text, StringComparison.Ordinal);
         Assert.Contains("Drag tab: Reorder", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+T: Change tab color", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Wheel click on tab", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Alt+1-9", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Select editor tab", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Select viewer tab", text, StringComparison.Ordinal);

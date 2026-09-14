@@ -40,6 +40,7 @@
                 <Run Text="Drag tab: Reorder" /><LineBreak /><LineBreak />
                 <Run FontWeight="Bold" Text="Keyboard shortcuts:" /><LineBreak />
                 <Run Text="F2: Rename tab" /><LineBreak />
+                <Run Text="Ctrl+T: Change tab color" /><LineBreak />
                 <Run Text="F3: Settings" /><LineBreak />
                 <Run Text="Space: Play/Pause" /><LineBreak />
                 <Run Text="Left: Seek 1 frame back" /><LineBreak />

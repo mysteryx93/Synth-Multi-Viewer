@@ -218,7 +218,7 @@ public partial class MainViewModel : WorkspaceViewModel
     /// <summary>
     /// Copies the shared frame position to the other viewers.
     /// </summary>
-    public RxCommandVoid UpdateAll => field ??= ReactiveCommand.Create(UpdateAllImpl, CanUpdateAll);
+    public RxCommandVoid UpdateAll => field ??= ReactiveCommand.Create(UpdateAllImpl, WhenViewerSelected);
     /// <summary>
     /// Increases the zoom factor by one step.
     /// </summary>
@@ -240,6 +240,12 @@ public partial class MainViewModel : WorkspaceViewModel
     /// </summary>
     public RxCommandVoid Rename => field ??= ReactiveCommand.Create(RenameImpl,
         this.WhenAnyValue(x => x.SelectedItem).Select(x => x?.CanEditHeader == true));
+    /// <summary>
+    /// Opens a color picker for the selected tab.
+    /// </summary>
+    public RxCommandVoid ChangeTabColor => field ??= ReactiveCommand.CreateFromTask(
+        ChangeTabColorImplAsync,
+        this.WhenAnyValue(x => x.SelectedItem).Select(_ => ScriptList.Count > 0));
     /// <summary>
     /// Selects a tab by its zero-based strip index, supplied as an integer or string.
     /// </summary>
@@ -276,14 +282,6 @@ public partial class MainViewModel : WorkspaceViewModel
             .Select(_ => RxVoid.Default)
             .StartWith(RxVoid.Default)
             .Select(_ => ScriptList.Count > 1);
-
-    private IObservable<bool> CanUpdateAll =>
-        Observable.FromEventPattern<NotifyCollectionChangedEventHandler, NotifyCollectionChangedEventArgs>(
-                h => ScriptList.CollectionChanged += h,
-                h => ScriptList.CollectionChanged -= h)
-            .Select(_ => RxVoid.Default)
-            .StartWith(RxVoid.Default)
-            .Select(_ => ScriptList.OfType<IViewerViewModel>().Skip(1).Any());
 
     private void OnSelectedItemChanged(IScriptViewModel? value)
     {
@@ -567,6 +565,27 @@ public partial class MainViewModel : WorkspaceViewModel
         if (SelectedItem is not { } item) { return; }
 
         ((ICommand)item.BeginHeaderEdit).Execute(null);
+    }
+
+    private async Task ChangeTabColorImplAsync()
+    {
+        var tab = SelectedItem;
+        if (tab is null)
+        {
+            return;
+        }
+
+        var picker = _dialogService.CreateViewModel<TabColorViewModel>();
+        var viewer = tab is IViewerViewModel;
+        var theme = _settings.Value.Theme;
+        picker.Load(
+            TabColors.For(tab.Kind, viewer, theme, tab.TabColor),
+            tab.TabColor is null,
+            TabColors.For(tab.Kind, viewer, theme));
+        if (await _dialogService.ShowDialogAsync(this, picker) == true)
+        {
+            tab.TabColor = picker.Result;
+        }
     }
 
     /// <summary>

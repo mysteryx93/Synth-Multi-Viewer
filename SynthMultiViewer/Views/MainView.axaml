@@ -29,6 +29,7 @@
         <KeyBinding Gesture="Ctrl+G" Command="{Binding GoTo}" />
         <KeyBinding Gesture="F1" Command="{Binding Help}" />
         <KeyBinding Gesture="F2" Command="{Binding Rename}" />
+        <KeyBinding Gesture="Ctrl+T" Command="{Binding ChangeTabColor}" />
         <KeyBinding Gesture="F3" Command="{Binding Settings}" />
         <KeyBinding Gesture="F5" Command="{Binding Run}" />
         <KeyBinding Gesture="Ctrl+F6" Command="{Binding UpdateAll}" />

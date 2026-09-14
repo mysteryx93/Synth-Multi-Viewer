@@ -78,6 +78,7 @@
     </Styles.Resources>
     <FluentTheme />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
     <Style Selector="TabStripItem">
         <Setter Property="(i:Interaction.Behaviors)">
             <BehaviorCollectionTemplate>
@@ -162,6 +163,15 @@
     </Style>
     <Style Selector="StackPanel.toolbar > ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource ToolbarButtonPointerOver}" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > Button:disabled, StackPanel.toolbar > ToggleButton:disabled">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="StackPanel.toolbar > Button:disabled /template/ ContentPresenter#PART_ContentPresenter,
+                     StackPanel.toolbar > ToggleButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="StackPanel.toolbar Image">
         <Setter Property="Width" Value="24" />

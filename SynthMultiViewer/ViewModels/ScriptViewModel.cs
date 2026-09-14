@@ -46,7 +46,7 @@ public interface IScriptViewModel : IWorkspaceViewModel
     /// </summary>
     Color? TabColor { get; set; }
     /// <summary>
-    /// Gets the brush painted on the tab, mixed from the hue toward the current theme.
+    /// Gets the brush painted on the tab.
     /// </summary>
     IBrush TabBackground { get; }
     /// <summary>

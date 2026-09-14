@@ -1,8 +1,10 @@
 VapourSynth Multi-Viewer Change Log
 
 v1.1
+- Fixed an AviSynth display bug
 - Allow tab re-ordering
 - Added tab colors to differentiate types
+- Allow customizing tab color with Ctrl+T
 - Added browse buttons for settings paths
 - Tweaked default tab numbering
 

@@ -20,7 +20,8 @@ public class AppThemeLayoutTests
         [
             new InputView { DataContext = new InputViewModel { Text = "Go to frame", Value = "100" } },
             new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) },
-            new SettingsView { DataContext = TestSupport.CreateViewModel(typeof(SettingsViewModel)) }
+            new SettingsView { DataContext = TestSupport.CreateViewModel(typeof(SettingsViewModel)) },
+            new TabColorView { DataContext = new TabColorViewModel() }
         ];
         foreach (var dialog in dialogs)
         {
@@ -49,7 +50,8 @@ public class AppThemeLayoutTests
             new MainView { DataContext = TestSupport.CreateMain() },
             new InputView { DataContext = new InputViewModel { Text = "Go to frame", Value = "100" } },
             new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) },
-            new SettingsView { DataContext = TestSupport.CreateViewModel(typeof(SettingsViewModel)) }
+            new SettingsView { DataContext = TestSupport.CreateViewModel(typeof(SettingsViewModel)) },
+            new TabColorView { DataContext = new TabColorViewModel() }
         ];
 
         foreach (var window in windows)
@@ -58,5 +60,17 @@ public class AppThemeLayoutTests
 
             Assert.True(window.UseLayoutRounding);
         }
+    }
+
+    [AvaloniaFact]
+    public void TabColorView_Shown_ContainsColorView()
+    {
+        var view = new TabColorView { DataContext = new TabColorViewModel() };
+
+        using var shown = TestSupport.Show(view);
+
+        Assert.NotNull(view.GetVisualDescendants().OfType<ColorView>().FirstOrDefault());
+        Assert.False(view.CanResize);
+        Assert.False(view.ShowInTaskbar);
     }
 }

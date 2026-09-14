@@ -32,9 +32,10 @@ internal static class TestSupport
     }
 
     public static MainViewModel CreateMain(
-        IEnvironmentService? environment = null, ISettingsProvider<AppSettingsData>? settings = null) =>
-        new(CreateDialogs(), environment ?? new TestEnvironment(), new MemoryDefaultScripts(),
-            settings ?? new MemorySettingsProvider());
+        IEnvironmentService? environment = null, ISettingsProvider<AppSettingsData>? settings = null,
+        IDialogManager? manager = null) =>
+        new(CreateDialogs(settings: settings, manager: manager), environment ?? new TestEnvironment(),
+            new MemoryDefaultScripts(), settings ?? new MemorySettingsProvider());
 
     public static async Task OpenViewerAsync(MainViewModel model)
     {
@@ -80,6 +81,22 @@ internal static class TestSupport
         }
 
         return Activator.CreateInstance(type)!;
+    }
+
+    public sealed class ScriptedDialogManager : DialogManager
+    {
+        public ScriptedDialogManager() : base(viewLocator: new ViewLocator()) { }
+
+        public IModalDialogViewModel? LastDialog { get; private set; }
+        public Action<IModalDialogViewModel>? OnShow { get; set; }
+
+        public override Task ShowDialogAsync(
+            INotifyPropertyChanged ownerViewModel, IModalDialogViewModel viewModel)
+        {
+            LastDialog = viewModel;
+            OnShow?.Invoke(viewModel);
+            return Task.CompletedTask;
+        }
     }
 
     public sealed class FakeDialogManager : DialogManager
