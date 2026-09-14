@@ -20,6 +20,7 @@ internal sealed class AvsNative
     private readonly GetPlaneValueDelegate _getRowSize;
     private readonly GetPlaneValueDelegate _getHeight;
     private readonly GetReadPtrDelegate _getReadPtr;
+    private readonly SetVarDelegate _setVar;
 
     private AvsNative(IntPtr library)
     {
@@ -37,6 +38,7 @@ internal sealed class AvsNative
         _getRowSize = GetDelegate<GetPlaneValueDelegate>("avs_get_row_size_p");
         _getHeight = GetDelegate<GetPlaneValueDelegate>("avs_get_height_p");
         _getReadPtr = GetDelegate<GetReadPtrDelegate>("avs_get_read_ptr_p");
+        _setVar = GetDelegate<SetVarDelegate>("avs_set_var");
     }
 
     public IntPtr CreateEnvironment() => _createEnvironment(InterfaceVersion);
@@ -55,6 +57,8 @@ internal sealed class AvsNative
     public AvsValue Import(IntPtr environment, string path) => InvokeString(environment, "Import", path);
 
     public AvsValue Eval(IntPtr environment, string script) => InvokeString(environment, "Eval", script);
+
+    public void SetVar(IntPtr environment, string name, AvsValue value) => _setVar(environment, name, value);
 
     public AvsValue InvokeClip(IntPtr environment, string name, IntPtr clip)
     {
@@ -180,4 +184,5 @@ internal sealed class AvsNative
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr GetFrameDelegate(IntPtr clip, int index);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int GetPlaneValueDelegate(IntPtr frame, int plane);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr GetReadPtrDelegate(IntPtr frame, int plane);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int SetVarDelegate(IntPtr environment, string name, AvsValue value);
 }

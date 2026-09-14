@@ -150,18 +150,40 @@ public class AvsScriptIntegrationTests
     [
         "RGB24",
         "RGB32",
+        "RGB48",
+        "RGB64",
+        "RGBP",
+        "RGBP10",
+        "RGBP12",
+        "RGBP14",
+        "RGBP16",
+        "RGBPS",
+        "RGBAP",
+        "RGBAP16",
         "YV12",
         "YUY2",
         "YV16",
         "YV24",
         "YV411",
         "Y8",
+        "Y10",
+        "Y12",
+        "Y14",
+        "Y16",
+        "Y32",
         "YUV420P10",
-        "YUV422P10",
-        "YUV444P10",
+        "YUV420P12",
+        "YUV420P14",
+        "YUV420P16",
         "YUV420PS",
-        "RGBP",
-        "RGBPS"
+        "YUV422P10",
+        "YUV422P16",
+        "YUV444P10",
+        "YUV444P16",
+        "YUV444PS",
+        "YUVA420",
+        "YUVA420P10",
+        "YUVA444P16"
     ];
 
     [Theory]
@@ -182,6 +204,40 @@ public class AvsScriptIntegrationTests
         Assert.Equal(16, plane.Height);
         Assert.True(plane.RowSize >= 32 * 4);
         Assert.NotEqual(IntPtr.Zero, plane.Pointer);
+    }
+
+    [Theory]
+    [InlineData("YV12")]
+    [InlineData("YUV420P10")]
+    [InlineData("YUV420P16")]
+    [InlineData("YUV420PS")]
+    [InlineData("RGB48")]
+    [InlineData("RGBP16")]
+    public void LoadScript_ReturnedClip_ConvertsToPackedRgb32(string pixelType)
+    {
+        SkipIfNativeUnavailable();
+
+        using var script = AvsScript.LoadScript($"""
+            clip = BlankClip(length=1, width=32, height=16, pixel_type="{pixelType}", color=$FF0000)
+            return clip
+            """);
+        var info = script.VideoInfo;
+        using var frame = script.GetFrame(0);
+        var plane = frame.GetPlane(0);
+
+        Assert.Equal(AvsCsBgr32, info.PixelType);
+        Assert.True(plane.RowSize >= info.Width * 4);
+        AssertRedBgra(ReadBgra(plane));
+    }
+
+    [Fact]
+    public void LoadScript_NoClip_ThrowsAvsException()
+    {
+        SkipIfNativeUnavailable();
+
+        var error = Assert.Throws<AvsException>(() => AvsScript.LoadScript("x = 1\n"));
+
+        Assert.Contains("did not return a video clip", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -246,7 +302,11 @@ public class AvsScriptIntegrationTests
     private static byte[] ReadBgra(AvsScript script)
     {
         using var frame = script.GetFrame(0);
-        var plane = frame.GetPlane(0);
+        return ReadBgra(frame.GetPlane(0));
+    }
+
+    private static byte[] ReadBgra(AvsPlane plane)
+    {
         var pixel = new byte[4];
         Marshal.Copy(plane.Pointer, pixel, 0, pixel.Length);
         return pixel;

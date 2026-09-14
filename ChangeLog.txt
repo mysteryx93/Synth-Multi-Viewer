@@ -1,6 +1,7 @@
 VapourSynth Multi-Viewer Change Log
 
 v1.1 (2026-09-13)
+- Fixed AviSynth/VapourSynth frame display for all pixel formats and bit depths
 - Fixed an AviSynth display bug
 - Allow tab re-ordering
 - Added tab colors to differentiate types

@@ -155,18 +155,28 @@ public class FrameBufferTests
     [
         "RGB24",
         "RGB32",
+        "RGB48",
+        "RGB64",
+        "RGBP",
+        "RGBP10",
+        "RGBP16",
+        "RGBPS",
         "YV12",
         "YUY2",
         "YV16",
         "YV24",
         "YV411",
         "Y8",
+        "Y16",
+        "Y32",
         "YUV420P10",
-        "YUV422P10",
-        "YUV444P10",
+        "YUV420P12",
+        "YUV420P16",
         "YUV420PS",
-        "RGBP",
-        "RGBPS"
+        "YUV422P10",
+        "YUV444P16",
+        "YUVA420",
+        "YUVA420P10"
     ];
 
     [Theory]
@@ -178,7 +188,8 @@ public class FrameBufferTests
         using var script = AvsScript.LoadScript($"""
             top = BlankClip(length=1, width=32, height=8, pixel_type="{pixelType}", color=$FF0000)
             bot = BlankClip(length=1, width=32, height=8, pixel_type="{pixelType}", color=$0000FF)
-            StackVertical(top, bot)
+            stacked = StackVertical(top, bot)
+            return stacked
             """);
         using var frame = script.GetFrame(0);
         var plane = frame.GetPlane(0);
@@ -192,26 +203,39 @@ public class FrameBufferTests
         Marshal.Copy(destination.Address, top, 0, top.Length);
         Marshal.Copy(IntPtr.Add(destination.Address, plane.RowSize * (plane.Height - 1)), bottom, 0, bottom.Length);
 
-        AssertTopBottom(pixelType is "Y8", top, bottom);
+        Assert.True(plane.RowSize >= 32 * 4, $"rowSize={plane.RowSize} for {pixelType}");
+        AssertTopBottom(pixelType is "Y8" or "Y16" or "Y32", top, bottom);
     }
 
     public static TheoryData<string> VapourSynthFormats =>
     [
         "RGB24",
+        "RGB27",
+        "RGB30",
         "RGB48",
+        "RGBH",
         "RGBS",
         "GRAY8",
+        "GRAY10",
         "GRAY16",
+        "GRAY32",
+        "GRAYH",
         "GRAYS",
         "YUV420P8",
+        "YUV420P9",
+        "YUV420P10",
+        "YUV420P12",
+        "YUV420P14",
+        "YUV420P16",
+        "YUV420PH",
+        "YUV420PS",
         "YUV422P8",
+        "YUV422P16",
         "YUV444P8",
+        "YUV444PS",
         "YUV410P8",
         "YUV411P8",
-        "YUV440P8",
-        "YUV420P10",
-        "YUV422P16",
-        "YUV444PS"
+        "YUV440P8"
     ];
 
     [Theory]
@@ -304,20 +328,29 @@ public class FrameBufferTests
         Assert.IsType<ObjectDisposedException>(error);
     }
 
-    private static string StackedVapourSynthClip(string format) => $$"""
-        import vapoursynth as vs
-        core = vs.core
-        top = core.std.BlankClip(width=32, height=8, length=1, format=vs.RGB24, color=[255, 0, 0])
-        bot = core.std.BlankClip(width=32, height=8, length=1, format=vs.RGB24, color=[0, 0, 255])
-        clip = core.std.StackVertical([top, bot])
-        fmt = vs.{{format}}
-        if clip.format.id != fmt:
-            args = {"format": fmt}
-            if "{{format}}".startswith(("YUV", "GRAY")):
-                args["matrix_s"] = "170m"
-            clip = clip.resize.Bicubic(**args)
-        clip.set_output()
-        """;
+    private static string StackedVapourSynthClip(string format) => format == "GRAY32"
+        ? """
+            import vapoursynth as vs
+            core = vs.core
+            top = core.std.BlankClip(width=32, height=8, length=1, format=vs.GRAY32, color=[4294967295])
+            bot = core.std.BlankClip(width=32, height=8, length=1, format=vs.GRAY32, color=[0])
+            clip = core.std.StackVertical([top, bot])
+            clip.set_output()
+            """
+        : $$"""
+            import vapoursynth as vs
+            core = vs.core
+            top = core.std.BlankClip(width=32, height=8, length=1, format=vs.RGB24, color=[255, 0, 0])
+            bot = core.std.BlankClip(width=32, height=8, length=1, format=vs.RGB24, color=[0, 0, 255])
+            clip = core.std.StackVertical([top, bot])
+            fmt = vs.{{format}}
+            if clip.format.id != fmt:
+                args = {"format": fmt}
+                if "{{format}}".startswith(("YUV", "GRAY")):
+                    args["matrix_s"] = "170m"
+                clip = clip.resize.Bicubic(**args)
+            clip.set_output()
+            """;
 
     private static void AssertTopBottom(bool gray, byte[] top, byte[] bottom)
     {

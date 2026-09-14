@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -317,6 +318,86 @@ public class SynthPlayerHostTests
         Assert.Equal(new PixelSize(160, 120), host.VideoSource.PixelSize);
     }
 
+    [AvaloniaTheory]
+    [InlineData("YV12")]
+    [InlineData("YUV420P10")]
+    [InlineData("YUV420PS")]
+    public void Script_AviSynthReturnedYuv_PresentsColorFrameRightSideUp(string pixelType)
+    {
+        SkipIfAviSynthUnavailable();
+        var host = new SynthPlayerHost { Kind = ScriptKind.AviSynth, AutoPlay = false };
+        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+
+        host.Script = $"""
+            top = BlankClip(length=1, width=32, height=8, pixel_type="{pixelType}", color=$FF0000)
+            bot = BlankClip(length=1, width=32, height=8, pixel_type="{pixelType}", color=$0000FF)
+            stacked = StackVertical(top, bot)
+            return stacked
+            """;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(host.VideoSource);
+        Assert.Equal(new PixelSize(32, 16), host.VideoSource.PixelSize);
+        var (top, bottom) = ReadBitmapCorners(host.VideoSource);
+        Assert.True(top[2] > 180 && top[2] > top[0] + 60, $"top B={top[0]} G={top[1]} R={top[2]} A={top[3]}");
+        Assert.True(bottom[0] > 180 && bottom[0] > bottom[2] + 60,
+            $"bottom B={bottom[0]} G={bottom[1]} R={bottom[2]} A={bottom[3]}");
+        Assert.Equal(byte.MaxValue, top[3]);
+        Assert.Equal(byte.MaxValue, bottom[3]);
+    }
+
+    [AvaloniaTheory]
+    [InlineData("YUV420P8")]
+    [InlineData("YUV420P10")]
+    [InlineData("YUV420PS")]
+    [InlineData("GRAY32")]
+    public void Script_VapourSynthFormat_PresentsFrameRightSideUp(string format)
+    {
+        SkipIfVapourSynthUnavailable();
+        var host = new SynthPlayerHost { Kind = ScriptKind.VapourSynth, AutoPlay = false };
+        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+        var gray = format.StartsWith("GRAY", StringComparison.Ordinal);
+
+        host.Script = format == "GRAY32"
+            ? """
+                import vapoursynth as vs
+                core = vs.core
+                top = core.std.BlankClip(width=32, height=8, length=1, format=vs.GRAY32, color=[4294967295])
+                bot = core.std.BlankClip(width=32, height=8, length=1, format=vs.GRAY32, color=[0])
+                clip = core.std.StackVertical([top, bot])
+                clip.set_output()
+                """
+            : "import vapoursynth as vs\n" +
+              "core = vs.core\n" +
+              "top = core.std.BlankClip(width=32, height=8, length=1, format=vs.RGB24, color=[255, 0, 0])\n" +
+              "bot = core.std.BlankClip(width=32, height=8, length=1, format=vs.RGB24, color=[0, 0, 255])\n" +
+              "clip = core.std.StackVertical([top, bot])\n" +
+              "fmt = vs." + format + "\n" +
+              "if clip.format.id != fmt:\n" +
+              "    args = {\"format\": fmt}\n" +
+              "    if \"" + format + "\".startswith((\"YUV\", \"GRAY\")):\n" +
+              "        args[\"matrix_s\"] = \"170m\"\n" +
+              "    clip = clip.resize.Bicubic(**args)\n" +
+              "clip.set_output()\n";
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(host.IsErrorVisible, host.ErrorMessage);
+        Assert.NotNull(host.VideoSource);
+        Assert.Equal(new PixelSize(32, 16), host.VideoSource.PixelSize);
+        var (top, bottom) = ReadBitmapCorners(host.VideoSource);
+        Assert.Equal(byte.MaxValue, top[3]);
+        Assert.Equal(byte.MaxValue, bottom[3]);
+        if (gray)
+        {
+            Assert.True(top[2] > bottom[2] + 40, $"top R={top[2]} bottom R={bottom[2]}");
+            return;
+        }
+
+        Assert.True(top[2] > 180 && top[2] > top[0] + 60, $"top B={top[0]} G={top[1]} R={top[2]} A={top[3]}");
+        Assert.True(bottom[0] > 180 && bottom[0] > bottom[2] + 60,
+            $"bottom B={bottom[0]} G={bottom[1]} R={bottom[2]} A={bottom[3]}");
+    }
+
     [AvaloniaFact]
     public void Position_AviSynthSeekWhilePaused_PresentsRequestedFrame()
     {
@@ -331,6 +412,20 @@ public class SynthPlayerHostTests
 
         Assert.NotNull(host.VideoSource);
         Assert.Equal(TimeSpan.FromSeconds(5), host.Position);
+    }
+
+    private static (byte[] top, byte[] bottom) ReadBitmapCorners(WriteableBitmap bitmap)
+    {
+        var top = new byte[4];
+        var bottom = new byte[4];
+        using (var framebuffer = bitmap.Lock())
+        {
+            Marshal.Copy(framebuffer.Address, top, 0, top.Length);
+            Marshal.Copy(IntPtr.Add(framebuffer.Address, framebuffer.RowBytes * (bitmap.PixelSize.Height - 1)),
+                bottom, 0, bottom.Length);
+        }
+
+        return (top, bottom);
     }
 
     private static void SkipIfAviSynthUnavailable() =>

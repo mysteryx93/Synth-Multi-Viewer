@@ -70,7 +70,8 @@ public sealed class AvsScript : IDisposable
     {
         var resolvedPath = ResolveScriptPath(path);
         return Load((native, environment) =>
-            native.Eval(environment, "Import(\"" + Escape(resolvedPath) + "\")\n" + DisplayConversion));
+            EvalClip(native, environment, "Import(\"" + Escape(resolvedPath) + "\")",
+                "AviSynth could not evaluate the script."));
     }
 
     /// <summary>
@@ -86,29 +87,36 @@ public sealed class AvsScript : IDisposable
     {
         script.CheckNotNullOrEmpty();
         var directory = string.IsNullOrWhiteSpace(scriptPath) ? null : Path.GetDirectoryName(ResolveScriptPath(scriptPath));
-        var body = script.TrimEnd() + "\n" + DisplayConversion;
-        if (directory.HasValue() && Directory.Exists(directory))
+        return Load((native, environment) =>
         {
-            body = "SetWorkingDir(\"" + Escape(directory) + "\")\n" + body;
-        }
+            if (directory.HasValue() && Directory.Exists(directory))
+            {
+                EvalDiscard(native, environment, "SetWorkingDir(\"" + Escape(directory) + "\")",
+                    "AviSynth could not set the working directory.");
+            }
 
-        return Load((native, environment) => native.Eval(environment, body));
+            return EvalClip(native, environment, script, "AviSynth could not evaluate the script.");
+        });
     }
 
     private const string ProbeScript = """BlankClip(length=1, width=16, height=16, pixel_type="RGB24")""";
 
+    // Run after the user script so `return` cannot skip display conversion.
     // _Matrix if tagged (1=709, 5/6=601, 9/10=2020); else Rec.709 at 720p+, Rec.601 below.
     // Convert can prefer _Matrix over the matrix argument, so retag 0/2/other to match.
+    // ConvertBits(8) first so 10/12/14/16/float land on packed 8-bit RGB32, not a luma plane.
     private const string DisplayConversion = """
 mx = FunctionExists("propNumElements") && propNumElements(last, "_Matrix") > 0 ? propGetInt(last, "_Matrix") : 0
 mat = mx == 1 ? "Rec709" : mx == 9 || mx == 10 ? "Rec2020" : mx == 5 || mx == 6 ? "Rec601" : last.Height >= 720 ? "Rec709" : "Rec601"
 mid = mat == "Rec709" ? 1 : mat == "Rec2020" ? 9 : 6
-IsRGB() ? ConvertToRGB32() : FunctionExists("propSet") ? ConvertToRGB32(propSet("_Matrix", mid), matrix=mat) : ConvertToRGB32(matrix=mat)
+last = IsRGB() ? last : FunctionExists("propSet") ? propSet("_Matrix", mid) : last
+last = FunctionExists("ConvertBits") && FunctionExists("BitsPerComponent") && BitsPerComponent() != 8 ? ConvertBits(8) : last
+IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
 """;
 
     private static string Escape(string value) => value.Replace("\"", "\"\"", StringComparison.Ordinal);
 
-    private static AvsScript Load(Func<AvsNative, IntPtr, AvsValue> evaluate)
+    private static AvsScript Load(Func<AvsNative, IntPtr, AvsValue> evaluateUser)
     {
         var native = AvsNative.Load();
         var environment = native.CreateEnvironment();
@@ -120,26 +128,62 @@ IsRGB() ? ConvertToRGB32() : FunctionExists("propSet") ? ConvertToRGB32(propSet(
         try
         {
             native.ApplyPluginFolders(environment);
-            var result = evaluate(native, environment);
-            if (result.Type == (short)'e')
+            var user = evaluateUser(native, environment);
+            try
             {
-                throw new AvsException(result.GetString() ?? "AviSynth could not evaluate the script.");
-            }
+                native.SetVar(environment, "last", user);
+                var result = Eval(native, environment, DisplayConversion,
+                    "AviSynth could not convert the output for display.");
+                var clip = native.TakeClip(result, environment);
+                native.ReleaseValue(result);
+                if (clip == IntPtr.Zero)
+                {
+                    throw new AvsException("The AviSynth script did not return a video clip.");
+                }
 
-            var clip = native.TakeClip(result, environment);
-            native.ReleaseValue(result);
-            if (clip == IntPtr.Zero)
+                return new AvsScript(native, environment, clip);
+            }
+            finally
             {
-                throw new AvsException("The AviSynth script did not return a video clip.");
+                native.ReleaseValue(user);
             }
-
-            return new AvsScript(native, environment, clip);
         }
         catch
         {
             native.DeleteEnvironment(environment);
             throw;
         }
+    }
+
+    private static AvsValue EvalClip(AvsNative native, IntPtr environment, string script, string fallbackError)
+    {
+        var result = Eval(native, environment, script, fallbackError);
+        if (result.Type != (short)'c')
+        {
+            native.ReleaseValue(result);
+            throw new AvsException("The AviSynth script did not return a video clip.");
+        }
+
+        return result;
+    }
+
+    private static void EvalDiscard(AvsNative native, IntPtr environment, string script, string fallbackError)
+    {
+        var result = Eval(native, environment, script, fallbackError);
+        native.ReleaseValue(result);
+    }
+
+    private static AvsValue Eval(AvsNative native, IntPtr environment, string script, string fallbackError)
+    {
+        var result = native.Eval(environment, script);
+        if (result.Type == (short)'e')
+        {
+            var message = result.GetString() ?? fallbackError;
+            native.ReleaseValue(result);
+            throw new AvsException(message);
+        }
+
+        return result;
     }
 
     /// <summary>

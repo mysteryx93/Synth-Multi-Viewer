@@ -99,20 +99,41 @@ public class VsScriptIntegrationTests
     public static TheoryData<string> DisplayFormats =>
     [
         "RGB24",
+        "RGB27",
+        "RGB30",
+        "RGB36",
+        "RGB42",
         "RGB48",
+        "RGBH",
         "RGBS",
         "GRAY8",
+        "GRAY9",
+        "GRAY10",
+        "GRAY12",
+        "GRAY14",
         "GRAY16",
+        "GRAY32",
+        "GRAYH",
         "GRAYS",
         "YUV420P8",
+        "YUV420P9",
+        "YUV420P10",
+        "YUV420P12",
+        "YUV420P14",
+        "YUV420P16",
+        "YUV420PH",
+        "YUV420PS",
         "YUV422P8",
+        "YUV422P10",
+        "YUV422P16",
+        "YUV422PS",
         "YUV444P8",
+        "YUV444P10",
+        "YUV444P16",
+        "YUV444PS",
         "YUV410P8",
         "YUV411P8",
-        "YUV440P8",
-        "YUV420P10",
-        "YUV422P16",
-        "YUV444PS"
+        "YUV440P8"
     ];
 
     [Theory]
@@ -142,6 +163,32 @@ public class VsScriptIntegrationTests
         Assert.NotEqual(IntPtr.Zero, frame.GetPlane(0).Ptr);
         Assert.NotEqual(IntPtr.Zero, frame.GetPlane(1).Ptr);
         Assert.NotEqual(IntPtr.Zero, frame.GetPlane(2).Ptr);
+    }
+
+    [Theory]
+    [InlineData("YUV420P8")]
+    [InlineData("YUV420P10")]
+    [InlineData("YUV420P16")]
+    [InlineData("YUV420PS")]
+    [InlineData("RGB48")]
+    [InlineData("RGBS")]
+    public void LoadScript_FormatRed_ConvertsToRedRgb24(string format)
+    {
+        SkipIfNativeUnavailable();
+        var scriptText =
+            "import vapoursynth as vs\n" +
+            "core = vs.core\n" +
+            "clip = core.std.BlankClip(width=16, height=16, length=1, format=vs.RGB24, color=[255, 0, 0])\n" +
+            "fmt = vs." + format + "\n" +
+            "if clip.format.id != fmt:\n" +
+            "    args = {\"format\": fmt}\n" +
+            "    if \"" + format + "\".startswith((\"YUV\", \"GRAY\")):\n" +
+            "        args[\"matrix_s\"] = \"170m\"\n" +
+            "    clip = clip.resize.Bicubic(**args)\n" +
+            "clip.set_output()\n";
+
+        using var script = VsScript.LoadScript(scriptText);
+        AssertRedRgb(script);
     }
 
     [Fact]

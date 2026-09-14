@@ -190,6 +190,27 @@ synthmultiviewer_node = synthmultiviewer_out.clip if hasattr(synthmultiviewer_ou
 if not isinstance(synthmultiviewer_node, synthmultiviewer_vs.VideoNode):
     raise synthmultiviewer_vs.Error("Output 0 is not a video node.")
 synthmultiviewer_format = synthmultiviewer_node.format
+# zimg/Expr reject 32-bit integer; take the high 8 bits so display conversion can run.
+if (
+    synthmultiviewer_format is not None
+    and synthmultiviewer_format.color_family == synthmultiviewer_vs.GRAY
+    and synthmultiviewer_format.sample_type == synthmultiviewer_vs.INTEGER
+    and synthmultiviewer_format.bits_per_sample == 32
+):
+    synthmultiviewer_gray8 = synthmultiviewer_vs.core.std.BlankClip(
+        synthmultiviewer_node, format=synthmultiviewer_vs.GRAY8)
+    def synthmultiviewer_int32_to_8(n, f):
+        src, proto = f[0], f[1]
+        dst = proto.copy()
+        sp, dp = src[0], dst[0]
+        for y in range(src.height):
+            for x in range(src.width):
+                dp[y, x] = sp[y, x] >> 24
+        return dst
+    synthmultiviewer_node = synthmultiviewer_vs.core.std.ModifyFrame(
+        synthmultiviewer_gray8, [synthmultiviewer_node, synthmultiviewer_gray8],
+        synthmultiviewer_int32_to_8)
+    synthmultiviewer_format = synthmultiviewer_node.format
 synthmultiviewer_rgb24 = (
     synthmultiviewer_format is not None
     and synthmultiviewer_format.color_family == synthmultiviewer_vs.RGB
