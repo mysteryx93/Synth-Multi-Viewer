@@ -55,6 +55,23 @@ public class AppSettingsProviderTests
     }
 
     [Fact]
+    public void Save_RoundTrip_PersistsWindowBounds()
+    {
+        using var file = new TemporaryConfig();
+        var provider = CreateProvider(file.Path);
+        provider.Value.Width = 1280;
+        provider.Value.Height = 800;
+        provider.Value.Maximized = true;
+
+        provider.Save();
+        var loaded = CreateProvider(file.Path).Load();
+
+        Assert.Equal(1280, loaded.Width);
+        Assert.Equal(800, loaded.Height);
+        Assert.True(loaded.Maximized);
+    }
+
+    [Fact]
     public void Load_CorruptFile_ReturnsDefaultSettings()
     {
         using var file = new TemporaryConfig();

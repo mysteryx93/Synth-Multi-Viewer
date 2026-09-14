@@ -520,6 +520,17 @@ public class MainViewModelTests
         Assert.Equal(12, model.Threads);
     }
 
+    [AvaloniaFact]
+    public void OnClosed_SavesSettings()
+    {
+        var settings = new TestSupport.MemorySettingsProvider();
+        var model = TestSupport.CreateMain(settings: settings);
+
+        model.OnClosed();
+
+        Assert.Equal(1, settings.SaveCount);
+    }
+
     [Fact]
     public void Zoom_SetToZero_EnablesScaleToFit()
     {

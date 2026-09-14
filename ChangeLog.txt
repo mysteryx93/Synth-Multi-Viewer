@@ -7,6 +7,7 @@ v1.1
 - Allow customizing tab color with Ctrl+T
 - Added browse buttons for settings paths
 - Tweaked default tab numbering
+- Remember window size and maximized state
 
 v1.0 (2026-09-12)
 - Cross-platform support (Windows x64/x86, Linux x64/ARM64, macOS Intel/Apple Silicon)

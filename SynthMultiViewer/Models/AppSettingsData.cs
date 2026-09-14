@@ -11,6 +11,21 @@ public class AppSettingsData
     public AppTheme Theme { get; set; } = AppTheme.Light;
 
     /// <summary>
+    /// Gets or sets the restored main window width.
+    /// </summary>
+    public double Width { get; set; } = 800;
+
+    /// <summary>
+    /// Gets or sets the restored main window height.
+    /// </summary>
+    public double Height { get; set; } = 450;
+
+    /// <summary>
+    /// Gets or sets whether the main window is maximized.
+    /// </summary>
+    public bool Maximized { get; set; }
+
+    /// <summary>
     /// Gets or sets an optional VapourSynth script-library file or directory.
     /// </summary>
     public string VapourSynthPath { get; set; } = "";

@@ -15,7 +15,7 @@ namespace HanumanInstitute.SynthMultiViewer.ViewModels;
 /// <summary>
 /// Manages script tabs, shared viewer settings, and application commands.
 /// </summary>
-public partial class MainViewModel : WorkspaceViewModel
+public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClosed
 {
     private readonly IDialogService _dialogService;
     private readonly IEnvironmentService _environmentService;
@@ -67,6 +67,11 @@ public partial class MainViewModel : WorkspaceViewModel
         this.WhenAnyValue(x => x.SelectedItem)
             .Subscribe(OnSelectedItemChanged);
     }
+
+    /// <summary>
+    /// Gets the current application settings, including restored window bounds.
+    /// </summary>
+    public AppSettingsData AppSettings => _settings.Value;
 
     /// <summary>
     /// Gets the open tabs in strip order.
@@ -587,6 +592,12 @@ public partial class MainViewModel : WorkspaceViewModel
             tab.TabColor = picker.Result;
         }
     }
+
+    /// <inheritdoc />
+    public async void OnLoaded() => await LoadedAsync();
+
+    /// <inheritdoc />
+    public void OnClosed() => _settings.Save();
 
     /// <summary>
     /// Opens command-line scripts once, creating an editor if none are opened.

@@ -1,9 +1,10 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using HanumanInstitute.MvvmDialogs;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
-using HanumanInstitute.SynthMultiViewer.Views;
+using HanumanInstitute.SynthMultiViewer.ViewModels;
 using Splat;
 
 namespace HanumanInstitute.SynthMultiViewer;
@@ -19,7 +20,7 @@ public class App : Application
     /// <inheritdoc />
     public override void OnFrameworkInitializationCompleted()
     {
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
             var main = ViewModelLocator.Main;
             var settings = Locator.Current.GetService<ISettingsProvider<AppSettingsData>>();
@@ -30,10 +31,7 @@ public class App : Application
                 theme.RequestedTheme = settings.Value.Theme.ToString();
             }
 
-            desktop.MainWindow = new MainView
-            {
-                DataContext = main
-            };
+            Locator.Current.GetService<IDialogService>()!.Show(null, main);
         }
 
         base.OnFrameworkInitializationCompleted();
