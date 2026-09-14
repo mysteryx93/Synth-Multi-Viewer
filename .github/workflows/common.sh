@@ -86,10 +86,10 @@ read_project_value() {
 read_shared_version() {
   local version
 
-  version=$(xml_value AssemblyVersion "$repo_root/Directory.Build.props")
+  version=$(xml_value Version "$repo_root/Directory.Build.props")
 
   [[ -n "$version" ]] || {
-    echo "AssemblyVersion is missing from Directory.Build.props." >&2
+    echo "Version is missing from Directory.Build.props." >&2
     exit 1
   }
 
@@ -100,10 +100,10 @@ read_version() {
   local app=$1
   local version
 
-  version=$(read_project_value AssemblyVersion "$app")
+  version=$(read_project_value Version "$app")
 
   [[ -n "$version" ]] || {
-    echo "AssemblyVersion is missing for $app." >&2
+    echo "Version is missing for $app." >&2
     exit 1
   }
 
