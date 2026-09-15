@@ -6,7 +6,6 @@
         Title="{Binding DisplayName}"
         Width="340"
         SizeToContent="Height"
-        Classes="dialog"
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">

@@ -21,6 +21,15 @@ internal sealed class AvsNative
     private readonly GetPlaneValueDelegate _getHeight;
     private readonly GetReadPtrDelegate _getReadPtr;
     private readonly SetVarDelegate _setVar;
+    private readonly GetFramePropsDelegate? _getFramePropsRo;
+    private readonly PropNumKeysDelegate? _propNumKeys;
+    private readonly PropGetKeyDelegate? _propGetKey;
+    private readonly PropNumElementsDelegate? _propNumElements;
+    private readonly PropGetTypeDelegate? _propGetType;
+    private readonly PropGetIntDelegate? _propGetInt;
+    private readonly PropGetFloatDelegate? _propGetFloat;
+    private readonly PropGetDataDelegate? _propGetData;
+    private readonly PropGetDataSizeDelegate? _propGetDataSize;
 
     private AvsNative(IntPtr library)
     {
@@ -39,6 +48,15 @@ internal sealed class AvsNative
         _getHeight = GetDelegate<GetPlaneValueDelegate>("avs_get_height_p");
         _getReadPtr = GetDelegate<GetReadPtrDelegate>("avs_get_read_ptr_p");
         _setVar = GetDelegate<SetVarDelegate>("avs_set_var");
+        _getFramePropsRo = TryGetDelegate<GetFramePropsDelegate>("avs_get_frame_props_ro");
+        _propNumKeys = TryGetDelegate<PropNumKeysDelegate>("avs_prop_num_keys");
+        _propGetKey = TryGetDelegate<PropGetKeyDelegate>("avs_prop_get_key");
+        _propNumElements = TryGetDelegate<PropNumElementsDelegate>("avs_prop_num_elements");
+        _propGetType = TryGetDelegate<PropGetTypeDelegate>("avs_prop_get_type");
+        _propGetInt = TryGetDelegate<PropGetIntDelegate>("avs_prop_get_int");
+        _propGetFloat = TryGetDelegate<PropGetFloatDelegate>("avs_prop_get_float");
+        _propGetData = TryGetDelegate<PropGetDataDelegate>("avs_prop_get_data");
+        _propGetDataSize = TryGetDelegate<PropGetDataSizeDelegate>("avs_prop_get_data_size");
     }
 
     public IntPtr CreateEnvironment() => _createEnvironment(InterfaceVersion);
@@ -58,7 +76,97 @@ internal sealed class AvsNative
 
     public AvsValue Eval(IntPtr environment, string script) => InvokeString(environment, "Eval", script);
 
+    public AvsValue Invoke(IntPtr environment, string name) =>
+        _invoke(environment, name, new AvsValue { Type = (short)'v' }, IntPtr.Zero);
+
     public void SetVar(IntPtr environment, string name, AvsValue value) => _setVar(environment, name, value);
+
+    public bool HasFrameProperties =>
+        _getFramePropsRo != null && _propNumKeys != null && _propGetKey != null && _propNumElements != null &&
+        _propGetType != null && _propGetInt != null && _propGetFloat != null && _propGetData != null &&
+        _propGetDataSize != null;
+
+    public IReadOnlyList<(string Name, string Value)> ReadFrameProperties(IntPtr environment, IntPtr frame)
+    {
+        if (!HasFrameProperties)
+        {
+            return [];
+        }
+
+        var map = _getFramePropsRo!(environment, frame);
+        if (map == IntPtr.Zero)
+        {
+            return [];
+        }
+
+        var count = _propNumKeys!(environment, map);
+        if (count <= 0)
+        {
+            return [];
+        }
+
+        var properties = new List<(string Name, string Value)>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var key = Marshal.PtrToStringUTF8(_propGetKey!(environment, map, i));
+            if (string.IsNullOrEmpty(key))
+            {
+                continue;
+            }
+
+            properties.Add((key, FormatProperty(environment, map, key)));
+        }
+
+        return properties;
+    }
+
+    private string FormatProperty(IntPtr environment, IntPtr map, string key)
+    {
+        var type = _propGetType!(environment, map, key);
+        var count = _propNumElements!(environment, map, key);
+        if (count <= 0)
+        {
+            return "";
+        }
+
+        return type switch
+        {
+            (byte)'i' => Join(count, i => _propGetInt!(environment, map, key, i, out _).ToString()),
+            (byte)'f' => Join(count, i => _propGetFloat!(environment, map, key, i, out _).ToString("G")),
+            (byte)'s' => Join(count, i => FormatData(environment, map, key, i)),
+            (byte)'c' => count == 1 ? "<clip>" : count + " clips",
+            (byte)'v' => count == 1 ? "<frame>" : count + " frames",
+            _ => "<" + (char)type + ">"
+        };
+    }
+
+    private string FormatData(IntPtr environment, IntPtr map, string key, int index)
+    {
+        var pointer = _propGetData!(environment, map, key, index, out _);
+        if (pointer == IntPtr.Zero)
+        {
+            return "";
+        }
+
+        var size = _propGetDataSize!(environment, map, key, index, out _);
+        return size <= 0 ? "" : Marshal.PtrToStringUTF8(pointer, size) ?? "";
+    }
+
+    private static string Join(int count, Func<int, string> value)
+    {
+        if (count == 1)
+        {
+            return value(0);
+        }
+
+        var parts = new string[count];
+        for (var i = 0; i < count; i++)
+        {
+            parts[i] = value(i);
+        }
+
+        return string.Join(", ", parts);
+    }
 
     public AvsValue InvokeClip(IntPtr environment, string name, IntPtr clip)
     {
@@ -171,6 +279,16 @@ internal sealed class AvsNative
         return Marshal.GetDelegateForFunctionPointer<T>(pointer);
     }
 
+    private T? TryGetDelegate<T>(string export) where T : Delegate
+    {
+        if (!NativeLibrary.TryGetExport(_library, export, out var pointer))
+        {
+            return null;
+        }
+
+        return Marshal.GetDelegateForFunctionPointer<T>(pointer);
+    }
+
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr CreateEnvironmentDelegate(int version);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate void DeleteEnvironmentDelegate(IntPtr environment);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate AvsValue InvokeDelegate(
@@ -185,4 +303,17 @@ internal sealed class AvsNative
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int GetPlaneValueDelegate(IntPtr frame, int plane);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr GetReadPtrDelegate(IntPtr frame, int plane);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int SetVarDelegate(IntPtr environment, string name, AvsValue value);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr GetFramePropsDelegate(IntPtr environment, IntPtr frame);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int PropNumKeysDelegate(IntPtr environment, IntPtr map);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr PropGetKeyDelegate(IntPtr environment, IntPtr map, int index);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int PropNumElementsDelegate(IntPtr environment, IntPtr map, string key);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate byte PropGetTypeDelegate(IntPtr environment, IntPtr map, string key);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate long PropGetIntDelegate(
+        IntPtr environment, IntPtr map, string key, int index, out int error);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate double PropGetFloatDelegate(
+        IntPtr environment, IntPtr map, string key, int index, out int error);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr PropGetDataDelegate(
+        IntPtr environment, IntPtr map, string key, int index, out int error);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int PropGetDataSizeDelegate(
+        IntPtr environment, IntPtr map, string key, int index, out int error);
 }

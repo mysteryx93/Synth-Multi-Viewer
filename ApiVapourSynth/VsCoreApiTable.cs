@@ -43,9 +43,43 @@ internal struct VsCoreApiTable
     public IntPtr GetVideoFormatById;
     public IntPtr GetFrame;
     public IntPtr GetFrameAsync;
+    public IntPtr GetFrameFilter;
+    public IntPtr RequestFrameFilter;
+    public IntPtr ReleaseFrameEarly;
+    public IntPtr CacheFrame;
+    public IntPtr SetFilterError;
+    public IntPtr CreateFunction;
+    public IntPtr FreeFunction;
+    public IntPtr AddFunctionRef;
+    public IntPtr CallFunction;
+    public IntPtr CreateMap;
+    public IntPtr FreeMap;
+    public IntPtr ClearMap;
+    public IntPtr CopyMap;
+    public IntPtr MapSetError;
+    public IntPtr MapGetError;
+    public IntPtr MapNumKeys;
+    public IntPtr MapGetKey;
+    public IntPtr MapDeleteKey;
+    public IntPtr MapNumElements;
+    public IntPtr MapGetType;
+    public IntPtr MapSetEmpty;
+    public IntPtr MapGetInt;
+    public IntPtr MapGetIntSaturated;
+    public IntPtr MapGetIntArray;
+    public IntPtr MapSetInt;
+    public IntPtr MapSetIntArray;
+    public IntPtr MapGetFloat;
+    public IntPtr MapGetFloatSaturated;
+    public IntPtr MapGetFloatArray;
+    public IntPtr MapSetFloat;
+    public IntPtr MapSetFloatArray;
+    public IntPtr MapGetData;
+    public IntPtr MapGetDataSize;
 
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 62)]
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 29)]
     public IntPtr[] BeforeSetThreadCount;
 
     public IntPtr SetThreadCount;
+    public IntPtr GetCoreInfo;
 }

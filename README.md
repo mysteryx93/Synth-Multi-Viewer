@@ -26,6 +26,7 @@ Windows, Linux and MacOS
 - Rename each tab for reference
 - Full-screen preview
 - Copy frame to clipboard
+- Video properties window (clip format before display conversion, plus frame properties)
 - Code highlight for VapourSynth and AviSynth
 
 TODO: Encode feature

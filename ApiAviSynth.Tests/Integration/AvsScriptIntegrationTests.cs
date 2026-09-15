@@ -53,6 +53,18 @@ public class AvsScriptIntegrationTests
     }
 
     [Fact]
+    public void TryReadVersion_NativeLibrary_ReturnsAviSynth()
+    {
+        SkipIfNativeUnavailable();
+
+        var read = AvsScript.TryReadVersion(out var version, out var detail);
+
+        Assert.True(read);
+        Assert.Contains("AviSynth", version, StringComparison.OrdinalIgnoreCase);
+        Assert.False(string.IsNullOrWhiteSpace(detail));
+    }
+
+    [Fact]
     public void LoadFile_BlankClip_ReturnsVideoInfo()
     {
         SkipIfNativeUnavailable();
@@ -228,6 +240,56 @@ public class AvsScriptIntegrationTests
         Assert.Equal(AvsCsBgr32, info.PixelType);
         Assert.True(plane.RowSize >= info.Width * 4);
         AssertRedBgra(ReadBgra(plane));
+        Assert.Equal(pixelType, script.SourceVideoInfo.FormatName);
+        Assert.NotEqual(AvsCsBgr32, script.SourceVideoInfo.PixelType);
+    }
+
+    [Fact]
+    public void LoadScript_Yuv420P10_SourceVideoInfoKeepsTenBit()
+    {
+        SkipIfNativeUnavailable();
+
+        using var script = AvsScript.LoadScript("""
+            clip = BlankClip(length=2, width=32, height=16, pixel_type="YUV420P10")
+            return clip
+            """);
+
+        Assert.Equal(AvsCsBgr32, script.VideoInfo.PixelType);
+        Assert.Equal("YUV420P10", script.SourceVideoInfo.FormatName);
+        Assert.Equal(32, script.SourceVideoInfo.Width);
+        Assert.Equal(16, script.SourceVideoInfo.Height);
+        Assert.Equal(2, script.SourceVideoInfo.FrameCount);
+        Assert.Equal("YUV", AvsPixelFormat.GetColorFamily(script.SourceVideoInfo.PixelType));
+        Assert.Equal(10, AvsPixelFormat.GetBitDepth(script.SourceVideoInfo.PixelType));
+        Assert.Equal("4:2:0", AvsPixelFormat.GetSubsampling(script.SourceVideoInfo.PixelType));
+    }
+
+    [Fact]
+    public void GetSourceFrameProperties_PropSet_ReturnsSourceKeys()
+    {
+        SkipIfNativeUnavailable();
+
+        using var script = AvsScript.LoadScript("""
+            BlankClip(length=2, width=16, height=16, pixel_type="YV12")
+            propSet("_Matrix", 1)
+            propSet("_PictType", "I")
+            """);
+        var properties = script.GetSourceFrameProperties(0);
+        var map = properties.ToDictionary(x => x.Name, x => x.Value, StringComparer.Ordinal);
+
+        Assert.Equal("1", map["_Matrix"]);
+        Assert.Equal("I", map["_PictType"]);
+    }
+
+    [Fact]
+    public void GetSourceFrameProperties_BlankClip_ReturnsEmptyOrKeys()
+    {
+        SkipIfNativeUnavailable();
+
+        using var script = AvsScript.LoadScript("BlankClip(length=1, width=16, height=16)\n");
+        var properties = script.GetSourceFrameProperties(0);
+
+        Assert.NotNull(properties);
     }
 
     [Fact]

@@ -26,6 +26,8 @@
         SquarePixels="{Binding ((vm:MainViewModel)DataContext).SquarePixels,
                       RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
         Duration="{Binding Duration, Mode=OneWayToSource}" ErrorMessage="{Binding ErrorMessage, Mode=OneWayToSource}"
+        ClipInfo="{Binding ClipInfo, Mode=OneWayToSource}"
+        FrameProperties="{Binding FrameProperties, Mode=OneWayToSource}"
         h:EventCommands.MediaLoaded="{Binding ((vm:MainViewModel)DataContext).MediaLoaded,
                                       RelativeSource={RelativeSource AncestorType=Window}}"
         h:EventCommands.Parameter="{Binding}" />

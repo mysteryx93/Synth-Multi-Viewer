@@ -320,9 +320,9 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
     {
         VapourSynthFound = vapourSynth.Found;
         AviSynthFound = aviSynth.Found;
-        VapourSynthStatus = FormatStatus(vapourSynth.Status);
+        VapourSynthStatus = FormatStatus(vapourSynth);
         VapourSynthStatusTip = FormatStatusTip(vapourSynth);
-        AviSynthStatus = FormatStatus(aviSynth.Status);
+        AviSynthStatus = FormatStatus(aviSynth);
         AviSynthStatusTip = FormatStatusTip(aviSynth);
         VapourSynthLibraryDisplay = vapourSynth.LibraryPath ?? "";
         VapourSynthPluginsDisplay = FormatPlugins(vapourSynth);
@@ -330,8 +330,10 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         AviSynthPluginsDisplay = FormatPlugins(aviSynth);
     }
 
-    private static string FormatStatus(FrameworkStatus status) => status switch
+    private static string FormatStatus(FrameworkInstall install) => install.Status switch
     {
+        FrameworkStatus.Detected when !string.IsNullOrWhiteSpace(install.Version) =>
+            "(Detected " + install.Version + ")",
         FrameworkStatus.Detected => "(Detected)",
         FrameworkStatus.Error => "(Error)",
         _ => "(Not Found)"
@@ -342,6 +344,11 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         if (!string.IsNullOrWhiteSpace(install.Message))
         {
             return install.Message;
+        }
+
+        if (!string.IsNullOrWhiteSpace(install.VersionDetail))
+        {
+            return install.VersionDetail;
         }
 
         return install.Status == FrameworkStatus.Error

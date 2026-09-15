@@ -42,4 +42,9 @@ public struct VsFormat
     /// Gets the number of image planes.
     /// </summary>
     public int NumPlanes;
+
+    /// <summary>
+    /// Gets the preset format name, such as YUV420P10.
+    /// </summary>
+    public readonly string Name => VsFormatName.From(this);
 }

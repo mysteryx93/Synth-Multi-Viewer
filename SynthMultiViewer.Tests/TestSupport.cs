@@ -88,7 +88,14 @@ internal static class TestSupport
         public ScriptedDialogManager() : base(viewLocator: new ViewLocator()) { }
 
         public IModalDialogViewModel? LastDialog { get; private set; }
+        public INotifyPropertyChanged? LastShown { get; private set; }
         public Action<IModalDialogViewModel>? OnShow { get; set; }
+
+        public override void Show(INotifyPropertyChanged? ownerViewModel, INotifyPropertyChanged viewModel)
+        {
+            LastShown = viewModel;
+            LastDialog = viewModel as IModalDialogViewModel;
+        }
 
         public override Task ShowDialogAsync(
             INotifyPropertyChanged ownerViewModel, IModalDialogViewModel viewModel)

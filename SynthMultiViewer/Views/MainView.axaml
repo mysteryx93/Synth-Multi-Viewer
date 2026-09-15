@@ -29,6 +29,7 @@
         <KeyBinding Gesture="Ctrl+S" Command="{Binding Save}" />
         <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveAs}" />
         <KeyBinding Gesture="Ctrl+G" Command="{Binding GoTo}" />
+        <KeyBinding Gesture="Ctrl+I" Command="{Binding Properties}" />
         <KeyBinding Gesture="F1" Command="{Binding Help}" />
         <KeyBinding Gesture="F2" Command="{Binding Rename}" />
         <KeyBinding Gesture="Ctrl+T" Command="{Binding ChangeTabColor}" />
@@ -78,6 +79,10 @@
                         CommandParameter="{Binding #UI}" IsVisible="{Binding IsViewerSelected}">
                     <Image Source="/Assets/Icons/CopyFrame.png" Classes="enabled" />
                 </Button>
+                <ToggleButton ToolTip.Tip="Video properties (Ctrl+I)" IsChecked="{Binding IsPropertiesOpen}"
+                              IsVisible="{Binding IsViewerSelected}">
+                    <Image Source="/Assets/Icons/Properties.png" Classes="enabled" />
+                </ToggleButton>
                 <Separator IsVisible="{Binding IsViewerSelected}" />
                 <ToggleButton ToolTip.Tip="Enable multi-threading (F8)" IsChecked="{Binding IsMultiThreaded}"
                               IsVisible="{Binding IsVapourSynthViewerSelected}">

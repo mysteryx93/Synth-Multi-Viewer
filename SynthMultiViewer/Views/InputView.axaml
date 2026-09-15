@@ -6,7 +6,6 @@
         x:DataType="vm:InputViewModel"
         Title="{Binding DisplayName}"
         Width="240" Height="140"
-        Classes="dialog"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
     <DockPanel Classes="dialog-content">

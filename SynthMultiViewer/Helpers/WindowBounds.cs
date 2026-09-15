@@ -36,12 +36,26 @@ public static class WindowBounds
     public static readonly AttachedProperty<bool> MaximizedProperty =
         AvaloniaProperty.RegisterAttached<Window, bool>("Maximized", typeof(WindowBounds));
 
+    /// <summary>
+    /// Defines the window's screen X position. Null leaves the window unmoved.
+    /// </summary>
+    public static readonly AttachedProperty<int?> LeftProperty =
+        AvaloniaProperty.RegisterAttached<Window, int?>("Left", typeof(WindowBounds));
+
+    /// <summary>
+    /// Defines the window's screen Y position. Null leaves the window unmoved.
+    /// </summary>
+    public static readonly AttachedProperty<int?> TopProperty =
+        AvaloniaProperty.RegisterAttached<Window, int?>("Top", typeof(WindowBounds));
+
     static WindowBounds()
     {
         TrackProperty.Changed.AddClassHandler<Window, bool>(OnTrackChanged);
         WidthProperty.Changed.AddClassHandler<Window, double>(OnWidthChanged);
         HeightProperty.Changed.AddClassHandler<Window, double>(OnHeightChanged);
         MaximizedProperty.Changed.AddClassHandler<Window, bool>(OnMaximizedChanged);
+        LeftProperty.Changed.AddClassHandler<Window, int?>(OnLeftChanged);
+        TopProperty.Changed.AddClassHandler<Window, int?>(OnTopChanged);
     }
 
     /// <summary>
@@ -83,6 +97,26 @@ public static class WindowBounds
     /// Sets whether the window is maximized.
     /// </summary>
     public static void SetMaximized(AvaloniaObject d, bool value) => d.SetValue(MaximizedProperty, value);
+
+    /// <summary>
+    /// Gets the window's screen X position, or null when unset.
+    /// </summary>
+    public static int? GetLeft(AvaloniaObject d) => d.GetValue(LeftProperty);
+
+    /// <summary>
+    /// Sets the window's screen X position.
+    /// </summary>
+    public static void SetLeft(AvaloniaObject d, int? value) => d.SetValue(LeftProperty, value);
+
+    /// <summary>
+    /// Gets the window's screen Y position, or null when unset.
+    /// </summary>
+    public static int? GetTop(AvaloniaObject d) => d.GetValue(TopProperty);
+
+    /// <summary>
+    /// Sets the window's screen Y position.
+    /// </summary>
+    public static void SetTop(AvaloniaObject d, int? value) => d.SetValue(TopProperty, value);
 
     private static void OnTrackChanged(Window window, AvaloniaPropertyChangedEventArgs<bool> e)
     {
@@ -132,6 +166,73 @@ public static class WindowBounds
         {
             window.Height = e.NewValue.Value;
         }
+    }
+
+    private static readonly AttachedProperty<bool> PositionTrackedProperty =
+        AvaloniaProperty.RegisterAttached<Window, bool>("PositionTracked", typeof(WindowBounds));
+
+    private static void OnLeftChanged(Window window, AvaloniaPropertyChangedEventArgs<int?> e)
+    {
+        if (e.NewValue.Value is not null)
+        {
+            ApplyPosition(window);
+        }
+    }
+
+    private static void OnTopChanged(Window window, AvaloniaPropertyChangedEventArgs<int?> e)
+    {
+        if (e.NewValue.Value is not null)
+        {
+            ApplyPosition(window);
+        }
+    }
+
+    /// <summary>
+    /// Starts writing window moves back to Left/Top. Call after the first-show position is applied
+    /// so the window manager's initial (0,0) does not overwrite the bound value.
+    /// </summary>
+    public static void WatchPosition(Window window)
+    {
+        if (window.GetValue(PositionTrackedProperty) || GetLeft(window) is null || GetTop(window) is null)
+        {
+            return;
+        }
+
+        window.SetValue(PositionTrackedProperty, true);
+        window.PositionChanged += (_, _) =>
+        {
+            if (window.GetValue(SuppressPositionWriteProperty) || GetLeft(window) is null || GetTop(window) is null)
+            {
+                return;
+            }
+
+            SetLeft(window, window.Position.X);
+            SetTop(window, window.Position.Y);
+        };
+    }
+
+    private static readonly AttachedProperty<bool> SuppressPositionWriteProperty =
+        AvaloniaProperty.RegisterAttached<Window, bool>("SuppressPositionWrite", typeof(WindowBounds));
+
+    /// <summary>
+    /// Moves the window to the bound Left/Top, if both are set.
+    /// </summary>
+    public static void ApplyPosition(Window window)
+    {
+        if (GetLeft(window) is not int x || GetTop(window) is not int y)
+        {
+            return;
+        }
+
+        var position = new PixelPoint(x, y);
+        if (window.Position == position)
+        {
+            return;
+        }
+
+        window.SetValue(SuppressPositionWriteProperty, true);
+        window.Position = position;
+        window.SetValue(SuppressPositionWriteProperty, false);
     }
 
     private static readonly AttachedProperty<bool> ConcealUntilShownProperty =

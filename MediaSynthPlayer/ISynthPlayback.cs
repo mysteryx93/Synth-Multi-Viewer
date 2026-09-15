@@ -10,6 +10,8 @@ internal interface ISynthPlayback : IDisposable
     int Width { get; }
     int Height { get; }
     TimeSpan Duration { get; }
+    ClipInfo? ClipInfo { get; }
+    IReadOnlyList<FrameProperty> ReadFrameProperties(int index);
     void Present(int index);
     void Play();
     void Pause();
@@ -34,7 +36,7 @@ internal interface ISynthPlayerSink
     int ThreadCount { get; }
     void DisplayError(string message);
     void ShowBitmap();
-    void SetPosition(int index);
+    void SetPosition(int index, IReadOnlyList<FrameProperty> properties);
     void ClearVideo();
     void ContinueAfterStop();
 }

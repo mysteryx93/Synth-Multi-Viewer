@@ -6,7 +6,6 @@
         Title="About Synth Multi-Viewer"
         Width="430"
         SizeToContent="Height"
-        Classes="dialog"
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
@@ -48,6 +47,7 @@
                 <Run Text="Ctrl+Left: Seek 10 frames back" /><LineBreak />
                 <Run Text="Ctrl+Right: Seek 10 frames forward" /><LineBreak />
                 <Run Text="Ctrl+C: Copy frame to clipboard" /><LineBreak />
+                <Run Text="Ctrl+I: Toggle video properties" /><LineBreak />
                 <Run Text="+: Zoom in" /><LineBreak />
                 <Run Text="-: Zoom out" /><LineBreak />
                 <Run Text="Ctrl+Tab: Next tab" /><LineBreak />

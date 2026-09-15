@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:h="using:HanumanInstitute.SynthMultiViewer.Helpers"
+        xmlns:vm="using:HanumanInstitute.SynthMultiViewer.ViewModels"
+        x:Class="HanumanInstitute.SynthMultiViewer.Views.VideoPropertiesView"
+        x:DataType="vm:VideoPropertiesViewModel"
+        Title="{Binding DisplayName}"
+        Width="{Binding Placement.Width, Mode=TwoWay}"
+        Height="{Binding Placement.Height, Mode=TwoWay}"
+        MinWidth="280" MinHeight="180"
+        h:WindowBounds.Left="{Binding Placement.Left, Mode=TwoWay}"
+        h:WindowBounds.Top="{Binding Placement.Top, Mode=TwoWay}"
+        CanResize="True" CanMaximize="False" CanMinimize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual">
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+I" Command="{Binding Close}" />
+    </Window.KeyBindings>
+    <DockPanel Classes="dialog-content">
+        <StackPanel DockPanel.Dock="Bottom" Classes="dialog-actions">
+            <Button Content="Close" IsCancel="True" IsDefault="True" Command="{Binding Close}" />
+        </StackPanel>
+        <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PropertyItem">
+                        <Grid ColumnDefinitions="140,*" Margin="0,1">
+                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Margin="0,8,0,2"
+                                       IsVisible="{Binding IsHeader}" />
+                            <SelectableTextBlock Grid.Column="0" Text="{Binding Name}" IsVisible="{Binding !IsHeader}"
+                                                 VerticalAlignment="Top" Margin="0,1,8,1" />
+                            <SelectableTextBlock Grid.Column="1" Text="{Binding Value}"
+                                                 IsVisible="{Binding !IsHeader}"
+                                                 TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,1" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

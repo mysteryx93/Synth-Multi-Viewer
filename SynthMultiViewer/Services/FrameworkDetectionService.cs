@@ -32,24 +32,43 @@ public sealed class FrameworkDetectionService : IFrameworkDetectionService
 
         var vapourSynthFound = VsHelper.TryFindLibrary(out var vapourSynthPath);
         var vapourSynthUsable = VsHelper.TryEvaluate(out var vapourSynthError);
+        string? vapourSynthVersion = null;
+        string? vapourSynthDetail = null;
+        if (vapourSynthFound && vapourSynthUsable)
+        {
+            VsHelper.TryReadVersion(out vapourSynthVersion, out vapourSynthDetail);
+        }
+
         VapourSynth = CreateInstall(
             vapourSynthFound, vapourSynthUsable, vapourSynthPath, settings.VapourSynthPath,
-            VsHelper.GetPluginDirectories(vapourSynthPath), vapourSynthError);
+            VsHelper.GetPluginDirectories(vapourSynthPath), vapourSynthError,
+            vapourSynthVersion, vapourSynthDetail);
 
         var aviSynthFound = AvsScript.TryFindLibrary(out var aviSynthPath);
         var aviSynthUsable = AvsScript.TryEvaluate(out var aviSynthError);
+        string? aviSynthVersion = null;
+        string? aviSynthDetail = null;
+        if (aviSynthFound && aviSynthUsable)
+        {
+            AvsScript.TryReadVersion(out aviSynthVersion, out aviSynthDetail);
+        }
+
         AviSynth = CreateInstall(
             aviSynthFound, aviSynthUsable, aviSynthPath, settings.AviSynthPath,
-            AvsScript.GetPluginDirectories(aviSynthPath), aviSynthError);
+            AvsScript.GetPluginDirectories(aviSynthPath), aviSynthError,
+            aviSynthVersion, aviSynthDetail);
     }
 
     private static FrameworkInstall CreateInstall(
         bool found, bool usable, string? libraryPath, string configuredPath,
-        IReadOnlyList<string> pluginDirectories, string? error)
+        IReadOnlyList<string> pluginDirectories, string? error,
+        string? version = null, string? versionDetail = null)
     {
         if (found && usable)
         {
-            return new FrameworkInstall(FrameworkStatus.Detected, libraryPath, pluginDirectories);
+            return new FrameworkInstall(
+                FrameworkStatus.Detected, libraryPath, pluginDirectories,
+                Version: version, VersionDetail: versionDetail);
         }
 
         if (found)

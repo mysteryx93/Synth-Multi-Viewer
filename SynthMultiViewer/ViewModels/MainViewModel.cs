@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reactive.Linq;
 using System.Windows.Input;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.VisualTree;
 using HanumanInstitute.SynthMultiViewer.Helpers;
 using HanumanInstitute.SynthMultiViewer.Models;
@@ -25,6 +26,8 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     private double _scrollVerticalOffset;
     private TimeSpan _playerPosition;
     private IScriptViewModel? _previousItem;
+    private VideoPropertiesViewModel? _properties;
+    private readonly VideoPropertiesPlacement _propertiesPlacement = new();
     private bool _loaded;
 
     /// <summary>
@@ -66,6 +69,8 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
 
         this.WhenAnyValue(x => x.SelectedItem)
             .Subscribe(OnSelectedItemChanged);
+        this.WhenAnyValue(x => x.IsPropertiesOpen)
+            .Subscribe(OnPropertiesOpenChanged);
     }
 
     /// <summary>
@@ -143,6 +148,12 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     public partial bool SquarePixels { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the video properties window is open.
+    /// </summary>
+    [Reactive]
+    public partial bool IsPropertiesOpen { get; set; }
+
+    /// <summary>
     /// Gets the requested worker count; one when multi-threading is off.
     /// </summary>
     public int Threads
@@ -204,6 +215,10 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     /// Copies the selected viewer's current frame to the clipboard.
     /// </summary>
     public ReactiveCommand<object?, RxVoid> CopyFrame => field ??= ReactiveCommand.CreateFromTask<object?>(CopyFrameImplAsync, WhenViewerSelected);
+    /// <summary>
+    /// Toggles the modeless video properties window.
+    /// </summary>
+    public RxCommandVoid Properties => field ??= ReactiveCommand.Create(PropertiesImpl, WhenViewerSelected);
     /// <summary>
     /// Moves the selected viewer by the supplied frame count.
     /// </summary>
@@ -321,6 +336,10 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         this.RaisePropertyChanged(nameof(IsEditorSelected));
         this.RaisePropertyChanged(nameof(IsViewerSelected));
         this.RaisePropertyChanged(nameof(IsVapourSynthViewerSelected));
+        if (_properties != null)
+        {
+            _properties.Viewer = value as IViewerViewModel;
+        }
     }
 
     private void NewImpl() => AddEditor(_defaultScripts.VapourSynth, ScriptKind.VapourSynth);
@@ -424,6 +443,83 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         {
             viewer.Position = TimeSpan.FromSeconds(number - 1);
         }
+    }
+
+    private void PropertiesImpl() => IsPropertiesOpen = !IsPropertiesOpen;
+
+    private void OnPropertiesOpenChanged(bool open)
+    {
+        if (open)
+        {
+            OpenPropertiesWindow();
+            return;
+        }
+
+        ClosePropertiesWindow();
+    }
+
+    private void OpenPropertiesWindow()
+    {
+        if (_properties != null)
+        {
+            _properties.Viewer = SelectedItem as IViewerViewModel;
+            _dialogService.Activate(_properties);
+            return;
+        }
+
+        _properties = _dialogService.CreateViewModel<VideoPropertiesViewModel>();
+        _properties.Placement = _propertiesPlacement;
+        _properties.Viewer = SelectedItem as IViewerViewModel;
+        ApplyDefaultPlacement();
+        _properties.RequestClose += PropertiesOnRequestClose;
+        _dialogService.Show(this, _properties);
+    }
+
+    private void ApplyDefaultPlacement()
+    {
+        if (_propertiesPlacement.Left is not null || _propertiesPlacement.Top is not null)
+        {
+            return;
+        }
+
+        if (_dialogService.DialogManager.FindViewByViewModel(this)?.RefObj is not Window owner)
+        {
+            return;
+        }
+
+        var position = VideoPropertiesPlacement.AlignToOwnerRight(
+            owner.Position, VideoPropertiesPlacement.OwnerFrameSize(owner),
+            VideoPropertiesPlacement.ChildFrameSize(
+                owner, _propertiesPlacement.Width, _propertiesPlacement.Height));
+        _propertiesPlacement.Left = position.X;
+        _propertiesPlacement.Top = position.Y;
+    }
+
+    private void ClosePropertiesWindow()
+    {
+        if (_properties == null)
+        {
+            return;
+        }
+
+        var properties = _properties;
+        properties.RequestClose -= PropertiesOnRequestClose;
+        _dialogService.Close(properties);
+        properties.Viewer = null;
+        _properties = null;
+    }
+
+    private void PropertiesOnRequestClose(object? sender, EventArgs e)
+    {
+        if (_properties == null)
+        {
+            return;
+        }
+
+        _properties.RequestClose -= PropertiesOnRequestClose;
+        _properties.Viewer = null;
+        _properties = null;
+        IsPropertiesOpen = false;
     }
 
     private async Task CopyFrameImplAsync(object? parameter)
@@ -597,7 +693,11 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     public async void OnLoaded() => await LoadedAsync();
 
     /// <inheritdoc />
-    public void OnClosed() => _settings.Save();
+    public void OnClosed()
+    {
+        IsPropertiesOpen = false;
+        _settings.Save();
+    }
 
     /// <summary>
     /// Opens command-line scripts once, creating an editor if none are opened.

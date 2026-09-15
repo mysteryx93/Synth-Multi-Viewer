@@ -15,6 +15,16 @@ internal sealed class VsCoreApi
     private readonly GetFrameDimensionDelegate _getFrameWidth;
     private readonly GetFrameDimensionDelegate _getFrameHeight;
     private readonly SetThreadCountDelegate _setThreadCount;
+    private readonly GetFramePropertiesDelegate _getFramePropertiesRo;
+    private readonly MapCountDelegate _mapNumKeys;
+    private readonly MapGetKeyDelegate _mapGetKey;
+    private readonly MapNumElementsDelegate _mapNumElements;
+    private readonly MapGetTypeDelegate _mapGetType;
+    private readonly MapGetIntDelegate _mapGetInt;
+    private readonly MapGetFloatDelegate _mapGetFloat;
+    private readonly MapGetDataDelegate _mapGetData;
+    private readonly MapGetDataSizeDelegate _mapGetDataSize;
+    private readonly GetCoreInfoDelegate _getCoreInfo;
 
     private VsCoreApi(VsCoreApiTable table)
     {
@@ -29,6 +39,16 @@ internal sealed class VsCoreApi
         _getFrameWidth = Marshal.GetDelegateForFunctionPointer<GetFrameDimensionDelegate>(table.GetFrameWidth);
         _getFrameHeight = Marshal.GetDelegateForFunctionPointer<GetFrameDimensionDelegate>(table.GetFrameHeight);
         _setThreadCount = Marshal.GetDelegateForFunctionPointer<SetThreadCountDelegate>(table.SetThreadCount);
+        _getFramePropertiesRo = Marshal.GetDelegateForFunctionPointer<GetFramePropertiesDelegate>(table.GetFramePropertiesRo);
+        _mapNumKeys = Marshal.GetDelegateForFunctionPointer<MapCountDelegate>(table.MapNumKeys);
+        _mapGetKey = Marshal.GetDelegateForFunctionPointer<MapGetKeyDelegate>(table.MapGetKey);
+        _mapNumElements = Marshal.GetDelegateForFunctionPointer<MapNumElementsDelegate>(table.MapNumElements);
+        _mapGetType = Marshal.GetDelegateForFunctionPointer<MapGetTypeDelegate>(table.MapGetType);
+        _mapGetInt = Marshal.GetDelegateForFunctionPointer<MapGetIntDelegate>(table.MapGetInt);
+        _mapGetFloat = Marshal.GetDelegateForFunctionPointer<MapGetFloatDelegate>(table.MapGetFloat);
+        _mapGetData = Marshal.GetDelegateForFunctionPointer<MapGetDataDelegate>(table.MapGetData);
+        _mapGetDataSize = Marshal.GetDelegateForFunctionPointer<MapGetDataSizeDelegate>(table.MapGetDataSize);
+        _getCoreInfo = Marshal.GetDelegateForFunctionPointer<GetCoreInfoDelegate>(table.GetCoreInfo);
     }
 
     public void FreeNode(IntPtr node) => _freeNode(node);
@@ -42,6 +62,20 @@ internal sealed class VsCoreApi
     public int GetFrameWidth(IntPtr frame, int plane) => _getFrameWidth(frame, plane);
     public int GetFrameHeight(IntPtr frame, int plane) => _getFrameHeight(frame, plane);
     public int SetThreadCount(int threads, IntPtr core) => _setThreadCount(threads, core);
+    public IntPtr GetFramePropertiesRo(IntPtr frame) => _getFramePropertiesRo(frame);
+    public int MapNumKeys(IntPtr map) => _mapNumKeys(map);
+    public IntPtr MapGetKey(IntPtr map, int index) => _mapGetKey(map, index);
+    public int MapNumElements(IntPtr map, IntPtr key) => _mapNumElements(map, key);
+    public int MapGetType(IntPtr map, IntPtr key) => _mapGetType(map, key);
+    public long MapGetInt(IntPtr map, IntPtr key, int index, out int error) => _mapGetInt(map, key, index, out error);
+    public double MapGetFloat(IntPtr map, IntPtr key, int index, out int error) => _mapGetFloat(map, key, index, out error);
+    public IntPtr MapGetData(IntPtr map, IntPtr key, int index, out int error) => _mapGetData(map, key, index, out error);
+    public int MapGetDataSize(IntPtr map, IntPtr key, int index, out int error) => _mapGetDataSize(map, key, index, out error);
+    public VsCoreInfo GetCoreInfo(IntPtr core)
+    {
+        _getCoreInfo(core, out var info);
+        return info;
+    }
 
     public static VsCoreApi Load(IntPtr pointer)
     {
@@ -63,4 +97,25 @@ internal sealed class VsCoreApi
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr GetWritePtrDelegate(IntPtr frame, int plane);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int GetFrameDimensionDelegate(IntPtr frame, int plane);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int SetThreadCountDelegate(int threads, IntPtr core);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr GetFramePropertiesDelegate(IntPtr frame);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int MapCountDelegate(IntPtr map);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr MapGetKeyDelegate(IntPtr map, int index);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int MapNumElementsDelegate(IntPtr map, IntPtr key);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int MapGetTypeDelegate(IntPtr map, IntPtr key);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate long MapGetIntDelegate(IntPtr map, IntPtr key, int index, out int error);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate double MapGetFloatDelegate(IntPtr map, IntPtr key, int index, out int error);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr MapGetDataDelegate(IntPtr map, IntPtr key, int index, out int error);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate void GetCoreInfoDelegate(IntPtr core, out VsCoreInfo info);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int MapGetDataSizeDelegate(IntPtr map, IntPtr key, int index, out int error);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct VsCoreInfo
+{
+    public IntPtr VersionString;
+    public int Core;
+    public int Api;
+    public int NumThreads;
+    public long MaxFramebufferSize;
+    public long UsedFramebufferSize;
 }

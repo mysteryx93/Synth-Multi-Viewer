@@ -11,12 +11,16 @@ using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
+using ReactiveUI.Builder;
 using Xunit;
 
 namespace HanumanInstitute.SynthMultiViewer.Tests;
 
 public class MainViewModelTests
 {
+    static MainViewModelTests() =>
+        RxAppBuilder.CreateReactiveUIBuilder().WithCoreServices().BuildApp();
+
     [AvaloniaFact]
     public async Task Load_FileUriArgument_OpensScript()
     {
@@ -401,6 +405,122 @@ public class MainViewModelTests
         Assert.False(command.CanExecute(null));
     }
 
+    [Fact]
+    public async Task Properties_ViewerSelected_ShowsModelessWindow()
+    {
+        var manager = new TestSupport.ScriptedDialogManager();
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        await model.Run.Execute();
+
+        await model.Properties.Execute();
+
+        var properties = Assert.IsType<VideoPropertiesViewModel>(manager.LastShown);
+        Assert.Same(model.SelectedItem, properties.Viewer);
+        Assert.True(model.IsPropertiesOpen);
+        Assert.True(((ICommand)model.Properties).CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Properties_AlreadyOpen_ClosesWindow()
+    {
+        var manager = new TestSupport.ScriptedDialogManager();
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        await model.Run.Execute();
+        await model.Properties.Execute();
+        var first = manager.LastShown;
+        Assert.True(model.IsPropertiesOpen);
+
+        await model.Properties.Execute();
+
+        Assert.False(model.IsPropertiesOpen);
+        Assert.Same(first, manager.LastShown);
+
+        await model.Properties.Execute();
+        Assert.True(model.IsPropertiesOpen);
+        Assert.NotSame(first, manager.LastShown);
+    }
+
+    [Fact]
+    public async Task Properties_Closed_ShowsNewWindow()
+    {
+        var manager = new TestSupport.ScriptedDialogManager();
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        await model.Run.Execute();
+        await model.Properties.Execute();
+        var first = Assert.IsType<VideoPropertiesViewModel>(manager.LastShown);
+
+        first.OnClosed();
+        await model.Properties.Execute();
+
+        var second = Assert.IsType<VideoPropertiesViewModel>(manager.LastShown);
+        Assert.NotSame(first, second);
+        Assert.Same(model.SelectedItem, second.Viewer);
+    }
+
+    [Fact]
+    public async Task Properties_Reopen_RestoresPlacementOnNewWindow()
+    {
+        var manager = new TestSupport.ScriptedDialogManager();
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        await model.Run.Execute();
+        await model.Properties.Execute();
+        var first = Assert.IsType<VideoPropertiesViewModel>(manager.LastShown);
+        first.Placement.Left = 40;
+        first.Placement.Top = 80;
+        first.Placement.Width = 420;
+        first.Placement.Height = 500;
+
+        first.OnClosed();
+        await model.Properties.Execute();
+
+        var second = Assert.IsType<VideoPropertiesViewModel>(manager.LastShown);
+        Assert.NotSame(first, second);
+        Assert.Same(first.Placement, second.Placement);
+        Assert.Equal(40, second.Placement.Left);
+        Assert.Equal(80, second.Placement.Top);
+        Assert.Equal(420, second.Placement.Width);
+        Assert.Equal(500, second.Placement.Height);
+    }
+
+    [Fact]
+    public async Task Properties_ToggleClose_RestoresPlacementOnReopen()
+    {
+        var manager = new TestSupport.ScriptedDialogManager();
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        await model.Run.Execute();
+        await model.Properties.Execute();
+        var first = Assert.IsType<VideoPropertiesViewModel>(manager.LastShown);
+        first.Placement.Left = 12;
+        first.Placement.Top = 24;
+        first.Placement.Width = 360;
+        first.Placement.Height = 480;
+
+        await model.Properties.Execute();
+        await model.Properties.Execute();
+
+        var second = Assert.IsType<VideoPropertiesViewModel>(manager.LastShown);
+        Assert.NotSame(first, second);
+        Assert.Same(first.Placement, second.Placement);
+        Assert.Equal(12, second.Placement.Left);
+        Assert.Equal(24, second.Placement.Top);
+        Assert.Equal(360, second.Placement.Width);
+        Assert.Equal(480, second.Placement.Height);
+    }
+
+    [Fact]
+    public async Task Properties_EditorSelected_CannotExecute()
+    {
+        var model = TestSupport.CreateMain();
+        await model.New.Execute();
+
+        Assert.False(((ICommand)model.Properties).CanExecute(null));
+    }
+
     [AvaloniaTheory(Timeout = 10000)]
     [InlineData(true)]
     [InlineData(false)]
@@ -678,6 +798,7 @@ public class MainViewModelTests
         Assert.Equal(editor, TipVisible(view, "Run script (F5)"));
         Assert.Equal(viewer, TipVisible(view, "Go to frame... (Ctrl+G)"));
         Assert.Equal(viewer, TipVisible(view, "Copy frame to clipboard (Ctrl+C)"));
+        Assert.Equal(viewer, TipVisible(view, "Video properties (Ctrl+I)"));
         Assert.Equal(vsViewer, TipVisible(view, "Enable multi-threading (F8)"));
         Assert.Equal(viewer, TipVisible(view, "Square Pixels (F9)"));
         Assert.Equal(viewer, TipVisible(view, "Load frame in all tabs (Ctrl+F6)"));
@@ -820,6 +941,7 @@ public class MainViewModelTests
         Assert.Contains("Alt+Right: Move tab right", text, StringComparison.Ordinal);
         Assert.Contains("Drag tab: Reorder", text, StringComparison.Ordinal);
         Assert.Contains("Ctrl+T: Change tab color", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+I: Toggle video properties", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Wheel click on tab", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Alt+1-9", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Select editor tab", text, StringComparison.Ordinal);

@@ -163,6 +163,57 @@ public class VsScriptIntegrationTests
         Assert.NotEqual(IntPtr.Zero, frame.GetPlane(0).Ptr);
         Assert.NotEqual(IntPtr.Zero, frame.GetPlane(1).Ptr);
         Assert.NotEqual(IntPtr.Zero, frame.GetPlane(2).Ptr);
+        Assert.Equal(format, script.SourceVideoInfo?.Format.Name);
+        if (!format.StartsWith("RGB", StringComparison.Ordinal))
+        {
+            Assert.NotEqual(VsColorFamily.RGB, script.SourceVideoInfo!.Format.ColorFamily);
+        }
+    }
+
+    [Fact]
+    public void LoadScript_Yuv420P10_SourceVideoInfoKeepsTenBit()
+    {
+        SkipIfNativeUnavailable();
+        var scriptText = """
+            import vapoursynth as vs
+            core = vs.core
+            clip = core.std.BlankClip(width=32, height=16, length=2, format=vs.YUV420P10)
+            clip.set_output()
+            """;
+
+        using var script = VsScript.LoadScript(scriptText);
+        using var output = script.GetOutput();
+        var source = script.SourceVideoInfo!;
+
+        Assert.Equal(VsColorFamily.RGB, output.VideoInfo.Format.ColorFamily);
+        Assert.Equal(8, output.VideoInfo.Format.BitsPerSample);
+        Assert.Equal("YUV420P10", source.Format.Name);
+        Assert.Equal(VsColorFamily.YUV, source.Format.ColorFamily);
+        Assert.Equal(10, source.Format.BitsPerSample);
+        Assert.Equal(32, source.Width);
+        Assert.Equal(16, source.Height);
+        Assert.Equal(2, source.NumFrames);
+        Assert.Equal("4:2:0", VsFormatName.Subsampling(source.Format));
+    }
+
+    [Fact]
+    public void GetSourceFrameProperties_SetFrameProps_ReturnsSourceKeys()
+    {
+        SkipIfNativeUnavailable();
+        var scriptText = """
+            import vapoursynth as vs
+            core = vs.core
+            clip = core.std.BlankClip(width=16, height=16, length=2, format=vs.YUV420P8)
+            clip = clip.std.SetFrameProps(_Matrix=1, _PictType="I")
+            clip.set_output()
+            """;
+
+        using var script = VsScript.LoadScript(scriptText);
+        var properties = script.GetSourceFrameProperties(0);
+        var map = properties.ToDictionary(x => x.Name, x => x.Value, StringComparer.Ordinal);
+
+        Assert.Equal("1", map["_Matrix"]);
+        Assert.Equal("I", map["_PictType"]);
     }
 
     [Theory]
@@ -287,7 +338,8 @@ public class VsScriptIntegrationTests
         var action = () => VsScript.LoadScript(scriptText);
 
         var error = Assert.Throws<VsException>(action);
-        Assert.Contains("did not set video output", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("did not set", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("output", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Python exception: 0", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -319,6 +371,18 @@ public class VsScriptIntegrationTests
 
         Assert.True(usable);
         Assert.Null(error);
+    }
+
+    [Fact]
+    public void TryReadVersion_NativeLibrary_ReturnsRelease()
+    {
+        SkipIfNativeUnavailable();
+
+        var read = VsScript.TryReadVersion(out var version, out var detail);
+
+        Assert.True(read);
+        Assert.StartsWith("R", version, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(detail));
     }
 
     [Fact]
@@ -470,6 +534,35 @@ public class VsScriptIntegrationTests
         Assert.NotNull(status);
         Assert.Equal(0, status.Index);
         Assert.Equal(VsFrameState.Completed, status.State);
+    }
+
+    [Fact]
+    public void GetFrameAsync_QueuedFrames_ReadyHandlerCanReadFrameProperties()
+    {
+        SkipIfNativeUnavailable();
+        const int count = 5;
+        using var done = new ManualResetEventSlim(false);
+        var ready = 0;
+        IReadOnlyList<(string Name, string Value)>? properties = null;
+
+        using var script = VsScript.LoadScript(YuvBlankClip);
+        using var output = script.GetOutput();
+        output.FrameReady += (_, e) =>
+        {
+            properties = e.Frame?.GetProperties();
+            if (Interlocked.Increment(ref ready) >= count)
+            {
+                done.Set();
+            }
+        };
+        for (var i = 0; i < count; i++)
+        {
+            output.GetFrameAsync(i);
+        }
+
+        Assert.True(done.Wait(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken));
+        Assert.Equal(count, ready);
+        Assert.NotNull(properties);
     }
 
     [Fact]

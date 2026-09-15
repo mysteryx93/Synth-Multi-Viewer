@@ -25,6 +25,7 @@ internal sealed class AvsPlayback : ISynthPlayback
         _gate = sink.Gate;
         _script = script;
         _video = script.VideoInfo;
+        ClipInfo = ClipInfo.FromAviSynth(script.SourceVideoInfo);
     }
 
     public static AvsPlayback Open(string? file, string? script, ISynthPlayerSink sink)
@@ -36,6 +37,30 @@ internal sealed class AvsPlayback : ISynthPlayback
     public int Width => _video.Width;
     public int Height => _video.Height;
     public TimeSpan Duration => TimeSpan.FromSeconds(Math.Max(_video.FrameCount - 1, 0));
+    public ClipInfo ClipInfo { get; }
+
+    public IReadOnlyList<FrameProperty> ReadFrameProperties(int index)
+    {
+        AvsScript? script;
+        lock (_gate)
+        {
+            script = _script;
+        }
+
+        if (script == null)
+        {
+            return [];
+        }
+
+        try
+        {
+            return MapProperties(script.GetSourceFrameProperties(index));
+        }
+        catch
+        {
+            return [];
+        }
+    }
 
     public void Present(int index)
     {
@@ -70,7 +95,7 @@ internal sealed class AvsPlayback : ISynthPlayback
                 sink.PositionRequested = index;
             }
 
-            sink.SetPosition(index);
+            sink.SetPosition(index, ReadFrameProperties(index));
         }
         catch (Exception ex)
         {
@@ -201,6 +226,7 @@ internal sealed class AvsPlayback : ISynthPlayback
     {
         var sink = _sink;
         FrameBuffer? pixels = null;
+        IReadOnlyList<FrameProperty> properties = [];
         AvsScript? script;
         lock (_gate)
         {
@@ -214,6 +240,7 @@ internal sealed class AvsPlayback : ISynthPlayback
                 using var frame = script.GetFrame(index);
                 var plane = frame.GetPlane(0);
                 pixels = CopyPlane(plane);
+                properties = MapProperties(script.GetSourceFrameProperties(index));
             }
         }
         catch (Exception ex)
@@ -253,7 +280,7 @@ internal sealed class AvsPlayback : ISynthPlayback
                 }
 
                 sink.ShowBitmap();
-                sink.SetPosition(index);
+                sink.SetPosition(index, properties);
             }
 
             lock (_gate)
@@ -279,6 +306,22 @@ internal sealed class AvsPlayback : ISynthPlayback
 
     private static FrameBuffer CopyPlane(AvsPlane plane) =>
         FrameBuffer.CopyFrom(plane.Pointer, plane.Stride, plane.RowSize, plane.Height, flipVertical: true, opaqueBgra: true);
+
+    private static IReadOnlyList<FrameProperty> MapProperties(IReadOnlyList<(string Name, string Value)> properties)
+    {
+        if (properties.Count == 0)
+        {
+            return [];
+        }
+
+        var mapped = new FrameProperty[properties.Count];
+        for (var i = 0; i < properties.Count; i++)
+        {
+            mapped[i] = new FrameProperty(properties[i].Name, properties[i].Value);
+        }
+
+        return mapped;
+    }
 
     private void DisposeSessionLocked()
     {

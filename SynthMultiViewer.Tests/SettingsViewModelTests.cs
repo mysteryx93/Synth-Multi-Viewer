@@ -126,7 +126,9 @@ public class SettingsViewModelTests
     {
         var detection = new TestSupport.MemoryFrameworkDetection
         {
-            VapourSynth = new(true, "/usr/lib/libvsscript.so", ["/usr/lib/vapoursynth", "/usr/lib64/vapoursynth"]),
+            VapourSynth = new(
+                FrameworkStatus.Detected, "/usr/lib/libvsscript.so",
+                ["/usr/lib/vapoursynth", "/usr/lib64/vapoursynth"], Version: "R79"),
             AviSynth = new(false)
         };
         var model = TestSupport.CreateSettings(detection: detection);
@@ -140,7 +142,7 @@ public class SettingsViewModelTests
         var library = view.FindControl<TextBox>("VapourSynthLibraryPath")!;
         var plugins = view.FindControl<TextBox>("VapourSynthPluginFolders")!;
 
-        Assert.Equal("(Detected)", vapourSynth.Text);
+        Assert.Equal("(Detected R79)", vapourSynth.Text);
         Assert.Equal("(Not Found)", aviSynth.Text);
         var vapourSynthTitle = view.GetVisualDescendants().OfType<TextBlock>().First(x => x.Text == "VapourSynth");
         Assert.True(vapourSynth.Bounds.Left > vapourSynthTitle.Bounds.Right);
@@ -170,7 +172,7 @@ public class SettingsViewModelTests
         };
         var detection = new TestSupport.MemoryFrameworkDetection
         {
-            VapourSynth = new(true, "/opt/vs/libvsscript.so"),
+            VapourSynth = new(FrameworkStatus.Detected, "/opt/vs/libvsscript.so", Version: "R65"),
             AviSynth = new(false)
         };
 
@@ -184,8 +186,29 @@ public class SettingsViewModelTests
         Assert.Equal("/opt/avs", model.AviSynthPath);
         Assert.Equal("/opt/avs/plugins", model.AviSynthPluginFolders);
         Assert.Equal("/opt/vs/libvsscript.so", model.VapourSynthLibraryDisplay);
-        Assert.Equal("(Detected)", model.VapourSynthStatus);
+        Assert.Equal("(Detected R65)", model.VapourSynthStatus);
         Assert.Equal("(Not Found)", model.AviSynthStatus);
+    }
+
+    [Fact]
+    public void Constructor_DetectedVersionDetail_ShowsCompactStatusAndFullTip()
+    {
+        var detection = new TestSupport.MemoryFrameworkDetection
+        {
+            VapourSynth = new(
+                FrameworkStatus.Detected, "/usr/lib/libvsscript.so", Version: "R79",
+                VersionDetail: "VapourSynth Video Processing Library\nCore R79"),
+            AviSynth = new(
+                FrameworkStatus.Detected, "/usr/lib/libavisynth.so", Version: "AviSynth+ 3.7.5",
+                VersionDetail: "AviSynth+ 3.7.5 (r4228, 3.7, x86_64)")
+        };
+
+        var model = TestSupport.CreateSettings(detection: detection);
+
+        Assert.Equal("(Detected R79)", model.VapourSynthStatus);
+        Assert.Contains("Core R79", model.VapourSynthStatusTip, StringComparison.Ordinal);
+        Assert.Equal("(Detected AviSynth+ 3.7.5)", model.AviSynthStatus);
+        Assert.Contains("r4228", model.AviSynthStatusTip, StringComparison.Ordinal);
     }
 
     [Fact]

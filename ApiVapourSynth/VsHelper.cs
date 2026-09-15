@@ -35,6 +35,12 @@ public static class VsHelper
     public static bool TryEvaluate(out string? error) => VsScript.TryEvaluate(out error);
 
     /// <summary>
+    /// Returns the loaded core's release label, such as R79.
+    /// </summary>
+    public static bool TryReadVersion(out string? version, out string? detail) =>
+        VsScript.TryReadVersion(out version, out detail);
+
+    /// <summary>
     /// Returns the version requested from the VapourSynth 4 core API.
     /// </summary>
     public static int GetApiVersion() => VsInvoke.ApiVersion;

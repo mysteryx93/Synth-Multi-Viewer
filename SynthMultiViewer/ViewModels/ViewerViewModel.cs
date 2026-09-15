@@ -37,6 +37,14 @@ public interface IViewerViewModel : IScriptViewModel
     /// Gets or sets the vertical scroll offset in display units.
     /// </summary>
     double ScrollVerticalOffset { get; set; }
+    /// <summary>
+    /// Gets or sets the source clip information from before display conversion.
+    /// </summary>
+    ClipInfo? ClipInfo { get; set; }
+    /// <summary>
+    /// Gets or sets the current frame properties from the source clip.
+    /// </summary>
+    IReadOnlyList<FrameProperty> FrameProperties { get; set; }
 }
 
 /// <summary>
@@ -83,4 +91,12 @@ public partial class ViewerViewModel : ScriptViewModel, IViewerViewModel
     /// <inheritdoc />
     [Reactive]
     public partial double ScrollVerticalOffset { get; set; }
+
+    /// <inheritdoc />
+    [Reactive]
+    public partial ClipInfo? ClipInfo { get; set; }
+
+    /// <inheritdoc />
+    [Reactive]
+    public partial IReadOnlyList<FrameProperty> FrameProperties { get; set; } = [];
 }

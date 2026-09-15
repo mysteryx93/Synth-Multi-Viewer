@@ -7,7 +7,6 @@
         Title="Settings"
         Width="520"
         SizeToContent="Height"
-        Classes="dialog"
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">

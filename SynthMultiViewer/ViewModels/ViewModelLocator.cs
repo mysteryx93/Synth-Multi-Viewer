@@ -32,6 +32,7 @@ public static class ViewModelLocator
         SplatRegistrations.Register<HelpViewModel>();
         SplatRegistrations.Register<InputViewModel>();
         SplatRegistrations.Register<SettingsViewModel>();
+        SplatRegistrations.Register<VideoPropertiesViewModel>();
         SplatRegistrations.Register<TabColorViewModel>();
         SplatRegistrations.Register<EditorViewModel>();
         SplatRegistrations.Register<ViewerViewModel>();

@@ -15,6 +15,7 @@ internal sealed class VsPlayback : ISynthPlayback
     private VsOutput? _output;
     private VsVideoInfo? _video;
     private bool _unloading;
+    private int _readySeq;
 
     private VsPlayback(ISynthPlayerSink sink, VsScript script, VsOutput output, VsVideoInfo video)
     {
@@ -26,6 +27,7 @@ internal sealed class VsPlayback : ISynthPlayback
         Width = video.Width;
         Height = video.Height;
         Duration = TimeSpan.FromSeconds(Math.Max(video.NumFrames - 1, 0));
+        ClipInfo = script.SourceVideoInfo != null ? ClipInfo.FromVapourSynth(script.SourceVideoInfo) : null;
         _output.FrameDone += OnFrameDone;
         _output.FrameReady += OnFrameReady;
     }
@@ -40,6 +42,30 @@ internal sealed class VsPlayback : ISynthPlayback
     public int Width { get; }
     public int Height { get; }
     public TimeSpan Duration { get; }
+    public ClipInfo? ClipInfo { get; }
+
+    public IReadOnlyList<FrameProperty> ReadFrameProperties(int index)
+    {
+        VsScript? script;
+        lock (_gate)
+        {
+            script = _script;
+        }
+
+        if (script == null)
+        {
+            return [];
+        }
+
+        try
+        {
+            return MapProperties(script.GetSourceFrameProperties(index));
+        }
+        catch
+        {
+            return [];
+        }
+    }
 
     public void Present(int index)
     {
@@ -70,7 +96,7 @@ internal sealed class VsPlayback : ISynthPlayback
                 sink.PositionRequested = index;
             }
 
-            sink.SetPosition(index);
+            sink.SetPosition(index, ReadFrameProperties(index));
         }
         catch (Exception ex)
         {
@@ -260,21 +286,35 @@ internal sealed class VsPlayback : ISynthPlayback
             output = _output;
         }
 
+        // getFrameAsync's callback runs on a VapourSynth worker. A blocking getFrame
+        // there (including GetSourceFrameProperties) deadlocks the core's thread pool.
         pixels = CopyRgb(e.Frame!);
+        var index = e.Index;
+        IReadOnlyList<FrameProperty> properties;
+        try
+        {
+            properties = MapProperties(e.Frame.GetProperties());
+        }
+        catch
+        {
+            properties = [];
+        }
 
+        var seq = Interlocked.Increment(ref _readySeq);
         Dispatcher.UIThread.Post(() =>
         {
             using (pixels)
             {
                 var bitmap = sink.Bitmap;
-                if (sender != output || sink.IsDisposed || sink.IsErrorVisible || bitmap == null)
+                if (seq != Volatile.Read(ref _readySeq) || sender != output || sink.IsDisposed ||
+                    sink.IsErrorVisible || bitmap == null)
                 {
                     return;
                 }
 
                 CopyToBitmap(pixels, bitmap);
                 sink.ShowBitmap();
-                sink.SetPosition(e.Index);
+                sink.SetPosition(index, properties);
             }
         });
     }
@@ -290,10 +330,27 @@ internal sealed class VsPlayback : ISynthPlayback
             _output = null;
             _script = null;
             _video = null;
+            Interlocked.Increment(ref _readySeq);
         }
 
         output?.Dispose();
         script?.Dispose();
+    }
+
+    private static IReadOnlyList<FrameProperty> MapProperties(IReadOnlyList<(string Name, string Value)> properties)
+    {
+        if (properties.Count == 0)
+        {
+            return [];
+        }
+
+        var mapped = new FrameProperty[properties.Count];
+        for (var i = 0; i < properties.Count; i++)
+        {
+            mapped[i] = new FrameProperty(properties[i].Name, properties[i].Value);
+        }
+
+        return mapped;
     }
 
     private static FrameBuffer CopyRgb(VsFrame frame)

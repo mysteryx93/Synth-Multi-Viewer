@@ -1,5 +1,10 @@
 VapourSynth Multi-Viewer Change Log
 
+v1.2 (2026-09-15)
+- Fix AviSynth frame display bug
+- Display video/frame properties (Ctrl+I)
+- Show detected AviSynth and VapourSynth versions in Settings
+
 v1.1 (2026-09-13)
 - Fixed AviSynth/VapourSynth frame display for all pixel formats and bit depths
 - Fixed an AviSynth display bug

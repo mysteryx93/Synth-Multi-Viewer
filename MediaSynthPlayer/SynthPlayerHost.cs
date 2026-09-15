@@ -331,6 +331,37 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
     }
 
     /// <summary>
+    /// Defines the <see cref="ClipInfo"/> property.
+    /// </summary>
+    public static readonly DirectProperty<SynthPlayerHost, ClipInfo?> ClipInfoProperty =
+        AvaloniaProperty.RegisterDirect<SynthPlayerHost, ClipInfo?>(nameof(ClipInfo), o => o.ClipInfo);
+    private ClipInfo? _clipInfo;
+    /// <summary>
+    /// Gets the source clip information from before display conversion.
+    /// </summary>
+    public ClipInfo? ClipInfo
+    {
+        get => _clipInfo;
+        private set => SetAndRaise(ClipInfoProperty, ref _clipInfo, value);
+    }
+
+    /// <summary>
+    /// Defines the <see cref="FrameProperties"/> property.
+    /// </summary>
+    public static readonly DirectProperty<SynthPlayerHost, IReadOnlyList<FrameProperty>> FramePropertiesProperty =
+        AvaloniaProperty.RegisterDirect<SynthPlayerHost, IReadOnlyList<FrameProperty>>(
+            nameof(FrameProperties), o => o.FrameProperties);
+    private IReadOnlyList<FrameProperty> _frameProperties = [];
+    /// <summary>
+    /// Gets the current frame properties from the source clip.
+    /// </summary>
+    public IReadOnlyList<FrameProperty> FrameProperties
+    {
+        get => _frameProperties;
+        private set => SetAndRaise(FramePropertiesProperty, ref _frameProperties, value);
+    }
+
+    /// <summary>
     /// Copies the current video frame to the clipboard.
     /// </summary>
     public Task CopyFrameToClipboardAsync()
@@ -481,6 +512,8 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
         var bitmap = _bmp;
         _bmp = null;
         VideoSource = null;
+        ClipInfo = null;
+        FrameProperties = [];
         bitmap?.Dispose();
         _playback?.Unload();
     }
@@ -523,7 +556,11 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
     }
     int ISynthPlayerSink.ThreadCount => GetThreadCount();
     void ISynthPlayerSink.ShowBitmap() => VideoSource = _bmp;
-    void ISynthPlayerSink.SetPosition(int index) => SetPositionNoSeek(TimeSpan.FromSeconds(index));
+    void ISynthPlayerSink.SetPosition(int index, IReadOnlyList<FrameProperty> properties)
+    {
+        FrameProperties = properties;
+        SetPositionNoSeek(TimeSpan.FromSeconds(index));
+    }
     void ISynthPlayerSink.ClearVideo()
     {
         VideoSource = null;
@@ -668,6 +705,8 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
                     : VsPlayback.Open(file, script, this);
                 _playback = playback;
                 Duration = playback.Duration;
+                ClipInfo = playback.ClipInfo;
+                FrameProperties = [];
             }
 
             _bmp = new WriteableBitmap(

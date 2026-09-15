@@ -10,12 +10,15 @@ public sealed class AvsScript : IDisposable
     private readonly AvsNative _native;
     private IntPtr _environment;
     private IntPtr _clip;
+    private IntPtr _sourceClip;
 
-    private AvsScript(AvsNative native, IntPtr environment, IntPtr clip)
+    private AvsScript(AvsNative native, IntPtr environment, IntPtr clip, IntPtr sourceClip, AvsVideoInfo sourceVideoInfo)
     {
         _native = native;
         _environment = environment;
         _clip = clip;
+        _sourceClip = sourceClip;
+        SourceVideoInfo = sourceVideoInfo;
     }
 
     /// <summary>
@@ -59,6 +62,58 @@ public sealed class AvsScript : IDisposable
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or AvsException)
         {
             error = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Returns the loaded library's VersionString, such as AviSynth+ 3.7.5.
+    /// </summary>
+    public static bool TryReadVersion(out string? version, out string? detail)
+    {
+        version = null;
+        detail = null;
+        try
+        {
+            var native = AvsNative.Load();
+            var environment = native.CreateEnvironment();
+            if (environment == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                var value = native.Eval(environment, "VersionString()");
+                try
+                {
+                    if (value.Type != (short)'s')
+                    {
+                        return false;
+                    }
+
+                    detail = value.GetString();
+                    if (string.IsNullOrWhiteSpace(detail))
+                    {
+                        return false;
+                    }
+
+                    var paren = detail.IndexOf(" (", StringComparison.Ordinal);
+                    version = paren > 0 ? detail[..paren] : detail.Trim();
+                    return true;
+                }
+                finally
+                {
+                    native.ReleaseValue(value);
+                }
+            }
+            finally
+            {
+                native.DeleteEnvironment(environment);
+            }
+        }
+        catch (Exception)
+        {
             return false;
         }
     }
@@ -129,8 +184,16 @@ IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
         {
             native.ApplyPluginFolders(environment);
             var user = evaluateUser(native, environment);
+            var sourceClip = IntPtr.Zero;
             try
             {
+                sourceClip = native.TakeClip(user, environment);
+                if (sourceClip == IntPtr.Zero)
+                {
+                    throw new AvsException("The AviSynth script did not return a video clip.");
+                }
+
+                var sourceInfo = native.GetVideoInfo(sourceClip);
                 native.SetVar(environment, "last", user);
                 var result = Eval(native, environment, DisplayConversion,
                     "AviSynth could not convert the output for display.");
@@ -141,10 +204,17 @@ IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
                     throw new AvsException("The AviSynth script did not return a video clip.");
                 }
 
-                return new AvsScript(native, environment, clip);
+                var script = new AvsScript(native, environment, clip, sourceClip, sourceInfo);
+                sourceClip = IntPtr.Zero;
+                return script;
             }
             finally
             {
+                if (sourceClip != IntPtr.Zero)
+                {
+                    native.ReleaseClip(sourceClip);
+                }
+
                 native.ReleaseValue(user);
             }
         }
@@ -187,7 +257,7 @@ IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
     }
 
     /// <summary>
-    /// Gets the script video information.
+    /// Gets the script video information after display conversion.
     /// </summary>
     public AvsVideoInfo VideoInfo
     {
@@ -197,6 +267,11 @@ IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
             return _native.GetVideoInfo(_clip);
         }
     }
+
+    /// <summary>
+    /// Gets the script video information before display conversion.
+    /// </summary>
+    public AvsVideoInfo SourceVideoInfo { get; }
 
     /// <summary>
     /// Gets a video frame. The returned frame must be disposed.
@@ -211,6 +286,33 @@ IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
         }
 
         return new AvsFrame(_native, frame);
+    }
+
+    /// <summary>
+    /// Returns frame properties from the source clip, before display conversion.
+    /// </summary>
+    public IReadOnlyList<(string Name, string Value)> GetSourceFrameProperties(int index)
+    {
+        ObjectDisposedException.ThrowIf(_sourceClip == IntPtr.Zero, this);
+        if (!_native.HasFrameProperties)
+        {
+            return [];
+        }
+
+        var frame = _native.GetFrame(_sourceClip, index);
+        if (frame == IntPtr.Zero)
+        {
+            throw new AvsException("AviSynth could not return the requested frame.");
+        }
+
+        try
+        {
+            return _native.ReadFrameProperties(_environment, frame);
+        }
+        finally
+        {
+            _native.ReleaseFrame(frame);
+        }
     }
 
     /// <summary>
@@ -236,6 +338,12 @@ IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
         {
             _native.ReleaseClip(_clip);
             _clip = IntPtr.Zero;
+        }
+
+        if (_sourceClip != IntPtr.Zero)
+        {
+            _native.ReleaseClip(_sourceClip);
+            _sourceClip = IntPtr.Zero;
         }
 
         _native.DeleteEnvironment(_environment);

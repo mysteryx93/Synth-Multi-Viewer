@@ -30,7 +30,9 @@ public sealed record FrameworkInstall(
     FrameworkStatus Status,
     string? LibraryPath = null,
     IReadOnlyList<string>? PluginDirectories = null,
-    string? Message = null)
+    string? Message = null,
+    string? Version = null,
+    string? VersionDetail = null)
 {
     /// <summary>
     /// Creates an install report from a found/not-found probe.

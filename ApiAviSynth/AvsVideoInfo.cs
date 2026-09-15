@@ -37,4 +37,9 @@ public struct AvsVideoInfo
     /// Gets the AviSynth pixel-format identifier.
     /// </summary>
     public int PixelType;
+
+    /// <summary>
+    /// Gets the script pixel-type name, such as YUV420P10.
+    /// </summary>
+    public readonly string FormatName => AvsPixelFormat.GetName(PixelType);
 }

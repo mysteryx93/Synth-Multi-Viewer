@@ -7,6 +7,7 @@ public sealed class VsScript : IDisposable
 {
     private readonly VsScriptApi _scriptApi;
     private readonly IntPtr _handle;
+    private VsOutput? _sourceOutput;
     private bool _disposed;
 
     private VsScript(VsScriptApi scriptApi, IntPtr handle)
@@ -97,7 +98,7 @@ public sealed class VsScript : IDisposable
         try
         {
             environment.EvaluateBuffer(script, scriptPath);
-            environment.ConvertOutputToRgb24();
+            environment.CaptureSourceThenConvert();
             return environment;
         }
         catch
@@ -125,10 +126,79 @@ public sealed class VsScript : IDisposable
         }
     }
 
+    /// <summary>
+    /// Returns the loaded core's release label, such as R79.
+    /// </summary>
+    public static bool TryReadVersion(out string? version, out string? detail)
+    {
+        version = null;
+        detail = null;
+        try
+        {
+            using var script = CreateEmpty();
+            var core = script._scriptApi.GetCore(script._handle);
+            if (core == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            var info = VsCoreApi.Load(script._scriptApi.CoreApi).GetCoreInfo(core);
+            detail = Utf8Ptr.FromUtf8Ptr(info.VersionString);
+            if (info.Core > 0)
+            {
+                version = "R" + info.Core;
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(detail))
+            {
+                return false;
+            }
+
+            version = CompactVersion(detail);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static string CompactVersion(string detail)
+    {
+        foreach (var line in detail.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("Core R", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed[5..].Trim();
+            }
+
+            if (trimmed.StartsWith("R", StringComparison.OrdinalIgnoreCase) && trimmed.Length > 1 &&
+                char.IsDigit(trimmed[1]))
+            {
+                return trimmed.Split(' ', 2)[0];
+            }
+        }
+
+        return detail.Split('\n')[0].Trim();
+    }
+
     private void EvaluateBuffer(string script, string? scriptPath)
     {
         using var buffer = new Utf8Ptr(script);
         EvaluateNamedBuffer(buffer.ptr, scriptPath, "VapourSynth could not evaluate the script.");
+    }
+
+    /// <summary>
+    /// Holds the script output before display conversion so clip info and frame
+    /// properties are not read from the RGB24 display node.
+    /// </summary>
+    private void CaptureSourceThenConvert()
+    {
+        _sourceOutput = GetOutput(0);
+        SourceVideoInfo = _sourceOutput.VideoInfo;
+        ConvertOutputToRgb24();
     }
 
     /// <summary>
@@ -244,6 +314,27 @@ synthmultiviewer_node.set_output()
 """;
 
     /// <summary>
+    /// Gets the video information before display conversion.
+    /// </summary>
+    public VsVideoInfo? SourceVideoInfo { get; private set; }
+
+    /// <summary>
+    /// Returns frame properties from the source output, before display conversion.
+    /// Must not be called from a getFrameAsync callback; that deadlocks VapourSynth.
+    /// </summary>
+    public IReadOnlyList<(string Name, string Value)> GetSourceFrameProperties(int index)
+    {
+        ThrowIfDisposed();
+        if (_sourceOutput == null)
+        {
+            return [];
+        }
+
+        using var frame = _sourceOutput.GetFrame(index);
+        return frame.GetProperties();
+    }
+
+    /// <summary>
     /// Returns the first video output.
     /// </summary>
     public VsOutput GetOutput() => GetOutput(0);
@@ -264,6 +355,8 @@ synthmultiviewer_node.set_output()
     {
         if (_disposed) { return; }
 
+        _sourceOutput?.Dispose();
+        _sourceOutput = null;
         _scriptApi.FreeScript(_handle);
         _disposed = true;
     }
