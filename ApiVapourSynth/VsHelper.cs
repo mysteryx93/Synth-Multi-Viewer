@@ -46,7 +46,7 @@ public static class VsHelper
     /// <summary>
     /// Copies frame data from one memory location to another.
     /// </summary>
-    public static void BitBlt(IntPtr dstp, int dstStride, IntPtr srcp, int srcStride, int rowSize, int height)
+    public static unsafe void BitBlt(IntPtr dstp, int dstStride, IntPtr srcp, int srcStride, int rowSize, int height)
     {
         for (var row = 0; row < height; row++)
         {
