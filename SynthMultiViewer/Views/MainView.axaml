@@ -17,6 +17,8 @@
         h:ViewerKeys.Seek="{Binding Seek}"
         h:ViewerKeys.PlayPause="{Binding PlayPause}"
         h:ViewerKeys.CopyFrame="{Binding CopyFrame}"
+        h:ViewerKeys.ZoomIn="{Binding ZoomIn}"
+        h:ViewerKeys.ZoomOut="{Binding ZoomOut}"
         h:TabKeys.MoveLeft="{Binding MoveTabLeft}"
         h:TabKeys.MoveRight="{Binding MoveTabRight}">
     <Window.Resources>
@@ -39,10 +41,6 @@
         <KeyBinding Gesture="F8" Command="{Binding ToggleMultiThreaded}" />
         <KeyBinding Gesture="F9" Command="{Binding ToggleSquarePixels}" />
         <KeyBinding Gesture="Ctrl+F4" Command="{Binding SelectedItem.Close}" />
-        <KeyBinding Gesture="Add" Command="{Binding ZoomIn}" />
-        <KeyBinding Gesture="Subtract" Command="{Binding ZoomOut}" />
-        <KeyBinding Gesture="OemPlus" Command="{Binding ZoomIn}" />
-        <KeyBinding Gesture="OemMinus" Command="{Binding ZoomOut}" />
         <KeyBinding Gesture="Ctrl+Tab" Command="{Binding NextTab}" />
         <KeyBinding Gesture="Ctrl+Shift+Tab" Command="{Binding PreviousTab}" />
         <KeyBinding Gesture="Ctrl+D1" Command="{Binding SelectTab}" CommandParameter="0" />

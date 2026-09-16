@@ -42,7 +42,7 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
 
     private int _posRequested;
     private ISynthPlayback? _playback;
-    private readonly object _outputLock = new();
+    private readonly Lock _outputLock = new();
     private WriteableBitmap? _bmp;
     private string? _autoLoadFile;
     private string? _autoLoadScript;
@@ -120,7 +120,7 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
     public bool LimitFps
     {
         get => GetValue(LimitFpsProperty);
-        set => SetValue(LimitFpsProperty, value);
+        init => SetValue(LimitFpsProperty, value);
     }
 
     /// <summary>
@@ -543,7 +543,7 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
         _error.Text = err;
     }
 
-    object ISynthPlayerSink.Gate => _outputLock;
+    Lock ISynthPlayerSink.Gate => _outputLock;
     bool ISynthPlayerSink.IsPlaying => IsPlaying;
     bool ISynthPlayerSink.LimitFps => LimitFps;
     bool ISynthPlayerSink.IsDisposed => _disposed;

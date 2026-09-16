@@ -1,5 +1,3 @@
-using HanumanInstitute.MediaSynthUI;
-
 namespace HanumanInstitute.SynthMultiViewer.Helpers;
 
 /// <summary>

@@ -10,7 +10,7 @@ namespace HanumanInstitute.MediaSynthUI;
 internal sealed class VsPlayback : ISynthPlayback
 {
     private readonly ISynthPlayerSink _sink;
-    private readonly object _gate;
+    private readonly Lock _gate;
     private VsScript? _script;
     private VsOutput? _output;
     private VsVideoInfo? _video;
@@ -273,7 +273,6 @@ internal sealed class VsPlayback : ISynthPlayback
     private void OnFrameReady(object? sender, VsFrameStatus e)
     {
         var sink = _sink;
-        FrameBuffer pixels;
         VsOutput output;
         lock (_gate)
         {
@@ -288,7 +287,7 @@ internal sealed class VsPlayback : ISynthPlayback
 
         // getFrameAsync's callback runs on a VapourSynth worker. A blocking getFrame
         // there (including GetSourceFrameProperties) deadlocks the core's thread pool.
-        pixels = CopyRgb(e.Frame!);
+        var pixels = CopyRgb(e.Frame!);
         var index = e.Index;
         IReadOnlyList<FrameProperty> properties;
         try

@@ -7,7 +7,7 @@ namespace HanumanInstitute.SynthMultiViewer.Controls;
 /// <summary>
 /// An AvaloniaEdit editor whose text supports two-way bindings.
 /// </summary>
-public class BindableTextEditor : TextEditor
+public partial class BindableTextEditor : TextEditor
 {
     /// <summary>
     /// Defines the bindable script text.
@@ -22,6 +22,7 @@ public class BindableTextEditor : TextEditor
     public BindableTextEditor()
     {
         TextChanged += (_, _) => SetCurrentValue(ScriptTextProperty, Text);
+        InitializeCompletion();
     }
 
     /// <summary>

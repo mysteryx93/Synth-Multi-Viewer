@@ -6,6 +6,7 @@
              x:Class="HanumanInstitute.SynthMultiViewer.Views.EditorView"
              x:DataType="vm:EditorViewModel">
     <controls:BindableTextEditor x:Name="Editor" ScriptText="{Binding Script, Mode=TwoWay}"
+                                 ScriptKind="{Binding Kind}"
                                  h:FocusBehavior.WhenVisible="True"
                                  h:SyntaxHighlight.Source="{Binding HighlightSource}" />
 </UserControl>

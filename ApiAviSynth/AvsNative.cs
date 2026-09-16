@@ -3,10 +3,11 @@ using System.Text;
 
 namespace HanumanInstitute.ApiAviSynth;
 
-internal sealed class AvsNative
+internal sealed class AvsNative : IDisposable
 {
     private const int InterfaceVersion = 6;
     private readonly IntPtr _library;
+    private bool _disposed;
     private readonly CreateEnvironmentDelegate _createEnvironment;
     private readonly DeleteEnvironmentDelegate _deleteEnvironment;
     private readonly InvokeDelegate _invoke;
@@ -21,6 +22,9 @@ internal sealed class AvsNative
     private readonly GetPlaneValueDelegate _getHeight;
     private readonly GetReadPtrDelegate _getReadPtr;
     private readonly SetVarDelegate _setVar;
+    private readonly GetVarDelegate _getVar;
+    private readonly GetVarTryDelegate? _getVarTry;
+    private readonly FunctionExistsDelegate _functionExists;
     private readonly GetFramePropsDelegate? _getFramePropsRo;
     private readonly PropNumKeysDelegate? _propNumKeys;
     private readonly PropGetKeyDelegate? _propGetKey;
@@ -48,6 +52,9 @@ internal sealed class AvsNative
         _getHeight = GetDelegate<GetPlaneValueDelegate>("avs_get_height_p");
         _getReadPtr = GetDelegate<GetReadPtrDelegate>("avs_get_read_ptr_p");
         _setVar = GetDelegate<SetVarDelegate>("avs_set_var");
+        _getVar = GetDelegate<GetVarDelegate>("avs_get_var");
+        _getVarTry = TryGetDelegate<GetVarTryDelegate>("avs_get_var_try");
+        _functionExists = GetDelegate<FunctionExistsDelegate>("avs_function_exists");
         _getFramePropsRo = TryGetDelegate<GetFramePropsDelegate>("avs_get_frame_props_ro");
         _propNumKeys = TryGetDelegate<PropNumKeysDelegate>("avs_prop_num_keys");
         _propGetKey = TryGetDelegate<PropGetKeyDelegate>("avs_prop_get_key");
@@ -57,6 +64,40 @@ internal sealed class AvsNative
         _propGetFloat = TryGetDelegate<PropGetFloatDelegate>("avs_prop_get_float");
         _propGetData = TryGetDelegate<PropGetDataDelegate>("avs_prop_get_data");
         _propGetDataSize = TryGetDelegate<PropGetDataSizeDelegate>("avs_prop_get_data_size");
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) { return; }
+
+        NativeLibrary.Free(_library);
+        _disposed = true;
+    }
+
+    public bool FunctionExists(IntPtr environment, string name) => _functionExists(environment, name) != 0;
+
+    public string? ReadStringVariable(IntPtr environment, string name)
+    {
+        AvsValue value;
+        if (_getVarTry != null)
+        {
+            if (_getVarTry(environment, name, out value) == 0)
+            {
+                return null;
+            }
+        }
+        else
+        {
+            value = _getVar(environment, name);
+        }
+        try
+        {
+            return value.Type == (short)'s' ? value.GetString() : null;
+        }
+        finally
+        {
+            ReleaseValue(value);
+        }
     }
 
     public IntPtr CreateEnvironment() => _createEnvironment(InterfaceVersion);
@@ -77,7 +118,7 @@ internal sealed class AvsNative
     public AvsValue Eval(IntPtr environment, string script) => InvokeString(environment, "Eval", script);
 
     public AvsValue Invoke(IntPtr environment, string name) =>
-        _invoke(environment, name, new AvsValue { Type = (short)'v' }, IntPtr.Zero);
+        _invoke(environment, name, new AvsValue { Type = (short)'a', ArraySize = 0 }, IntPtr.Zero);
 
     public void SetVar(IntPtr environment, string name, AvsValue value) => _setVar(environment, name, value);
 
@@ -199,30 +240,30 @@ internal sealed class AvsNative
         }
     }
 
-    private static string? OverridePath;
-    private static IReadOnlyList<string> ExtraPluginFolders = [];
-    private static bool ReplacePluginFolders;
+    private static string? _overridePath;
+    private static IReadOnlyList<string> _extraPluginFolders = [];
+    private static bool _replacePluginFolders;
 
-    public static void SetDllPath(string? path) => OverridePath = path.HasValue() ? path : null;
+    public static void SetDllPath(string? path) => _overridePath = path.HasValue() ? path : null;
 
     public static void SetPluginFolders(IEnumerable<string>? folders, bool replace)
     {
-        ExtraPluginFolders = (folders ?? [])
+        _extraPluginFolders = (folders ?? [])
             .Where(dir => dir.HasValue())
             .Select(dir => dir.Trim())
             .Distinct(StringComparer.Ordinal)
             .ToList();
-        ReplacePluginFolders = replace;
+        _replacePluginFolders = replace;
     }
 
     public void ApplyPluginFolders(IntPtr environment)
     {
-        if (ReplacePluginFolders)
+        if (_replacePluginFolders)
         {
             TryEval(environment, "ClearAutoloadDirs()");
         }
 
-        foreach (var dir in ExtraPluginFolders)
+        foreach (var dir in _extraPluginFolders)
         {
             TryEval(environment, "AddAutoloadDir(\"" + dir.Replace("\"", "\"\"", StringComparison.Ordinal) + "\")");
         }
@@ -236,7 +277,7 @@ internal sealed class AvsNative
 
     public static bool TryFindLibrary(out string? path)
     {
-        foreach (var candidate in AvsPathResolver.GetLibraryCandidates(OverridePath))
+        foreach (var candidate in AvsPathResolver.GetLibraryCandidates(_overridePath))
         {
             if (NativeLibrary.TryLoad(candidate, out var library))
             {
@@ -252,7 +293,7 @@ internal sealed class AvsNative
 
     public static AvsNative Load()
     {
-        foreach (var candidate in AvsPathResolver.GetLibraryCandidates(OverridePath))
+        foreach (var candidate in AvsPathResolver.GetLibraryCandidates(_overridePath))
         {
             if (NativeLibrary.TryLoad(candidate, out var library))
             {
@@ -260,9 +301,9 @@ internal sealed class AvsNative
             }
         }
 
-        if (OverridePath.HasValue())
+        if (_overridePath.HasValue())
         {
-            throw new DllNotFoundException($"Could not load AviSynth from '{OverridePath}'.");
+            throw new DllNotFoundException($"Could not load AviSynth from '{_overridePath}'.");
         }
 
         throw new DllNotFoundException(
@@ -289,6 +330,12 @@ internal sealed class AvsNative
         return Marshal.GetDelegateForFunctionPointer<T>(pointer);
     }
 
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate AvsValue GetVarDelegate(IntPtr environment, string name);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate int GetVarTryDelegate(IntPtr environment, string name, out AvsValue value);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate int FunctionExistsDelegate(IntPtr environment, string name);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr CreateEnvironmentDelegate(int version);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate void DeleteEnvironmentDelegate(IntPtr environment);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate AvsValue InvokeDelegate(

@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Xunit;
 
-namespace HanumanInstitute.ApiAviSynth.Tests;
+namespace HanumanInstitute.ApiAviSynth.Tests.Integration;
 
 [CollectionDefinition("AviSynthNative", DisableParallelization = true)]
 public class AviSynthNativeCollection;
@@ -22,6 +22,55 @@ public class AvsScriptIntegrationTests
 
         return false;
     });
+
+    [Fact]
+    public void CatalogIncludesAutoloadAndExcludesFunctionsFromOtherEnvironments()
+    {
+        SkipIfNativeUnavailable();
+        var directory = Path.Combine(Path.GetTempPath(), "avs-catalog-" + Guid.NewGuid());
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "catalog.avsi"),
+                "function CatalogAutoload(clip c) { return c }");
+            AvsScript.SetPluginFolders([directory]);
+            using var script = AvsScript.LoadScript(
+                "function CatalogBufferOnly(clip c) { return c }\nBlankClip(length=1, width=16, height=16)");
+            var functions = AvsCatalog.Read();
+            Assert.Contains(functions, x => x.Name == "BlankClip" && x.Arguments != null &&
+                x.Arguments.Contains("[width]i", StringComparison.Ordinal));
+            var autoload = Assert.Single(functions, x => x.Name == "CatalogAutoload");
+            Assert.Equal("c", autoload.Arguments);
+            Assert.DoesNotContain(functions, x => x.Name == "CatalogBufferOnly");
+        }
+        finally
+        {
+            AvsScript.SetPluginFolders([]);
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void CatalogExcludesPluginLoadedOnlyByPlaybackScript()
+    {
+        SkipIfNativeUnavailable();
+        var plugin = AvsScript.GetPluginDirectories()
+            .SelectMany(x => new[] { Path.Combine(x, "libmvtools2.so"), Path.Combine(x, "mvtools2.dll") })
+            .FirstOrDefault(File.Exists);
+        Assert.SkipWhen(plugin == null, "MVTools is required for the LoadPlugin isolation check.");
+        try
+        {
+            AvsScript.SetPluginFolders([], replace: true);
+            using var script = AvsScript.LoadScript(
+                "LoadPlugin(\"" + plugin.Replace("\"", "\"\"", StringComparison.Ordinal) +
+                "\")\nAssert(FunctionExists(\"MSuper\"))\nBlankClip(length=1, width=16, height=16)");
+            Assert.DoesNotContain(AvsCatalog.Read(), x => x.Name == "MSuper");
+        }
+        finally
+        {
+            AvsScript.SetPluginFolders([]);
+        }
+    }
 
     [Fact]
     public void LoadScript_BlankClip_ReturnsVideoInfo()

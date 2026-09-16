@@ -57,6 +57,8 @@ public sealed class FrameworkDetectionService : IFrameworkDetectionService
             aviSynthFound, aviSynthUsable, aviSynthPath, settings.AviSynthPath,
             AvsScript.GetPluginDirectories(aviSynthPath), aviSynthError,
             aviSynthVersion, aviSynthDetail);
+
+        Completion.EditorCatalogs.Configure(settings);
     }
 
     private static FrameworkInstall CreateInstall(

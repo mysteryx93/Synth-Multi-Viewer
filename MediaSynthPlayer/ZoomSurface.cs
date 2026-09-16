@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
 
 namespace HanumanInstitute.MediaSynthUI;
 
@@ -54,8 +53,8 @@ internal sealed class ZoomSurface
             _child = value;
             if (value != null)
             {
-                Avalonia.Controls.Canvas.SetLeft(value, 0);
-                Avalonia.Controls.Canvas.SetTop(value, 0);
+                Canvas.SetLeft(value, 0);
+                Canvas.SetTop(value, 0);
                 Canvas.Children.Add(value);
                 if (value is Image image)
                 {

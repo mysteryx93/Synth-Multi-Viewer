@@ -4,7 +4,6 @@ using Avalonia.Markup.Xaml;
 using HanumanInstitute.MvvmDialogs;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
-using HanumanInstitute.SynthMultiViewer.ViewModels;
 using Splat;
 
 namespace HanumanInstitute.SynthMultiViewer;

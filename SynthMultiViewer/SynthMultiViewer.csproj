@@ -12,6 +12,9 @@
     <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="SynthMultiViewer.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <AvaloniaResource Include="Assets/**" />
   </ItemGroup>
   <ItemGroup>

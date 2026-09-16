@@ -3,7 +3,6 @@ using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
-using Avalonia.Input.Raw;
 using Avalonia.Threading;
 using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.MvvmDialogs;
@@ -12,7 +11,6 @@ using HanumanInstitute.MvvmDialogs.FileSystem;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
-using HanumanInstitute.SynthMultiViewer.Views;
 
 namespace HanumanInstitute.SynthMultiViewer.Tests;
 
@@ -110,7 +108,7 @@ internal static class TestSupport
     {
         public FakeDialogManager() : base(viewLocator: new ViewLocator()) { }
 
-        public object? NextFrameworkResult { get; set; }
+        private object? NextFrameworkResult { get; set; }
         public object? LastFrameworkSettings { get; private set; }
         public int FrameworkDialogCount { get; private set; }
 
@@ -171,8 +169,8 @@ internal static class TestSupport
 
     public sealed class MemoryFrameworkDetection : IFrameworkDetectionService
     {
-        public FrameworkInstall VapourSynth { get; set; } = new(false);
-        public FrameworkInstall AviSynth { get; set; } = new(false);
+        public FrameworkInstall VapourSynth { get; init; } = new(false);
+        public FrameworkInstall AviSynth { get; init; } = new(false);
         public AppSettingsData? LastApplied { get; private set; }
 
         public void Apply(AppSettingsData settings) => LastApplied = settings;

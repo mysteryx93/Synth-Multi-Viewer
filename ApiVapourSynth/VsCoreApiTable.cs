@@ -77,8 +77,35 @@ internal struct VsCoreApiTable
     public IntPtr MapGetData;
     public IntPtr MapGetDataSize;
 
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 29)]
-    public IntPtr[] BeforeSetThreadCount;
+    public IntPtr MapGetDataTypeHint;
+    public IntPtr MapSetData;
+    public IntPtr MapGetNode;
+    public IntPtr MapSetNode;
+    public IntPtr MapConsumeNode;
+    public IntPtr MapGetFrame;
+    public IntPtr MapSetFrame;
+    public IntPtr MapConsumeFrame;
+    public IntPtr MapGetFunction;
+    public IntPtr MapSetFunction;
+    public IntPtr MapConsumeFunction;
+    public IntPtr RegisterFunction;
+    public IntPtr GetPluginById;
+    public IntPtr GetPluginByNamespace;
+    public IntPtr GetNextPlugin;
+    public IntPtr GetPluginName;
+    public IntPtr GetPluginId;
+    public IntPtr GetPluginNamespace;
+    public IntPtr GetNextPluginFunction;
+    public IntPtr GetPluginFunctionByName;
+    public IntPtr GetPluginFunctionName;
+    public IntPtr GetPluginFunctionArguments;
+    public IntPtr GetPluginFunctionReturnType;
+    public IntPtr GetPluginPath;
+    public IntPtr GetPluginVersion;
+    public IntPtr Invoke;
+    public IntPtr CreateCore;
+    public IntPtr FreeCore;
+    public IntPtr SetMaxCacheSize;
 
     public IntPtr SetThreadCount;
     public IntPtr GetCoreInfo;

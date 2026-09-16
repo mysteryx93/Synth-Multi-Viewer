@@ -1,4 +1,3 @@
-using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
 using HanumanInstitute.MvvmDialogs.Avalonia;
 

@@ -2,8 +2,6 @@ using System.Reactive.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Templates;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -11,7 +9,6 @@ using Avalonia.Input.Platform;
 using Avalonia.Input.Raw;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Avalonia.Media;
@@ -489,6 +486,54 @@ public class BehaviorTests
         Assert.Equal(new PixelSize(8, 8), copied.PixelSize);
     }
 
+    [Fact]
+    public Task ZoomKeys_EditorFocused_DoNotStealEqualsOrMinus() => UiSession.Dispatch(async () =>
+    {
+        var model = TestSupport.CreateMain();
+        var view = new MainView { DataContext = model, Width = 640, Height = 320 };
+        using var window = TestSupport.Show(view);
+        await model.New.Execute();
+        Dispatcher.UIThread.RunJobs();
+        var editor = VisibleEditor(view);
+        editor.Focus();
+        editor.Text = "clip";
+        editor.CaretOffset = 4;
+        Dispatcher.UIThread.RunJobs();
+        var zoom = model.Zoom;
+
+        TestSupport.Press(view, Key.OemPlus);
+        view.KeyTextInput("=");
+        TestSupport.Press(view, Key.OemMinus);
+        view.KeyTextInput("-");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("clip=-", editor.Text);
+        Assert.Equal(zoom, model.Zoom);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ZoomKeys_ViewerFocused_ChangeZoom() => UiSession.Dispatch(() =>
+    {
+        var model = TestSupport.CreateMain();
+        var view = new MainView { DataContext = model, Width = 640, Height = 320 };
+        using var window = TestSupport.Show(view);
+        TestSupport.ShowViewerToolbar(model);
+        view.Focus();
+        Dispatcher.UIThread.RunJobs();
+        var start = model.Zoom;
+
+        TestSupport.Press(view, Key.OemPlus);
+        Dispatcher.UIThread.RunJobs();
+        Assert.NotEqual(start, model.Zoom);
+        var zoomed = model.Zoom;
+        TestSupport.Press(view, Key.OemMinus);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(start, model.Zoom);
+        Assert.NotEqual(zoomed, model.Zoom);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
     [AvaloniaFact]
     public async Task CopyFrameKeys_EditorFocused_LeavesClipboardUnchanged()
     {
@@ -549,4 +594,7 @@ public class BehaviorTests
 
     private static BindableTextEditor VisibleEditor(Visual root) =>
         root.GetVisualDescendants().OfType<BindableTextEditor>().First(x => x.IsEffectivelyVisible);
+
+    private static HeadlessUnitTestSession UiSession =>
+        HeadlessUnitTestSession.GetOrStartForAssembly(typeof(TestApplication).Assembly);
 }

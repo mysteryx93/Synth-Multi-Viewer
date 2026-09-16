@@ -26,6 +26,15 @@ public class VsScriptIntegrationTests
         }
     });
 
+    [Fact]
+    public void CatalogContainsStandardFunctionsAndApi4Arguments()
+    {
+        SkipIfNativeUnavailable();
+        var functions = VsCatalog.Read();
+        var crop = Assert.Single(functions.Where(x => x.Namespace == "std" && x.Name == "Crop"));
+        Assert.Contains("clip:vnode", crop.Arguments);
+    }
+
     private const string RgbBlankClip = """
         import vapoursynth as vs
         core = vs.core

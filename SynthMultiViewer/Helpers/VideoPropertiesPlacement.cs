@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using ReactiveUI;
 
 namespace HanumanInstitute.SynthMultiViewer.Helpers;
 
@@ -67,8 +66,7 @@ public partial class VideoPropertiesPlacement : ReactiveObject
     {
         var scale = Math.Max(owner.DesktopScaling, 0.01);
         var size = new Size(width, height);
-        if (owner.FrameSize is { Width: > 0, Height: > 0 } frame &&
-            owner.ClientSize is { Width: > 0, Height: > 0 } client)
+        if (owner is { FrameSize: { Width: > 0, Height: > 0 } frame, ClientSize: { Width: > 0, Height: > 0 } client })
         {
             size += new Size(
                 Math.Max(0, frame.Width - client.Width),

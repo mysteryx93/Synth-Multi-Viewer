@@ -1,6 +1,5 @@
 using HanumanInstitute.ApiAviSynth;
 using HanumanInstitute.ApiVapourSynth;
-using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using Xunit;
 

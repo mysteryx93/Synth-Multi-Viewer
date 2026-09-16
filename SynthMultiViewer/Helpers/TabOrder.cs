@@ -1,5 +1,3 @@
-using System.Collections.ObjectModel;
-
 namespace HanumanInstitute.SynthMultiViewer.Helpers;
 
 /// <summary>

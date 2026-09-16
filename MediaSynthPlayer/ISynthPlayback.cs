@@ -26,7 +26,7 @@ internal interface ISynthPlayback : IDisposable
 /// </summary>
 internal interface ISynthPlayerSink
 {
-    object Gate { get; }
+    Lock Gate { get; }
     bool IsPlaying { get; }
     bool LimitFps { get; }
     bool IsDisposed { get; }

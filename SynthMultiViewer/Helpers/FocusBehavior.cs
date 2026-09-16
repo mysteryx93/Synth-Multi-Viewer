@@ -4,7 +4,6 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using AvaloniaEdit;
-using HanumanInstitute.SynthMultiViewer.ViewModels;
 
 namespace HanumanInstitute.SynthMultiViewer.Helpers;
 

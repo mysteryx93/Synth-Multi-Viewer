@@ -57,6 +57,10 @@
                 <Run Text="Alt+Right: Move tab right" /><LineBreak />
                 <Run Text="Ctrl+N: New VapourSynth script" /><LineBreak />
                 <Run Text="Ctrl+M: New AviSynth script" /><LineBreak />
+                <Run Text="Ctrl+Space: Editor completion" /><LineBreak />
+                <Run Text="Ctrl+Shift+Space: Parameter info" /><LineBreak />
+                <Run Text="Ctrl+Shift+R: Refresh filter catalogs" /><LineBreak />
+                <Run Text="Esc: Dismiss editor completion and signatures" /><LineBreak />
                 <Run Text="F5: Run script" /><LineBreak />
                 <Run Text="Alt+Enter: Toggle full-screen" /><LineBreak />
                 <Run Text="Ctrl+F4: Close current tab" />

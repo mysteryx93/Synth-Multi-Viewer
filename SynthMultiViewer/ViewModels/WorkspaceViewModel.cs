@@ -1,4 +1,3 @@
-using System.Reactive.Linq;
 using HanumanInstitute.MvvmDialogs;
 
 namespace HanumanInstitute.SynthMultiViewer.ViewModels;
@@ -6,12 +5,8 @@ namespace HanumanInstitute.SynthMultiViewer.ViewModels;
 /// <summary>
 /// Describes a named workspace that can request closure.
 /// </summary>
-public interface IWorkspaceViewModel
+public interface IWorkspaceViewModel : ICloseable
 {
-    /// <summary>
-    /// Occurs when the workspace asks its owner to close it.
-    /// </summary>
-    event EventHandler? RequestClose;
     /// <summary>
     /// Gets the command that requests closure when allowed.
     /// </summary>
@@ -29,7 +24,7 @@ public interface IWorkspaceViewModel
 /// <summary>
 /// Provides a title and close command for windows and tabs.
 /// </summary>
-public partial class WorkspaceViewModel : ReactiveObject, IWorkspaceViewModel, ICloseable
+public partial class WorkspaceViewModel : ReactiveObject, IWorkspaceViewModel
 {
     /// <summary>
     /// Creates an unnamed workspace that can be closed.
@@ -45,18 +40,18 @@ public partial class WorkspaceViewModel : ReactiveObject, IWorkspaceViewModel, I
         CanClose = canClose;
     }
 
-    /// <inheritdoc />
+    /// <inheritdoc cref="ICloseable.RequestClose" />
     public event EventHandler? RequestClose;
 
-    /// <inheritdoc />
+    /// <inheritdoc cref="IWorkspaceViewModel.DisplayName" />
     [Reactive]
     public partial string DisplayName { get; set; } = string.Empty;
 
-    /// <inheritdoc />
+    /// <inheritdoc cref="IWorkspaceViewModel.CanClose" />
     [Reactive]
     public partial bool CanClose { get; set; } = true;
 
-    /// <inheritdoc />
+    /// <inheritdoc cref="IWorkspaceViewModel.Close" />
     public RxCommandVoid Close => field ??= ReactiveCommand.Create(
         CloseView,
         this.WhenAnyValue(x => x.CanClose));

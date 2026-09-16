@@ -1,4 +1,3 @@
-using System.Reactive.Linq;
 using HanumanInstitute.MvvmDialogs;
 
 namespace HanumanInstitute.SynthMultiViewer.ViewModels;

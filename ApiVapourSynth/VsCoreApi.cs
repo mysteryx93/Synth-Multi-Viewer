@@ -25,6 +25,13 @@ internal sealed class VsCoreApi
     private readonly MapGetDataDelegate _mapGetData;
     private readonly MapGetDataSizeDelegate _mapGetDataSize;
     private readonly GetCoreInfoDelegate _getCoreInfo;
+    private readonly CreateCoreDelegate _createCore;
+    private readonly FreeCoreDelegate _freeCore;
+    private readonly NextPluginDelegate _getNextPlugin;
+    private readonly NextFunctionDelegate _getNextPluginFunction;
+    private readonly GetStringDelegate _getPluginNamespace;
+    private readonly GetStringDelegate _getPluginFunctionName;
+    private readonly GetStringDelegate _getPluginFunctionArguments;
 
     private VsCoreApi(VsCoreApiTable table)
     {
@@ -49,6 +56,13 @@ internal sealed class VsCoreApi
         _mapGetData = Marshal.GetDelegateForFunctionPointer<MapGetDataDelegate>(table.MapGetData);
         _mapGetDataSize = Marshal.GetDelegateForFunctionPointer<MapGetDataSizeDelegate>(table.MapGetDataSize);
         _getCoreInfo = Marshal.GetDelegateForFunctionPointer<GetCoreInfoDelegate>(table.GetCoreInfo);
+        _createCore = Marshal.GetDelegateForFunctionPointer<CreateCoreDelegate>(table.CreateCore);
+        _freeCore = Marshal.GetDelegateForFunctionPointer<FreeCoreDelegate>(table.FreeCore);
+        _getNextPlugin = Marshal.GetDelegateForFunctionPointer<NextPluginDelegate>(table.GetNextPlugin);
+        _getNextPluginFunction = Marshal.GetDelegateForFunctionPointer<NextFunctionDelegate>(table.GetNextPluginFunction);
+        _getPluginNamespace = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginNamespace);
+        _getPluginFunctionName = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginFunctionName);
+        _getPluginFunctionArguments = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginFunctionArguments);
     }
 
     public void FreeNode(IntPtr node) => _freeNode(node);
@@ -76,6 +90,14 @@ internal sealed class VsCoreApi
         _getCoreInfo(core, out var info);
         return info;
     }
+
+    public IntPtr CreateCore(int flags) => _createCore(flags);
+    public void FreeCore(IntPtr core) => _freeCore(core);
+    public IntPtr GetNextPlugin(IntPtr plugin, IntPtr core) => _getNextPlugin(plugin, core);
+    public IntPtr GetNextPluginFunction(IntPtr function, IntPtr plugin) => _getNextPluginFunction(function, plugin);
+    public string PluginNamespace(IntPtr plugin) => Marshal.PtrToStringUTF8(_getPluginNamespace(plugin)) ?? "";
+    public string PluginFunctionName(IntPtr function) => Marshal.PtrToStringUTF8(_getPluginFunctionName(function)) ?? "";
+    public string? PluginFunctionArguments(IntPtr function) => Marshal.PtrToStringUTF8(_getPluginFunctionArguments(function));
 
     public static VsCoreApi Load(IntPtr pointer)
     {
@@ -107,6 +129,11 @@ internal sealed class VsCoreApi
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr MapGetDataDelegate(IntPtr map, IntPtr key, int index, out int error);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate void GetCoreInfoDelegate(IntPtr core, out VsCoreInfo info);
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int MapGetDataSizeDelegate(IntPtr map, IntPtr key, int index, out int error);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr CreateCoreDelegate(int flags);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate void FreeCoreDelegate(IntPtr core);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr NextPluginDelegate(IntPtr plugin, IntPtr core);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr NextFunctionDelegate(IntPtr function, IntPtr plugin);
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr GetStringDelegate(IntPtr value);
 }
 
 [StructLayout(LayoutKind.Sequential)]

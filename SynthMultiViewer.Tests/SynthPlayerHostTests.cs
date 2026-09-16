@@ -8,7 +8,6 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using HanumanInstitute.ApiAviSynth;
 using HanumanInstitute.ApiVapourSynth;
-using HanumanInstitute.MediaPlayer.Avalonia;
 using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
@@ -74,8 +73,7 @@ public class SynthPlayerHostTests
             {
                 for (var x = 0; x < 64; x++)
                 {
-                    System.Runtime.InteropServices.Marshal.WriteInt32(
-                        framebuffer.Address, y * framebuffer.RowBytes + x * 4, color);
+                    Marshal.WriteInt32(framebuffer.Address, y * framebuffer.RowBytes + x * 4, color);
                 }
             }
         }

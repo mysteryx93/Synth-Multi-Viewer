@@ -10,7 +10,7 @@ namespace HanumanInstitute.MediaSynthUI;
 internal sealed class AvsPlayback : ISynthPlayback
 {
     private readonly ISynthPlayerSink _sink;
-    private readonly object _gate;
+    private readonly Lock _gate;
     private AvsScript? _script;
     private readonly AvsVideoInfo _video;
     private int _requestId;

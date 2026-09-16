@@ -7,7 +7,6 @@ using Avalonia.VisualTree;
 using HanumanInstitute.MvvmDialogs.FrameworkDialogs;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
-using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
 using Xunit;
 

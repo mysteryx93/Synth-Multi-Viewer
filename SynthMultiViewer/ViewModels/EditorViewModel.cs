@@ -1,5 +1,3 @@
-using System.Reactive.Linq;
-
 namespace HanumanInstitute.SynthMultiViewer.ViewModels;
 
 /// <summary>
