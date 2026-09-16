@@ -7,7 +7,8 @@
              x:Class="HanumanInstitute.SynthMultiViewer.Views.ViewerView"
              x:DataType="vm:ViewerViewModel"
              x:Name="Root">
-    <media:MediaPlayer x:Name="Player" IsVolumeVisible="False" IsSpeedVisible="False" IsStopVisible="False"
+    <media:MediaPlayer x:Name="Player" Theme="{DynamicResource ViewerPlayer}"
+                       IsVolumeVisible="False" IsSpeedVisible="False" IsStopVisible="False"
                        IsLoopVisible="False" ChangeVolumeOnMouseWheel="False" PositionDisplay="Seconds">
         <vs:SynthPlayerHost
         x:Name="PlayerHost" Kind="{Binding Kind}" Path="{Binding FileName}" Script="{Binding Script, Mode=OneWay}" AutoPlay="False"

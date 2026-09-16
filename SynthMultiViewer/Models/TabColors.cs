@@ -8,9 +8,9 @@ namespace HanumanInstitute.SynthMultiViewer.Models;
 public static class TabColors
 {
     /// <summary>Dark VapourSynth editor fill.</summary>
-    public static Color VapourSynth { get; } = Color.FromRgb(12, 33, 26);
+    public static Color VapourSynth { get; } = Color.FromRgb(28, 16, 20);
     /// <summary>Dark AviSynth editor fill.</summary>
-    public static Color AviSynth { get; } = Color.FromRgb(12, 16, 33);
+    public static Color AviSynth { get; } = Color.FromRgb(16, 20, 28);
     /// <summary>Viewer RGB scale; light uses 255 minus the dark result.</summary>
     public const double ViewerBrightness = 2.3;
 

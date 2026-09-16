@@ -1,0 +1,193 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:media="using:HanumanInstitute.MediaPlayer.Avalonia">
+    <media:TimeSpanToDoubleConverter x:Key="TimeSpanToDoubleConverter" />
+
+    <SolidColorBrush x:Key="ViewerTransportBackground" Color="{DynamicResource SystemChromeMediumColor}" />
+    <SolidColorBrush x:Key="ViewerSeekPlayedBrush" Color="{DynamicResource SystemAccentColor}" />
+    <SolidColorBrush x:Key="ViewerSeekRemainingBrush" Color="{DynamicResource SystemBaseLowColor}" />
+    <SolidColorBrush x:Key="ViewerSeekThumbBrush" Color="{DynamicResource SystemBaseHighColor}" />
+
+    <ControlTheme x:Key="ViewerSeekTrackButton" TargetType="RepeatButton">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="Transparent" />
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
+    <ControlTheme x:Key="ViewerSeekThumb" TargetType="Thumb">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Width" Value="4" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Panel Width="4" Height="24" Background="Transparent">
+                    <Border Width="4" Height="18" CornerRadius="2"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Background="{DynamicResource ViewerSeekThumbBrush}" />
+                </Panel>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
+    <ControlTheme x:Key="ViewerSeekBar" TargetType="Slider">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid Name="Lane" Height="24" Background="Transparent">
+                    <Border Height="8" CornerRadius="4"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                            Background="{DynamicResource ViewerSeekRemainingBrush}"
+                            IsHitTestVisible="False" />
+                    <Track Name="PART_Track"
+                           Orientation="Horizontal"
+                           IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
+                        <Track.DecreaseButton>
+                            <RepeatButton Name="PART_DecreaseButton"
+                                          Theme="{StaticResource ViewerSeekTrackButton}">
+                                <RepeatButton.Template>
+                                    <ControlTemplate>
+                                        <Panel Background="Transparent">
+                                            <Border Height="8" CornerRadius="4,0,0,4"
+                                                    VerticalAlignment="Center"
+                                                    Background="{DynamicResource ViewerSeekPlayedBrush}" />
+                                        </Panel>
+                                    </ControlTemplate>
+                                </RepeatButton.Template>
+                            </RepeatButton>
+                        </Track.DecreaseButton>
+                        <Track.IncreaseButton>
+                            <RepeatButton Name="PART_IncreaseButton"
+                                          Theme="{StaticResource ViewerSeekTrackButton}" />
+                        </Track.IncreaseButton>
+                        <Track.Thumb>
+                            <Thumb Name="thumb" Theme="{StaticResource ViewerSeekThumb}" />
+                        </Track.Thumb>
+                    </Track>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^ /template/ Track#PART_Track">
+            <Setter Property="Minimum" Value="{TemplateBinding Minimum}" />
+            <Setter Property="Maximum" Value="{TemplateBinding Maximum}" />
+            <Setter Property="Value" Value="{TemplateBinding Value, Mode=TwoWay}" />
+        </Style>
+    </ControlTheme>
+
+    <ControlTheme x:Key="ViewerTransportButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource ButtonForeground}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FontFamily" Value="avares://MediaPlayer.Avalonia/Styles/Default/Icons.otf#MediaPlayerIcons" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        Padding="{TemplateBinding Padding}">
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      TextBlock.Foreground="{TemplateBinding Foreground}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:pointerover /template/ Border">
+            <Setter Property="Background" Value="{DynamicResource ToolbarButtonPointerOver}" />
+        </Style>
+        <Style Selector="^:pressed /template/ Border">
+            <Setter Property="Background" Value="{DynamicResource ToolbarButtonPressed}" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+    </ControlTheme>
+
+    <ControlTheme x:Key="ViewerPlayer" TargetType="media:MediaPlayer">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        UseLayoutRounding="True"
+                        x:DataType="media:MediaPlayer">
+                    <Grid RowDefinitions="*,Auto">
+                        <ContentPresenter Content="{TemplateBinding Content}" Grid.Row="0" />
+                        <Border x:Name="PART_UI" Grid.Row="1">
+                            <Border x:Name="PART_Transport"
+                                    Background="{DynamicResource ViewerTransportBackground}"
+                                    Height="36">
+                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,12,0">
+                                    <Button x:Name="PlayButton" Grid.Column="0"
+                                            Theme="{StaticResource ViewerTransportButton}"
+                                            Width="36" Height="32"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding PlayPauseCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            IsVisible="{Binding IsPlayPauseVisible, RelativeSource={RelativeSource TemplatedParent}}">
+                                        <Grid>
+                                            <TextBlock Text="P"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       IsVisible="{Binding !IsPlaying, RelativeSource={RelativeSource TemplatedParent}}" />
+                                            <TextBlock Text="Q"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       IsVisible="{Binding IsPlaying, RelativeSource={RelativeSource TemplatedParent}}" />
+                                        </Grid>
+                                    </Button>
+                                    <Slider x:Name="PART_SeekBar" Grid.Column="1"
+                                            Theme="{StaticResource ViewerSeekBar}"
+                                            Margin="4,0,6,0"
+                                            Maximum="{Binding PlayerHost.Duration, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource TimeSpanToDoubleConverter}}"
+                                            LargeChange="10" SmallChange="1"
+                                            Value="{Binding PositionBar, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource TimeSpanToDoubleConverter}}"
+                                            IsVisible="{Binding IsSeekBarVisible, RelativeSource={RelativeSource TemplatedParent}}"
+                                            IsEnabled="{Binding PlayerHost.IsMediaLoaded, RelativeSource={RelativeSource TemplatedParent}}" />
+                                    <Label x:Name="PART_Position" Grid.Column="2"
+                                           Width="88" Padding="0" Margin="0"
+                                           FontSize="13" VerticalAlignment="Center"
+                                           VerticalContentAlignment="Center"
+                                           HorizontalContentAlignment="Right"
+                                           Content="{Binding PositionText, RelativeSource={RelativeSource TemplatedParent}}" />
+                                </Grid>
+                            </Border>
+                        </Border>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+    <ControlTheme x:Key="{x:Type media:MediaPlayer}" TargetType="media:MediaPlayer"
+                  BasedOn="{StaticResource ViewerPlayer}" />
+</ResourceDictionary>
