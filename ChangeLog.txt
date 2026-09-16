@@ -1,5 +1,9 @@
 VapourSynth Multi-Viewer Change Log
 
+v1.3
+- Add spacing in editor after line numbers
+- Dark mode is less dark
+
 v1.2 (2026-09-15)
 - Fix AviSynth frame display bug
 - Display video/frame properties (Ctrl+I)

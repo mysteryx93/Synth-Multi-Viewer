@@ -76,7 +76,17 @@
             </ControlTheme>
         </ResourceDictionary>
     </Styles.Resources>
-    <FluentTheme />
+    <FluentTheme>
+        <FluentTheme.Palettes>
+            <ColorPaletteResources x:Key="Dark"
+                                   RegionColor="#FF1C1C1C"
+                                   AltHigh="#FF1C1C1C"
+                                   ChromeLow="#FF242424"
+                                   ChromeMedium="#FF2B2B2B"
+                                   ChromeMediumLow="#FF353535"
+                                   ChromeDisabledHigh="#FF424242" />
+        </FluentTheme.Palettes>
+    </FluentTheme>
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
     <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
     <Style Selector="TabStripItem">
@@ -221,6 +231,7 @@
         <Setter Property="FontFamily" Value="Consolas,Menlo,Monospace" />
         <Setter Property="FontSize" Value="17" />
         <Setter Property="ShowLineNumbers" Value="True" />
+        <Setter Property="LineNumbersMargin" Value="4,0,8,0" />
         <Setter Property="WordWrap" Value="False" />
     </Style>
     <Style Selector="Image.enabled">

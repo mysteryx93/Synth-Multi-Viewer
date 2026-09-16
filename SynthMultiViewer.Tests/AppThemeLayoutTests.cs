@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
@@ -60,6 +61,20 @@ public class AppThemeLayoutTests
 
             Assert.True(window.UseLayoutRounding);
         }
+    }
+
+    [AvaloniaFact]
+    public void DarkTheme_SurfacePalette_IsLiftedFromBlack()
+    {
+        var window = new MainView { DataContext = TestSupport.CreateMain() };
+        window.RequestedThemeVariant = ThemeVariant.Dark;
+        using var shown = TestSupport.Show(window);
+
+        Assert.True(window.TryGetResource("SystemRegionColor", ThemeVariant.Dark, out var region));
+        Assert.True(window.TryGetResource("SystemChromeLowColor", ThemeVariant.Dark, out var chrome));
+        Assert.Equal(Color.Parse("#FF1C1C1C"), region);
+        Assert.Equal(Color.Parse("#FF242424"), chrome);
+        Assert.NotEqual(Colors.Black, region);
     }
 
     [AvaloniaFact]
