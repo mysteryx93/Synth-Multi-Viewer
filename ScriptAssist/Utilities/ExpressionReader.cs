@@ -40,7 +40,7 @@ internal static class ExpressionReader
     {
         if (!code.HasText()) { return []; }
 
-        var trimmed = code.TrimEnd();
+        var trimmed = ExpressionParts.UnwrapParentheses(code);
         if (trimmed.Length > 0 && trimmed[^1] is ')' or ']')
         {
             return ParseClosed(trimmed);
@@ -137,12 +137,33 @@ internal static class ExpressionReader
 
             if (pos > 0 && code[pos - 1] is ')' or ']')
             {
-                if (!TryReadPostfix(code, ref pos, out var name, out var uses))
+                var saved = pos;
+                if (TryReadPostfix(code, ref pos, out var name, out var uses))
+                {
+                    AppendUses(collected, name, uses, reverse: true);
+                    continue;
+                }
+
+                pos = saved;
+                if (code[pos - 1] != ')')
                 {
                     break;
                 }
 
-                AppendUses(collected, name, uses, reverse: true);
+                var close = pos - 1;
+                var open = SkipBalanced(code, close, ')', '(');
+                if (open >= close)
+                {
+                    break;
+                }
+
+                var inner = Parse(code[(open + 1)..close]);
+                for (var i = inner.Count - 1; i >= 0; i--)
+                {
+                    collected.Add(inner[i]);
+                }
+
+                pos = open;
                 continue;
             }
 
@@ -175,7 +196,7 @@ internal static class ExpressionReader
             var opener = closer == ')' ? '(' : '[';
             var kind = closer == ')' ? PathSegmentKind.Call : PathSegmentKind.Index;
             pos = SkipBalanced(code, pos - 1, closer, opener);
-            while (pos > 0 && char.IsWhiteSpace(code[pos - 1]))
+            while (pos > 0 && code[pos - 1] is ' ' or '\t')
             {
                 pos--;
             }

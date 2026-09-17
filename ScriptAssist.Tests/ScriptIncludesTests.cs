@@ -13,6 +13,9 @@ public class ScriptIncludesTests
     [InlineData("int \"width\"", "width")]
     [InlineData("clip c", "c")]
     [InlineData("clip Input", "Input")]
+    [InlineData("clip", null)]
+    [InlineData("int", null)]
+    [InlineData("float", null)]
     [InlineData("*args", null)]
     [InlineData("", null)]
     public void AviSynthParameterNames(string parameter, string? expected) =>
@@ -86,6 +89,24 @@ public class ScriptIncludesTests
         };
         var merged = AviSynthFunctions.UnionByName(native, []);
         Assert.Equal(2, merged.Count(x => x.Name == "Foo"));
+    }
+
+    [Fact]
+    public void AviSynthUnionEnrichesMatchingSignaturesAndKeepsUnmatched()
+    {
+        var native = new[]
+        {
+            new Symbol("Foo", ["clip"]),
+            new Symbol("Foo", ["int"])
+        };
+        var parsed = new[]
+        {
+            new Symbol("Foo", ["clip c"])
+        };
+        var merged = AviSynthFunctions.UnionByName(native, parsed);
+        Assert.Equal(2, merged.Count(x => x.Name == "Foo"));
+        Assert.Contains(merged, x => x.Name == "Foo" && x.Parameters is ["clip c"]);
+        Assert.Contains(merged, x => x.Name == "Foo" && x.Parameters is ["int"]);
     }
 
     [Fact]

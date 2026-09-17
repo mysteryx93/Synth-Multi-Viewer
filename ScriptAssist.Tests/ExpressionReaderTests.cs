@@ -57,6 +57,17 @@ public class ExpressionReaderTests
     }
 
     [Fact]
+    public void ReadWalksParenthesizedReceiver()
+    {
+        var code = "(clip).";
+        var path = ExpressionReader.Read(code, code.Length);
+        Assert.Equal("", path.Typed);
+        var segment = Assert.Single(path.Segments);
+        Assert.Equal("clip", segment.Name);
+        Assert.Equal(PathSegmentKind.Name, segment.Kind);
+    }
+
+    [Fact]
     public void UnwrapParenthesesStripsMatchingOuterPairsOnly()
     {
         Assert.Equal("cond ? a : b", ExpressionParts.UnwrapParentheses(" (cond ? a : b) "));

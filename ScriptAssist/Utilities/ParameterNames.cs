@@ -72,7 +72,12 @@ internal static class ParameterNames
             return Identifier(parts[^1]);
         }
 
-        return parts.Length == 1 ? Identifier(parts[0]) : null;
+        if (parts.Length == 1 && !IsAviSynthTypeWord(parts[0]))
+        {
+            return Identifier(parts[0]);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -124,6 +129,40 @@ internal static class ParameterNames
 
         Add(items, inside[start..]);
         return items.ToArray();
+    }
+
+    /// <summary>
+    /// Gets whether the caret is at the start of an argument (empty or a lone identifier).
+    /// </summary>
+    public static bool AtArgumentStart(string current)
+    {
+        if (KeywordEqualsIndex(current) >= 0)
+        {
+            return false;
+        }
+
+        var text = current.Trim();
+        return text.Length == 0 || Identifier(text) != null;
+    }
+
+    /// <summary>
+    /// Counts previous positional arguments in an unclosed argument list.
+    /// </summary>
+    public static int PositionalConsumed(string argumentList)
+    {
+        var parts = Split(argumentList);
+        var trailingComma = argumentList.TrimEnd().EndsWith(',');
+        var count = trailingComma ? parts.Length : Math.Max(0, parts.Length - 1);
+        var consumed = 0;
+        for (var i = 0; i < count; i++)
+        {
+            if (KeywordEqualsIndex(parts[i]) < 0)
+            {
+                consumed++;
+            }
+        }
+
+        return consumed;
     }
 
     /// <summary>
@@ -222,6 +261,16 @@ internal static class ParameterNames
         var eq = KeywordEqualsIndex(text);
         return eq >= 0 ? text[..eq].Trim() : text;
     }
+
+    private static bool IsAviSynthTypeWord(string text) =>
+        text.Equals("clip", StringComparison.OrdinalIgnoreCase) ||
+        text.Equals("int", StringComparison.OrdinalIgnoreCase) ||
+        text.Equals("float", StringComparison.OrdinalIgnoreCase) ||
+        text.Equals("bool", StringComparison.OrdinalIgnoreCase) ||
+        text.Equals("string", StringComparison.OrdinalIgnoreCase) ||
+        text.Equals("val", StringComparison.OrdinalIgnoreCase) ||
+        text.Equals("func", StringComparison.OrdinalIgnoreCase) ||
+        text.Equals("array", StringComparison.OrdinalIgnoreCase);
 
     private static string? Identifier(string text)
     {

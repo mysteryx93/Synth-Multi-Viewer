@@ -62,13 +62,14 @@ public sealed class LanguageService : ILanguageService
         var bindings = snapshot.Bindings.At(caret);
         var path = ExpressionReader.Read(snapshot.Masked.Code, caret);
         var receiver = _language.TypeOf(path.Segments, bindings, snapshot.Catalog);
-        var insight = bindings.InFunctionHeader(caret)
+        var scan = bindings.InFunctionHeader(caret)
             ? null
             : CallScanner.Find(prefix.Code, _language, bindings, snapshot.Catalog, token);
+        var insight = scan?.Insight;
         var items = CallScanner.InnermostUnclosed(prefix.Code, token) == '[' && path.Segments.Count == 0
             ? new List<CompletionItem>()
             : Complete(path, receiver, snapshot, bindings, token);
-        AddParameterNames(items, path, insight);
+        AddParameterNames(items, path, scan);
         var hover = _language.Hover(snapshot.Masked.Code, path, bindings, snapshot.Catalog);
         var comparison = _language.Comparison;
         var comparer = comparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -116,30 +117,62 @@ public sealed class LanguageService : ILanguageService
         }
     }
 
-    private void AddParameterNames(List<CompletionItem> items, CaretPath path, CallInsight? insight)
+    private void AddParameterNames(List<CompletionItem> items, CaretPath path, CallScan? scan)
     {
-        if (insight == null || path.Segments.Count > 0 || insight.InArgumentValue || insight.InNestedDelimiter)
+        if (scan == null || path.Segments.Count > 0 || scan.InNestedDelimiter ||
+            !ParameterNames.AtArgumentStart(scan.CurrentArgument))
         {
             return;
         }
 
-        var used = insight.UsedArgumentNames ?? new HashSet<string>(_language.Comparison == StringComparison.OrdinalIgnoreCase
-            ? StringComparer.OrdinalIgnoreCase
-            : StringComparer.Ordinal);
+        var used = scan.UsedNames;
         var seen = new HashSet<string>(_language.Comparison == StringComparison.OrdinalIgnoreCase
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal);
-        var skip = insight.ImplicitClip ? 1 : 0;
-        foreach (var overload in insight.Overloads)
+        var consumed = ParameterNames.PositionalConsumed(scan.ArgumentList);
+        foreach (var overload in scan.Overloads)
         {
             if (overload.Parameters == null)
             {
                 continue;
             }
 
-            for (var i = skip; i < overload.Parameters.Length; i++)
+            var skip = scan.ImplicitClip ? 1 : 0;
+            var hasSlash = false;
+            foreach (var parameter in overload.Parameters)
             {
-                var parameter = overload.Parameters[i];
+                if (parameter.Trim() == "/")
+                {
+                    hasSlash = true;
+                    break;
+                }
+            }
+
+            var seenSlash = false;
+            var index = 0;
+            foreach (var parameter in overload.Parameters)
+            {
+                if (ParameterNames.IsSeparator(parameter))
+                {
+                    if (parameter.Trim() == "/")
+                    {
+                        seenSlash = true;
+                    }
+
+                    continue;
+                }
+
+                var slot = index++;
+                if (slot < skip)
+                {
+                    continue;
+                }
+
+                if (slot - skip < consumed || hasSlash && !seenSlash)
+                {
+                    continue;
+                }
+
                 var name = _language.ParameterName(parameter);
                 if (name == null || used.Contains(name) || !seen.Add(name) ||
                     !name.StartsWith(path.Typed, _language.Comparison))

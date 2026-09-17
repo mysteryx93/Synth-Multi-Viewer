@@ -464,6 +464,178 @@ public class ReviewRegressionTests
     }
 
     [Fact]
+    public void LaterFunctionBindingReplacesEarlierValue()
+    {
+        var helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+
+        var imported = "Filter = 1\nfrom helper import Filter\nFilter(";
+        var fromImport = service.Analyze(imported, imported.Length, Vs).Insight;
+        Assert.NotNull(fromImport);
+        Assert.Equal("Filter", fromImport.Overloads[0].Name);
+
+        var defined = """
+            Filter = 1
+            def Filter(clip) -> vs.VideoNode:
+                return clip
+            Filter(
+            """;
+        var definedInsight = VsService().Analyze(defined, defined.Length, Vs).Insight;
+        Assert.NotNull(definedInsight);
+        Assert.Equal("Filter", definedInsight.Overloads[0].Name);
+    }
+
+    [Fact]
+    public void InnerFunctionImportShadowsGlobalFunction()
+    {
+        IncludeReader read = (specifier, _) => specifier switch
+        {
+            "helper" => new IncludeFile("/plugins/helper.py",
+                "def Filter(clip) -> vs.VideoNode:\n    return clip\n"),
+            "other" => new IncludeFile("/plugins/other.py", "def Filter() -> int:\n    return 1\n"),
+            _ => null
+        };
+        var service = VsService(read);
+        var text = """
+            from helper import Filter
+            def f():
+                from other import Filter
+                x = Filter()
+                x.
+            """;
+        var reply = service.Analyze(text, text.Length, Vs);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void PackageAndSubmoduleImportsPreserveBothSides()
+    {
+        IncludeReader read = (specifier, _) => specifier switch
+        {
+            "pkg" => new IncludeFile("/plugins/pkg/__init__.py", "def RootFunction():\n    return 1\n"),
+            "pkg.sub" => new IncludeFile("/plugins/pkg/sub/__init__.py", "def SubFunction():\n    return 1\n"),
+            "pkg.sub.helper" => new IncludeFile("/plugins/pkg/sub/helper.py", "def HelperFn():\n    return 1\n"),
+            _ => null
+        };
+        var service = VsService(read);
+
+        foreach (var text in new[]
+                 {
+                     "import pkg\nimport pkg.sub\npkg.",
+                     "import pkg.sub\nimport pkg\npkg."
+                 })
+        {
+            var reply = service.Analyze(text, text.Length, Vs);
+            Assert.Contains(reply.Items, x => x.InsertionText == "RootFunction");
+            Assert.Contains(reply.Items, x => x.InsertionText == "sub");
+        }
+
+        var nested = "import pkg.sub\nimport pkg.sub.helper\npkg.sub.";
+        var members = service.Analyze(nested, nested.Length, Vs);
+        Assert.Contains(members.Items, x => x.InsertionText == "SubFunction");
+        Assert.Contains(members.Items, x => x.InsertionText == "helper");
+    }
+
+    [Fact]
+    public void ArgumentCompletionSkipsInvalidKeywordNames()
+    {
+        var avs = new[] { new Symbol("Foo", ["clip", "int"]) };
+        var unnamed = AvsService().Analyze("Foo(", 4, avs);
+        Assert.DoesNotContain(unnamed.Items, x => x.InsertionText == "clip=");
+        Assert.DoesNotContain(unnamed.Items, x => x.InsertionText == "int=");
+
+        var positional = "core.std.Crop(clip, ";
+        var afterClip = VsService().Analyze(positional, positional.Length, Vs);
+        Assert.DoesNotContain(afterClip.Items, x => x.InsertionText == "clip=");
+        Assert.Contains(afterClip.Items, x => x.InsertionText == "left=");
+
+        var positionalOnly = """
+            def f(clip, /, radius=2):
+                return clip
+            f(
+            """;
+        var slash = VsService().Analyze(positionalOnly, positionalOnly.Length, Vs);
+        Assert.DoesNotContain(slash.Items, x => x.InsertionText == "clip=");
+        Assert.Contains(slash.Items, x => x.InsertionText == "radius=");
+
+        var expression = "core.std.Crop(x + ";
+        var inside = VsService().Analyze(expression, expression.Length, Vs);
+        Assert.DoesNotContain(inside.Items, x => x.InsertionText == "clip=");
+        Assert.DoesNotContain(inside.Items, x => x.InsertionText == "left=");
+        Assert.DoesNotContain(inside.Items, x => x.InsertionText == "right=");
+    }
+
+    [Fact]
+    public void OneLineFunctionBodyStaysInScope()
+    {
+        var leak = """
+            def f(clip): value = 1; leak = core.std.BlankClip()
+            leak.
+            """;
+        var outside = VsService().Analyze(leak, leak.Length, Vs);
+        Assert.DoesNotContain(outside.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(outside.Items, x => x.InsertionText == "width");
+
+        var body = "def f(clip): value = core.std.BlankClip(); value.";
+        var inside = VsService().Analyze(body, body.Length, Vs);
+        Assert.Contains(inside.Items, x => x.InsertionText == "std");
+        Assert.Contains(inside.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void UnpackingOverwritesExistingTypes()
+    {
+        var text = """
+            clip = core.std.BlankClip()
+            clip, value = other
+            clip.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void ParenthesizedKnownClipKeepsMembers()
+    {
+        var text = "clip = core.std.BlankClip()\n(clip).";
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void NestedDefHasLocalCallInsight()
+    {
+        var text = """
+            def outer():
+                def inner(clip, radius=2):
+                    return clip
+                inner(
+            """;
+        var insight = VsService().Analyze(text, text.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("inner", insight.Overloads[0].Name);
+        Assert.Contains("radius=2", insight.Overloads[0].Signature);
+    }
+
+    [Fact]
+    public void ParameterDefaultInfersFromAssignedName()
+    {
+        var text = """
+            base = core.std.BlankClip()
+            def f(source=base):
+                source.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
     public void StringWithOperatorKeepsStringType()
     {
         const string text = "name = \"a+b\"";

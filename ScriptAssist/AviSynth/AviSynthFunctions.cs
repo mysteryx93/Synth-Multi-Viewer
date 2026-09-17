@@ -103,15 +103,7 @@ public static class AviSynthFunctions
             var parsedGroup = parsed.Where(symbol => symbol.Name.Equals(group.Key, StringComparison.OrdinalIgnoreCase))
                 .ToList();
             var nativeGroup = group.ToList();
-            if (parsedGroup.Count > 0 && nativeGroup.All(symbol => NamedCount(symbol) == 0) &&
-                parsedGroup.Exists(symbol => NamedCount(symbol) > 0))
-            {
-                result.AddRange(parsedGroup);
-            }
-            else
-            {
-                result.AddRange(nativeGroup);
-            }
+            result.AddRange(EnrichGroup(nativeGroup, parsedGroup));
         }
 
         foreach (var group in parsed.GroupBy(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase))
@@ -123,6 +115,85 @@ public static class AviSynthFunctions
         }
 
         return result;
+    }
+
+    private static IReadOnlyList<Symbol> EnrichGroup(List<Symbol> nativeGroup, List<Symbol> parsedGroup)
+    {
+        if (parsedGroup.Count == 0)
+        {
+            return nativeGroup;
+        }
+
+        if (nativeGroup.Count == 1 && parsedGroup.Count == 1 && NamedCount(nativeGroup[0]) == 0 &&
+            NamedCount(parsedGroup[0]) > 0)
+        {
+            return parsedGroup;
+        }
+
+        var used = new HashSet<int>();
+        var enriched = new List<Symbol>(nativeGroup.Count);
+        foreach (var nativeSymbol in nativeGroup)
+        {
+            var match = -1;
+            if (NamedCount(nativeSymbol) == 0)
+            {
+                for (var i = 0; i < parsedGroup.Count; i++)
+                {
+                    if (used.Contains(i) || NamedCount(parsedGroup[i]) == 0 ||
+                        !SameShape(nativeSymbol, parsedGroup[i]))
+                    {
+                        continue;
+                    }
+
+                    match = i;
+                    break;
+                }
+            }
+
+            if (match >= 0)
+            {
+                used.Add(match);
+                enriched.Add(parsedGroup[match]);
+            }
+            else
+            {
+                enriched.Add(nativeSymbol);
+            }
+        }
+
+        return enriched;
+    }
+
+    private static bool SameShape(Symbol left, Symbol right)
+    {
+        var a = left.Parameters ?? [];
+        var b = right.Parameters ?? [];
+        if (a.Length != b.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < a.Length; i++)
+        {
+            if (!TypeKey(a[i]).Equals(TypeKey(b[i]), StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string TypeKey(string parameter)
+    {
+        var text = parameter.Trim();
+        var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return "";
+        }
+
+        return parts[0].TrimEnd('*', '+');
     }
 
     private static int NamedCount(Symbol symbol)

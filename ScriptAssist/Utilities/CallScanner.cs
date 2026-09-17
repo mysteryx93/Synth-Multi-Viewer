@@ -8,7 +8,7 @@ internal static class CallScanner
     /// <summary>
     /// Walks <paramref name="code"/> and returns insight when the language resolves the callee.
     /// </summary>
-    public static CallInsight? Find(string code, ILanguage language, DocumentBindings bindings,
+    public static CallScan? Find(string code, ILanguage language, DocumentBindings bindings,
         IReadOnlyList<Symbol> catalog, CancellationToken token)
     {
         var stack = new Stack<CallFrame>();
@@ -57,8 +57,8 @@ internal static class CallScanner
                 var argumentList = code[(frame.Offset + 1)..];
                 var current = code[frame.ArgumentStart..];
                 var parameter = NamedVisibleIndex(resolved, current, language) ?? frame.Parameter;
-                return new CallInsight(resolved.Overloads, parameter, resolved.ImplicitReceiver,
-                    ParameterNames.KeywordEqualsIndex(current) >= 0, nested, UsedNames(argumentList, language.Comparison));
+                return new CallScan(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested, argumentList,
+                    current, UsedNames(argumentList, language.Comparison));
             }
 
             if (callee[^1].Name.Length > 0)
@@ -167,4 +167,22 @@ internal static class CallScanner
     }
 
     private readonly record struct CallFrame(char Delimiter, int Offset, int Parameter, int ArgumentStart);
+}
+
+/// <summary>
+/// Resolved call plus internal argument-scan context.
+/// </summary>
+internal sealed record CallScan(
+    IReadOnlyList<Symbol> Overloads,
+    int ActiveParameter,
+    bool ImplicitClip,
+    bool InNestedDelimiter,
+    string ArgumentList,
+    string CurrentArgument,
+    IReadOnlySet<string> UsedNames)
+{
+    /// <summary>
+    /// Gets the consumer-facing insight.
+    /// </summary>
+    public CallInsight Insight => new(Overloads, ActiveParameter, ImplicitClip);
 }
