@@ -18,17 +18,19 @@ public readonly struct TypeRef : IEquatable<TypeRef>
     /// <summary>
     /// Creates a type with the given profile-specific identifier.
     /// </summary>
-    public TypeRef(string id) => Id = id ?? "";
+    public TypeRef(string id) => _id = id ?? "";
 
     /// <summary>
-    /// Gets the profile-specific identifier.
+    /// Gets the profile-specific identifier. Empty for <see cref="Unknown"/> and <c>default</c>.
     /// </summary>
-    public string Id { get; }
+    public string Id => _id ?? "";
+
+    private readonly string _id;
 
     /// <summary>
     /// Gets whether the type is unknown.
     /// </summary>
-    public bool IsUnknown => Id.Length == 0;
+    public bool IsUnknown => !Id.HasValue();
 
     /// <summary>
     /// Gets whether the type is the statement root.

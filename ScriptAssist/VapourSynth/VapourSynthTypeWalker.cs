@@ -17,7 +17,7 @@ internal static class VapourSynthTypeWalker
         }
 
         var current = ResolveName(segments[0].Name, bindings);
-        current = ApplyUse(current, segments[0], index);
+        current = ApplyUse(current, segments[0], index, bindings);
         for (var i = 1; i < segments.Count; i++)
         {
             current = Step(current, segments[i], index, bindings);
@@ -172,11 +172,11 @@ internal static class VapourSynthTypeWalker
         }
         if (current == VapourSynthTypes.VideoNode)
         {
-            return NodeMember(segment, VapourSynthHostTypes.VideoNodeMembers, true, index);
+            return NodeMember(segment, VapourSynthHostTypes.VideoNodeMembers, current, index);
         }
         if (current == VapourSynthTypes.AudioNode)
         {
-            return NodeMember(segment, VapourSynthHostTypes.AudioNodeMembers, true, index);
+            return NodeMember(segment, VapourSynthHostTypes.AudioNodeMembers, current, index);
         }
         if (current == VapourSynthTypes.Format)
         {
@@ -189,7 +189,8 @@ internal static class VapourSynthTypeWalker
         return TypeRef.Unknown;
     }
 
-    private static TypeRef ApplyUse(TypeRef current, PathSegment segment, VapourSynthCatalogIndex index)
+    private static TypeRef ApplyUse(TypeRef current, PathSegment segment, VapourSynthCatalogIndex index,
+        DocumentBindings bindings)
     {
         if (segment.Kind == PathSegmentKind.Index)
         {
@@ -199,7 +200,30 @@ internal static class VapourSynthTypeWalker
         {
             return current;
         }
+
+        if (current.IsUnknown || current.IsRoot)
+        {
+            var local = FindFunction(segment.Name, bindings);
+            if (local != null)
+            {
+                return VapourSynthTypes.FromReturn(local.ReturnType);
+            }
+        }
+
         return current == VapourSynthTypes.Module ? VapourSynthTypes.Core : current;
+    }
+
+    private static Symbol? FindFunction(string name, DocumentBindings bindings)
+    {
+        foreach (var symbol in bindings.BufferSymbols)
+        {
+            if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
+            {
+                return symbol;
+            }
+        }
+
+        return null;
     }
 
     private static TypeRef ModuleMember(PathSegment segment)
@@ -235,12 +259,12 @@ internal static class VapourSynthTypeWalker
         return VapourSynthTypes.FromReturn(symbol.ReturnType);
     }
 
-    private static TypeRef NodeMember(PathSegment segment, IReadOnlyList<Symbol> members, bool allowBound,
+    private static TypeRef NodeMember(PathSegment segment, IReadOnlyList<Symbol> members, TypeRef node,
         VapourSynthCatalogIndex index)
     {
-        if (allowBound && index.HasBoundNamespace(segment.Name))
+        if (index.HasBoundNamespace(segment.Name, node))
         {
-            return VapourSynthTypes.Bound(segment.Name);
+            return VapourSynthTypes.Bound(segment.Name, node);
         }
         return HostMember(segment, members);
     }

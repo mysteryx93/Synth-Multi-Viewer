@@ -16,7 +16,8 @@ public sealed class AviSynthLanguage : ILanguage
         SlashBracketBlocks = true,
         StarBracketBlocks = true,
         TripleQuotes = true,
-        DoubledQuotes = true
+        DoubledQuotes = true,
+        BackslashLineContinuations = true
     };
 
     /// <summary>
@@ -53,6 +54,9 @@ public sealed class AviSynthLanguage : ILanguage
     /// <inheritdoc />
     public double CompletionPriority(Symbol symbol, TypeRef receiver) =>
         receiver == AviSynthTypes.Clip && symbol.Kind != SymbolKind.Namespace ? 1 : 0;
+
+    /// <inheritdoc />
+    public string? ParameterName(string parameter) => ParameterNames.OfAviSynth(parameter);
 
     /// <inheritdoc />
     public TypeRef TypeOf(IReadOnlyList<PathSegment> segments, DocumentBindings bindings, IReadOnlyList<Symbol> catalog) =>

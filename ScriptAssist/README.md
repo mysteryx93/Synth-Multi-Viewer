@@ -37,7 +37,7 @@ var service = factory.Create(ScriptLanguageFactory.VapourSynth)!;
 Reply reply = await service.GetAsync(text, caret, cancellationToken, documentPath);
 ```
 
-`Reply` contains completion items, call insight, and hover text. Discard it if the document, caret, language, or path changed while awaiting it. Headless callers must check `factory.IsEnabled` themselves.
+`Reply` contains completion items, call insight, and hover text. Discard it if the document, caret, language, or path changed while awaiting it. `Create` returns null while `IsEnabled` is false so catalog enumeration cannot start from a disabled factory.
 
 ## Catalog lifecycle
 
@@ -83,7 +83,7 @@ var factory = new ScriptLanguageFactory(
     ReadVsCatalog, ReadAvsCatalog, ReadPython, ReadAviSynth);
 ```
 
-`ScriptFiles` uses absolute paths directly; otherwise it tries paths beside `fromPath`, then the supplied directories. AviSynth uses the supplied filename, including its extension; Python tries `name.py` and `name/__init__.py`. Leading-dot Python imports resolve relative to the importing file. Include plugin or site-packages directories in the host's roots as needed.
+`ScriptFiles` uses absolute paths directly; otherwise it tries paths beside `fromPath`, then the supplied directories. The per-path reader must return `null` for a missing or unreadable candidate so later paths are tried; do not pass `File.ReadAllText` directly. AviSynth uses the supplied filename, including its extension; Python tries `name.py` and `name/__init__.py`. Leading-dot Python imports resolve relative to the importing file. Include plugin or site-packages directories in the host's roots as needed.
 
 Pass the open document's path for sibling imports. Unsaved buffers can still use supplied search roots. Autoload AviSynth scripts can be parsed with `AviSynthFunctions.Parse` and merged into the host catalog with `UnionByName`.
 

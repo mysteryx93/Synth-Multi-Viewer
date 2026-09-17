@@ -17,17 +17,13 @@ internal static partial class AviSynthPatterns
         RegexOptions.Multiline | RegexOptions.IgnoreCase)]
     public static partial Regex NameAssign();
 
-    [GeneratedRegex(@"\\[ \t]*\r?\n[ \t]*\\?|\r?\n[ \t]*\\")]
-    public static partial Regex LineContinue();
-
     [GeneratedRegex(@"\s+")]
     public static partial Regex Whitespace();
 
     /// <summary>
     /// Turns AviSynth <c>\</c> line continuations into spaces of the same length.
     /// </summary>
-    public static string JoinContinuations(string clean) =>
-        LineContinue().Replace(clean, static match => new string(' ', match.Length));
+    public static string JoinContinuations(string clean) => BufferLexer.JoinBackslashLines(clean);
 
     /// <summary>
     /// Joins continuations, then masks comments and strings. <c>\</c> is preprocessing, so it

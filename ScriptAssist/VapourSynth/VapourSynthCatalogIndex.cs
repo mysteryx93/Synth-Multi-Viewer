@@ -5,10 +5,16 @@ namespace HanumanInstitute.ScriptAssist.VapourSynth;
 /// </summary>
 internal sealed class VapourSynthCatalogIndex
 {
+    private static readonly Lock CacheGate = new();
+    private static IReadOnlyList<Symbol>? CachedCatalog;
+    private static VapourSynthCatalogIndex? CachedIndex;
+
     private readonly Dictionary<string, List<Symbol>> _functions = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, List<Symbol>> _boundFunctions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<Symbol>> _boundVideo = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<Symbol>> _boundAudio = new(StringComparer.Ordinal);
     private readonly List<Symbol> _namespaces = [];
-    private readonly List<Symbol> _boundNamespaces = [];
+    private readonly List<Symbol> _boundVideoNamespaces = [];
+    private readonly List<Symbol> _boundAudioNamespaces = [];
 
     private VapourSynthCatalogIndex()
     {
@@ -19,6 +25,14 @@ internal sealed class VapourSynthCatalogIndex
     /// </summary>
     public static VapourSynthCatalogIndex Build(IReadOnlyList<Symbol> catalog)
     {
+        lock (CacheGate)
+        {
+            if (ReferenceEquals(CachedCatalog, catalog) && CachedIndex != null)
+            {
+                return CachedIndex;
+            }
+        }
+
         var index = new VapourSynthCatalogIndex();
         foreach (var symbol in catalog)
         {
@@ -35,19 +49,21 @@ internal sealed class VapourSynthCatalogIndex
             }
 
             functions.Add(symbol);
-            if (!VapourSynthArguments.TakesNode(symbol))
+            if (VapourSynthArguments.TakesVideo(symbol))
             {
-                continue;
+                AddBound(index._boundVideo, index._boundVideoNamespaces, ns, symbol);
             }
 
-            if (!index._boundFunctions.TryGetValue(ns, out var bound))
+            if (VapourSynthArguments.TakesAudio(symbol))
             {
-                bound = [];
-                index._boundFunctions[ns] = bound;
-                index._boundNamespaces.Add(new Symbol(ns, null, SymbolKind.Namespace));
+                AddBound(index._boundAudio, index._boundAudioNamespaces, ns, symbol);
             }
+        }
 
-            bound.Add(symbol);
+        lock (CacheGate)
+        {
+            CachedCatalog = catalog;
+            CachedIndex = index;
         }
 
         return index;
@@ -61,15 +77,21 @@ internal sealed class VapourSynthCatalogIndex
     /// <summary>
     /// Gets plugin namespaces that bind to a video or audio node.
     /// </summary>
-    public IReadOnlyList<Symbol> BoundNamespaces => _boundNamespaces;
+    public IReadOnlyList<Symbol> BoundNamespaces(TypeRef node) =>
+        node == VapourSynthTypes.AudioNode ? _boundAudioNamespaces : _boundVideoNamespaces;
 
     /// <summary>
     /// Gets functions in a namespace, optionally only those that bind to a node.
     /// </summary>
-    public IReadOnlyList<Symbol> Functions(string ns, bool boundOnly)
+    public IReadOnlyList<Symbol> Functions(string ns, bool boundOnly, TypeRef node = default)
     {
-        var map = boundOnly ? _boundFunctions : _functions;
-        return map.TryGetValue(ns, out var list) ? list : [];
+        if (!boundOnly)
+        {
+            return _functions.TryGetValue(ns, out var list) ? list : [];
+        }
+
+        var map = node == VapourSynthTypes.AudioNode ? _boundAudio : _boundVideo;
+        return map.TryGetValue(ns, out var bound) ? bound : [];
     }
 
     /// <summary>
@@ -99,9 +121,32 @@ internal sealed class VapourSynthCatalogIndex
     public bool HasNamespace(string ns) => _functions.ContainsKey(ns);
 
     /// <summary>
+    /// Gets whether <paramref name="ns"/> binds to <paramref name="node"/>.
+    /// </summary>
+    public bool HasBoundNamespace(string ns, TypeRef node)
+    {
+        var map = node == VapourSynthTypes.AudioNode ? _boundAudio : _boundVideo;
+        return map.ContainsKey(ns);
+    }
+
+    /// <summary>
     /// Gets whether <paramref name="ns"/> binds to a node.
     /// </summary>
-    public bool HasBoundNamespace(string ns) => _boundFunctions.ContainsKey(ns);
+    public bool HasBoundNamespace(string ns) =>
+        _boundVideo.ContainsKey(ns) || _boundAudio.ContainsKey(ns);
+
+    private static void AddBound(Dictionary<string, List<Symbol>> map, List<Symbol> namespaces, string ns,
+        Symbol symbol)
+    {
+        if (!map.TryGetValue(ns, out var bound))
+        {
+            bound = [];
+            map[ns] = bound;
+            namespaces.Add(new Symbol(ns, null, SymbolKind.Namespace));
+        }
+
+        bound.Add(symbol);
+    }
 
     private static bool TrySplit(string name, out string ns, out string function)
     {

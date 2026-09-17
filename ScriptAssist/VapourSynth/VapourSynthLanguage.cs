@@ -62,6 +62,9 @@ public sealed class VapourSynthLanguage : ILanguage
         VapourSynthTypes.IsNode(receiver) && symbol.Kind != SymbolKind.Namespace ? 1 : 0;
 
     /// <inheritdoc />
+    public string? ParameterName(string parameter) => ParameterNames.OfPython(parameter);
+
+    /// <inheritdoc />
     public TypeRef TypeOf(IReadOnlyList<PathSegment> segments, DocumentBindings bindings, IReadOnlyList<Symbol> catalog) =>
         VapourSynthTypeWalker.TypeOf(segments, bindings, VapourSynthCatalogIndex.Build(catalog));
 
@@ -136,6 +139,24 @@ public sealed class VapourSynthLanguage : ILanguage
             if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
             {
                 return new CallResolution { Overloads = [symbol] };
+            }
+        }
+
+        if (callee.Count == 1)
+        {
+            List<Symbol>? local = null;
+            foreach (var symbol in bindings.BufferSymbols)
+            {
+                if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
+                {
+                    local ??= [];
+                    local.Add(symbol);
+                }
+            }
+
+            if (local != null)
+            {
+                return new CallResolution { Overloads = local };
             }
         }
 

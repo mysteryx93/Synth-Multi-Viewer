@@ -13,15 +13,23 @@ public class ScriptIncludesTests
     [InlineData("int \"width\"", "width")]
     [InlineData("clip c", "c")]
     [InlineData("clip Input", "Input")]
+    [InlineData("*args", null)]
+    [InlineData("", null)]
+    public void AviSynthParameterNames(string parameter, string? expected) =>
+        Assert.Equal(expected, ParameterNames.OfAviSynth(parameter));
+
+    [Theory]
     [InlineData("left:int:opt", "left")]
     [InlineData("radius=1", "radius")]
     [InlineData("radius: int = 1", "radius")]
+    [InlineData("radius: Optional[int] = None", "radius")]
+    [InlineData("planes=[0, 1]", "planes")]
     [InlineData("Preset='Slow'", "Preset")]
     [InlineData("clip", "clip")]
     [InlineData("*args", null)]
     [InlineData("", null)]
-    public void ParameterNameOfKnownForms(string parameter, string? expected) =>
-        Assert.Equal(expected, ParameterNames.Of(parameter));
+    public void PythonParameterNames(string parameter, string? expected) =>
+        Assert.Equal(expected, ParameterNames.OfPython(parameter));
 
     [Fact]
     public void ParameterSplitKeepsNestedCommas()
@@ -43,8 +51,8 @@ public class ScriptIncludesTests
         var qtgmc = Assert.Single(symbols);
         Assert.Equal("QTGMC", qtgmc.Name);
         Assert.Equal(["clip Input", "int \"TR0\"", "string \"Preset\""], qtgmc.Parameters!);
-        Assert.Equal("TR0", ParameterNames.Of(qtgmc.Parameters![1]));
-        Assert.Equal("Preset", ParameterNames.Of(qtgmc.Parameters[2]));
+        Assert.Equal("TR0", ParameterNames.OfAviSynth(qtgmc.Parameters![1]));
+        Assert.Equal("Preset", ParameterNames.OfAviSynth(qtgmc.Parameters[2]));
         Assert.True(AviSynthTypes.TakesClip(qtgmc));
     }
 
@@ -66,6 +74,18 @@ public class ScriptIncludesTests
         Assert.Equal(["clip Input", "int \"TR0\""], qtgmc.Parameters!);
         var crop = Assert.Single(merged, x => x.Name == "Crop");
         Assert.Equal(["clip", "int [left]", "int [top]"], crop.Parameters!);
+    }
+
+    [Fact]
+    public void AviSynthUnionKeepsNativeOverloads()
+    {
+        var native = new[]
+        {
+            new Symbol("Foo", ["clip", "int [a]"]),
+            new Symbol("Foo", ["clip", "float [a]"])
+        };
+        var merged = AviSynthFunctions.UnionByName(native, []);
+        Assert.Equal(2, merged.Count(x => x.Name == "Foo"));
     }
 
     [Fact]

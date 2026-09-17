@@ -41,8 +41,8 @@ public static class VapourSynthHostTypes
         new("num_threads", null, SymbolKind.Property, ReturnType: "int"),
         new("max_cache_size", null, SymbolKind.Property, ReturnType: "int"),
         new("used_cache_size", null, SymbolKind.Property, ReturnType: "int"),
-        new("clear_cache", ["No parameters"], ReturnType: ""),
-        new("plugins", ["No parameters"]),
+        new("clear_cache", [], ReturnType: ""),
+        new("plugins", []),
         new("get_video_format", ["id:int"]),
         new("query_video_format", ["color_family:int", "sample_type:int", "bits_per_sample:int"])
     ];

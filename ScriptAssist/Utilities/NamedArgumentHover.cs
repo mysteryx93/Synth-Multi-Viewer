@@ -20,7 +20,7 @@ internal static class NamedArgumentHover
             i++;
         }
 
-        if (i >= code.Length || code[i] != '=')
+        if (i >= code.Length || code[i] != '=' || i + 1 < code.Length && code[i + 1] == '=')
         {
             return false;
         }
@@ -41,7 +41,7 @@ internal static class NamedArgumentHover
 
             foreach (var parameter in overload.Parameters)
             {
-                var parameterName = ParameterNames.Of(parameter);
+                var parameterName = language.ParameterName(parameter);
                 if (parameterName != null && parameterName.Equals(name, comparison))
                 {
                     hover = new HoverInfo(parameter, path.Start, path.End - path.Start);

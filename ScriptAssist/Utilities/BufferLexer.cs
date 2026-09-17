@@ -1,9 +1,11 @@
+using System.Text.RegularExpressions;
+
 namespace HanumanInstitute.ScriptAssist;
 
 /// <summary>
 /// Position-preserving lexer; offsets remain AvaloniaEdit UTF-16 offsets.
 /// </summary>
-internal static class BufferLexer
+internal static partial class BufferLexer
 {
     /// <summary>
     /// Recognizes UTF-16 identifier characters, including combining marks and surrogate pairs.
@@ -16,6 +18,11 @@ internal static class BufferLexer
     /// </summary>
     public static LexedBuffer Mask(string text, LexerOptions options, bool maskStrings = true, CancellationToken token = default)
     {
+        if (options.BackslashLineContinuations)
+        {
+            text = JoinBackslashLines(text);
+        }
+
         var code = text.ToCharArray();
         var quote = '\0';
         var triple = false;
@@ -62,6 +69,12 @@ internal static class BufferLexer
 
             if (quote != '\0')
             {
+                if (!triple && c is '\n' or '\r')
+                {
+                    quote = '\0';
+                    continue;
+                }
+
                 HideString(i);
                 if (options.StringEscapes && c == '\\' && next != '\0')
                 {
@@ -125,7 +138,7 @@ internal static class BufferLexer
                 Hide(index);
             }
         }
-        
+
         void Hide(int index)
         {
             if (code[index] != '\n' && code[index] != '\r')
@@ -134,6 +147,15 @@ internal static class BufferLexer
             }
         }
     }
+
+    /// <summary>
+    /// Turns AviSynth <c>\</c> line continuations into spaces of the same length.
+    /// </summary>
+    public static string JoinBackslashLines(string text) =>
+        BackslashLine().Replace(text, static match => new string(' ', match.Length));
+
+    [GeneratedRegex(@"\\[ \t]*\r?\n[ \t]*\\?|\r?\n[ \t]*\\")]
+    private static partial Regex BackslashLine();
 
     /// <summary>
     /// Closer markers: <c>*</c> is <c>*/</c>, <c>]</c> is <c>]/</c>, <c>[</c> is <c>*]</c>.

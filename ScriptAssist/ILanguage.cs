@@ -50,4 +50,9 @@ public interface ILanguage
     /// Ranks a member for completion on <paramref name="receiver"/>. Higher values sort first.
     /// </summary>
     double CompletionPriority(Symbol symbol, TypeRef receiver) => 0;
+
+    /// <summary>
+    /// Returns the argument name for a catalog or header parameter string.
+    /// </summary>
+    string? ParameterName(string parameter) => null;
 }

@@ -45,6 +45,17 @@ public static class AviSynthFunctions
     }
 
     /// <summary>
+    /// Follows <c>Import</c> specifiers with <paramref name="read"/> and returns parsed functions.
+    /// </summary>
+    public static IReadOnlyList<Symbol> LoadImports(string text, string? documentPath, IncludeReader? read,
+        LexerOptions lexer, CancellationToken token = default)
+    {
+        var buffer = new List<Symbol>();
+        AddImports(text, documentPath, read, buffer, new HashSet<string>(StringComparer.Ordinal), lexer, token);
+        return buffer;
+    }
+
+    /// <summary>
     /// Follows <c>Import</c> specifiers with <paramref name="read"/> and appends parsed functions.
     /// </summary>
     public static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
@@ -84,22 +95,34 @@ public static class AviSynthFunctions
     /// </summary>
     public static IReadOnlyList<Symbol> UnionByName(IReadOnlyList<Symbol> native, IReadOnlyList<Symbol> parsed)
     {
-        var byName = new Dictionary<string, Symbol>(StringComparer.OrdinalIgnoreCase);
-        foreach (var symbol in native)
+        var result = new List<Symbol>(native.Count + parsed.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in native.GroupBy(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase))
         {
-            byName[symbol.Name] = symbol;
-        }
-
-        foreach (var symbol in parsed)
-        {
-            if (!byName.TryGetValue(symbol.Name, out var existing) ||
-                NamedCount(existing) == 0 && NamedCount(symbol) > 0)
+            seen.Add(group.Key);
+            var parsedGroup = parsed.Where(symbol => symbol.Name.Equals(group.Key, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var nativeGroup = group.ToList();
+            if (parsedGroup.Count > 0 && nativeGroup.All(symbol => NamedCount(symbol) == 0) &&
+                parsedGroup.Exists(symbol => NamedCount(symbol) > 0))
             {
-                byName[symbol.Name] = symbol;
+                result.AddRange(parsedGroup);
+            }
+            else
+            {
+                result.AddRange(nativeGroup);
             }
         }
 
-        return byName.Values.ToArray();
+        foreach (var group in parsed.GroupBy(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            if (seen.Add(group.Key))
+            {
+                result.AddRange(group);
+            }
+        }
+
+        return result;
     }
 
     private static int NamedCount(Symbol symbol)
@@ -112,7 +135,7 @@ public static class AviSynthFunctions
         var count = 0;
         foreach (var parameter in symbol.Parameters)
         {
-            var name = ParameterNames.Of(parameter);
+            var name = ParameterNames.OfAviSynth(parameter);
             if (name != null && !parameter.Trim().Equals(name, StringComparison.OrdinalIgnoreCase))
             {
                 count++;

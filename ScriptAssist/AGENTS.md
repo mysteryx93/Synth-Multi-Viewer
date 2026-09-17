@@ -74,7 +74,7 @@ The snapshot key is **text + document path + catalog reference**, not editor ver
 ## Catalogs, includes, and editor lifecycle
 
 - Catalog callbacks run in the background. `SetKey` only remembers configuration; `Refresh` starts enumeration; cancelling `GetAsync` cancels the wait, not native work. Enumeration failures become an empty catalog. The cache retains the current task until configuration changes or refresh is forced.
-- `IsEnabled` is a factory bool; the editor options callback follows it. Disabled `Configure` stores the key and disabled `Refresh` does nothing. Direct service callers must check enablement themselves. Duplicate profile ids throw.
+- `IsEnabled` is a factory bool; the editor options callback follows it. Disabled `Configure` stores the key, disabled `Refresh` does nothing, and `Create` returns null. Duplicate profile ids throw.
 - `IncludeReader(specifier, fromPath)` returns full resolved path + text, or null. The host owns I/O; `ScriptFiles` builds candidates and invokes its supplied reader. Missing/unreadable candidates must return null so lookup can continue.
 - Use absolute include paths directly; otherwise search beside the importing file, then host roots. Python leading dots are relative to that file's directory, never a rooted path produced by replacing dots. Track resolved paths to prevent cycles.
 - Pass `documentPath` through `GetAsync`/`Bind`. Unsaved buffers lack a sibling directory but can use configured roots. Python site-packages belongs in script search roots, never native autoload directories.
@@ -82,15 +82,12 @@ The snapshot key is **text + document path + catalog reference**, not editor ver
 
 Reference host: `ScriptAssistService` supplies `ScriptCatalogs` and `ScriptIncludeIO`. `FrameworkDetectionService` configures keys after native setup; the factory must not call `VsHelper.SetDllPath`. `EnhanceEditorWithAutoComplete` is the enablement setting; `BindableTextEditor` maps `ScriptKind` to factory ids and passes the open file path. Autoload AVSI/AVS parsing and catalog mapping stay at this host boundary.
 
-## Known implementation gaps
+## Analysis notes
 
-These are fixable limitations, not additional non-goals. Verify them against current code before changing behavior.
-
-- VS assignment regexes mishandle multiline calls, keyword arguments, and masked string RHS spans. Indentation-only scope detection also mishandles continuation lines.
-- VS local function symbols, bare imported-call insight, return annotations, and annotation-only variables are incomplete. Shared parameter parsing confuses Python generic annotations/list defaults with AviSynth optional names.
-- VS imports ignore function scope and source order; dotted/multiline forms are incomplete. Caching raw specifiers can conflate relative imports from different directories.
-- External-file changes do not invalidate an unchanged snapshot independently of catalog identity. Expression reading misses consecutive call/index suffixes; AviSynth continuation preparation differs between binding and completion.
-- `UnionByName` drops native overloads. Argument suggestions do not track used names/value positions. Hover requests lack completion's full stale-result checks.
+- VS bindings scan logical statements (brackets, `;`, `\` continuations) so assignments keep original RHS spans. Column-0 `def` symbols, return annotations, and annotation-only names use the existing type table. Imports follow source order and function scope; module identity is the resolved path.
+- Parameter names are language-specific (`OfPython` / `OfNative` / `OfAviSynth`). Bound node completion filters video vs audio first arguments. `UnionByName` keeps native overload groups.
+- `ILanguageService.Invalidate` drops analysis snapshots independently of catalog identity. Factory `Refresh` invalidates every profile. `Create` returns null while disabled.
+- Expression reading walks consecutive `()` / `[]` suffixes. AviSynth `BackslashLineContinuations` joins before mask so completion and binding share prepared source. Unterminated single-line strings recover at the next newline.
 
 ## Validation
 

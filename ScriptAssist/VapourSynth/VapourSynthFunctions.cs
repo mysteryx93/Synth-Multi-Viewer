@@ -40,12 +40,38 @@ public static class VapourSynthFunctions
                 continue;
             }
 
+            var parameters = ParameterNames.Split(quoted[(open + 1)..close]);
+            var returnType = ReturnId(quoted, close);
             buffer.Add(new VapourSynthFunctionSpan(
-                new Symbol(match.Groups[1].Value, ParameterNames.Split(quoted[(open + 1)..close])),
+                new Symbol(match.Groups[1].Value, parameters, ReturnType: returnType),
                 match.Index, close));
         }
 
         return buffer;
+    }
+
+    internal static string? ReturnId(string text, int parenClose)
+    {
+        var i = parenClose + 1;
+        while (i < text.Length && text[i] is ' ' or '\t')
+        {
+            i++;
+        }
+
+        if (i + 1 >= text.Length || text[i] != '-' || text[i + 1] != '>')
+        {
+            return null;
+        }
+
+        i += 2;
+        var start = i;
+        while (i < text.Length && text[i] is not ':' and not '\n' and not '\r')
+        {
+            i++;
+        }
+
+        var mapped = VapourSynthTypes.FromAnnotation(text[start..i].Trim());
+        return mapped.IsUnknown ? null : mapped.Id;
     }
 }
 

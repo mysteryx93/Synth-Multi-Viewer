@@ -39,7 +39,11 @@ public static class VapourSynthTypes
     public static TypeRef Plugin(string ns) => new("plugin:" + ns);
 
     /// <summary>A plugin namespace bound to a node.</summary>
-    public static TypeRef Bound(string ns) => new("bound:" + ns);
+    public static TypeRef Bound(string ns) => Bound(ns, VideoNode);
+
+    /// <summary>A plugin namespace bound to a video or audio node.</summary>
+    public static TypeRef Bound(string ns, TypeRef node) =>
+        new((node == AudioNode ? "bound-anode:" : "bound:") + ns);
 
     /// <summary>An imported Python script module.</summary>
     public static TypeRef Script(string module) => new("script:" + module);
@@ -56,6 +60,11 @@ public static class VapourSynthTypes
             return type.Id["plugin:".Length..];
         }
 
+        if (type.Id.StartsWith("bound-anode:", StringComparison.Ordinal))
+        {
+            return type.Id["bound-anode:".Length..];
+        }
+
         if (type.Id.StartsWith("bound:", StringComparison.Ordinal))
         {
             return type.Id["bound:".Length..];
@@ -65,7 +74,13 @@ public static class VapourSynthTypes
     }
 
     /// <summary>Gets whether the type is a bound plugin.</summary>
-    public static bool IsBound(TypeRef type) => type.Id.StartsWith("bound:", StringComparison.Ordinal);
+    public static bool IsBound(TypeRef type) =>
+        type.Id.StartsWith("bound:", StringComparison.Ordinal) ||
+        type.Id.StartsWith("bound-anode:", StringComparison.Ordinal);
+
+    /// <summary>Gets the node a bound plugin was taken from.</summary>
+    public static TypeRef BoundNode(TypeRef type) =>
+        type.Id.StartsWith("bound-anode:", StringComparison.Ordinal) ? AudioNode : VideoNode;
 
     /// <summary>Gets whether the type is a video or audio node.</summary>
     public static bool IsNode(TypeRef type) => type == VideoNode || type == AudioNode;

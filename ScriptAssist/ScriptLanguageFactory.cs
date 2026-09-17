@@ -66,6 +66,11 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
     public ILanguageService? Create(string language)
     {
         language.CheckNotNull();
+        if (!IsEnabled)
+        {
+            return null;
+        }
+
         return _profiles.TryGetValue(language, out var profile) ? profile.Service : null;
     }
 
@@ -93,6 +98,7 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
         foreach (var profile in _profiles.Values)
         {
             profile.Catalog.Refresh("explicit", true);
+            profile.Service.Invalidate();
         }
     }
 }

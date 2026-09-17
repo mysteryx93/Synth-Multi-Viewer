@@ -317,5 +317,9 @@ public class EditorCompletionTests
             Started.TrySetResult(true);
             return Reply.Task;
         }
+
+        public void Invalidate()
+        {
+        }
     }
 }

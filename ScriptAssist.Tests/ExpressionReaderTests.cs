@@ -24,6 +24,27 @@ public class ExpressionReaderTests
     }
 
     [Fact]
+    public void ReadWalksConsecutiveCallAndIndex()
+    {
+        var code = "core.std.BlankClip()[0:10].";
+        var path = ExpressionReader.Read(code, code.Length);
+        Assert.Equal("", path.Typed);
+        Assert.Equal(4, path.Segments.Count);
+        Assert.Equal("BlankClip", path.Segments[2].Name);
+        Assert.Equal(PathSegmentKind.Call, path.Segments[2].Kind);
+        Assert.Equal(PathSegmentKind.Index, path.Segments[3].Kind);
+    }
+
+    [Fact]
+    public void ParseIncludesConsecutiveCallAndIndex()
+    {
+        var segments = ExpressionReader.Parse("core.std.BlankClip()[0:10]");
+        Assert.Equal("BlankClip", segments[2].Name);
+        Assert.Equal(PathSegmentKind.Call, segments[2].Kind);
+        Assert.Equal(PathSegmentKind.Index, segments[3].Kind);
+    }
+
+    [Fact]
     public void ReadWalksThroughClosedCall()
     {
         var code = "clip.std.Crop(0, 0, 2, 2).std.";

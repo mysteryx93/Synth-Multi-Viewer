@@ -57,7 +57,7 @@ public sealed class LanguageService : ILanguageService
         var items = CallScanner.InnermostUnclosed(prefix.Code, token) == '[' && path.Segments.Count == 0
             ? new List<CompletionItem>()
             : Complete(path, receiver, snapshot, bindings, token);
-        AddParameterNames(items, path, insight);
+        AddParameterNames(items, path, insight, prefix.Code);
         var hoverPath = ExpressionReader.Read(snapshot.Masked.Code, caret);
         var hover = _language.Hover(snapshot.Masked.Code, hoverPath, bindings, snapshot.Catalog);
         var comparison = _language.Comparison;
@@ -93,26 +93,49 @@ public sealed class LanguageService : ILanguageService
         return last < 0 ? name : name[(last + 1)..];
     }
 
-    private static void AddParameterNames(List<CompletionItem> items, CaretPath path, CallInsight? insight)
+    /// <inheritdoc />
+    public void Invalidate()
     {
-        if (insight == null || path.Segments.Count > 0) { return; }
+        lock (_cacheGate)
+        {
+            _cachedText = null;
+            _cachedPath = null;
+            _cachedCatalog = null;
+            _cachedSnapshot = null;
+        }
+    }
 
-        var overload = insight.Overloads[0];
-        if (overload.Parameters == null)
+    private void AddParameterNames(List<CompletionItem> items, CaretPath path, CallInsight? insight, string prefix)
+    {
+        if (insight == null || path.Segments.Count > 0 || CallArguments.InValue(prefix))
         {
             return;
         }
 
+        var used = CallArguments.UsedNames(prefix, _language.Comparison);
+        var seen = new HashSet<string>(_language.Comparison == StringComparison.OrdinalIgnoreCase
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal);
         var skip = insight.ImplicitClip ? 1 : 0;
-        for (var i = skip; i < overload.Parameters.Length; i++)
+        foreach (var overload in insight.Overloads)
         {
-            var name = ParameterNames.Of(overload.Parameters[i]);
-            if (name == null || !name.StartsWith(path.Typed, StringComparison.OrdinalIgnoreCase))
+            if (overload.Parameters == null)
             {
                 continue;
             }
 
-            items.Add(new(name + "=", path.Start, path.End - path.Start, SymbolKind.Keyword, overload.Parameters[i], 2));
+            for (var i = skip; i < overload.Parameters.Length; i++)
+            {
+                var parameter = overload.Parameters[i];
+                var name = _language.ParameterName(parameter);
+                if (name == null || used.Contains(name) || !seen.Add(name) ||
+                    !name.StartsWith(path.Typed, _language.Comparison))
+                {
+                    continue;
+                }
+
+                items.Add(new(name + "=", path.Start, path.End - path.Start, SymbolKind.Keyword, parameter, 2));
+            }
         }
     }
 

@@ -60,30 +60,26 @@ internal static class ExpressionReader
 
     private static IReadOnlyList<PathSegment> ParseClosed(string code)
     {
-        var closer = code[^1];
-        var opener = closer == ')' ? '(' : '[';
-        var kind = closer == ')' ? PathSegmentKind.Call : PathSegmentKind.Index;
-        var pos = SkipBalanced(code, code.Length - 1, closer, opener);
+        var pos = code.Length;
         while (pos > 0 && char.IsWhiteSpace(code[pos - 1]))
         {
             pos--;
         }
 
-        var nameEnd = pos;
-        while (pos > 0 && BufferLexer.IsIdentifier(code[pos - 1]))
+        if (pos == 0 || code[pos - 1] is not (')' or ']'))
         {
-            pos--;
+            return [];
         }
 
-        if (pos == nameEnd)
+        if (!TryReadPostfix(code, ref pos, out var name, out var uses))
         {
             return [];
         }
 
         var prefix = WalkLeft(code, pos);
-        var segments = new List<PathSegment>(prefix.Count + 1);
+        var segments = new List<PathSegment>(prefix.Count + uses.Count);
         segments.AddRange(prefix);
-        segments.Add(new PathSegment { Name = code[pos..nameEnd], Kind = kind });
+        AppendUses(segments, name, uses, reverse: false);
         return segments;
     }
 
@@ -123,7 +119,12 @@ internal static class ExpressionReader
         var pos = position;
         while (pos > 0)
         {
-            if (code[pos - 1] != '.')
+            while (pos > 0 && char.IsWhiteSpace(code[pos - 1]))
+            {
+                pos--;
+            }
+
+            if (pos == 0 || code[pos - 1] != '.')
             {
                 break;
             }
@@ -136,27 +137,12 @@ internal static class ExpressionReader
 
             if (pos > 0 && code[pos - 1] is ')' or ']')
             {
-                var closer = code[pos - 1];
-                var opener = closer == ')' ? '(' : '[';
-                var kind = closer == ')' ? PathSegmentKind.Call : PathSegmentKind.Index;
-                pos = SkipBalanced(code, pos - 1, closer, opener);
-                while (pos > 0 && char.IsWhiteSpace(code[pos - 1]))
-                {
-                    pos--;
-                }
-
-                var nameEnd = pos;
-                while (pos > 0 && BufferLexer.IsIdentifier(code[pos - 1]))
-                {
-                    pos--;
-                }
-
-                if (pos == nameEnd)
+                if (!TryReadPostfix(code, ref pos, out var name, out var uses))
                 {
                     break;
                 }
 
-                collected.Add(new PathSegment { Name = code[pos..nameEnd], Kind = kind });
+                AppendUses(collected, name, uses, reverse: true);
                 continue;
             }
 
@@ -177,6 +163,58 @@ internal static class ExpressionReader
 
         collected.Reverse();
         return collected;
+    }
+
+    private static bool TryReadPostfix(string code, ref int pos, out string name, out List<PathSegmentKind> uses)
+    {
+        name = "";
+        uses = [];
+        while (pos > 0 && code[pos - 1] is ')' or ']')
+        {
+            var closer = code[pos - 1];
+            var opener = closer == ')' ? '(' : '[';
+            var kind = closer == ')' ? PathSegmentKind.Call : PathSegmentKind.Index;
+            pos = SkipBalanced(code, pos - 1, closer, opener);
+            while (pos > 0 && char.IsWhiteSpace(code[pos - 1]))
+            {
+                pos--;
+            }
+
+            uses.Add(kind);
+        }
+
+        uses.Reverse();
+        var nameEnd = pos;
+        while (pos > 0 && BufferLexer.IsIdentifier(code[pos - 1]))
+        {
+            pos--;
+        }
+
+        if (pos == nameEnd || uses.Count == 0)
+        {
+            return false;
+        }
+
+        name = code[pos..nameEnd];
+        return true;
+    }
+
+    private static void AppendUses(List<PathSegment> segments, string name, List<PathSegmentKind> uses, bool reverse)
+    {
+        if (reverse)
+        {
+            for (var i = uses.Count - 1; i >= 0; i--)
+            {
+                segments.Add(new PathSegment { Name = i == 0 ? name : "", Kind = uses[i] });
+            }
+
+            return;
+        }
+
+        for (var i = 0; i < uses.Count; i++)
+        {
+            segments.Add(new PathSegment { Name = i == 0 ? name : "", Kind = uses[i] });
+        }
     }
 
     private static int SkipBalanced(string code, int closerIndex, char closer, char opener)

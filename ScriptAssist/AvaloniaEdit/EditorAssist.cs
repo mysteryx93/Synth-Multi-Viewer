@@ -16,7 +16,9 @@ public sealed class EditorAssist : IDisposable
     private readonly InsightPresenter _insight;
     private readonly HoverPresenter _hover;
     private CancellationTokenSource? _request;
+    private CancellationTokenSource? _hoverRequest;
     private long _generation;
+    private long _hoverGeneration;
     private bool _listRequest;
     private bool _attached;
 
@@ -114,7 +116,9 @@ public sealed class EditorAssist : IDisposable
     public void Dismiss()
     {
         _generation++;
+        _hoverGeneration++;
         CancelRequest();
+        _hoverRequest?.Cancel();
         _completion.Hide();
         _insight.Hide();
         _hover.Hide();
@@ -310,25 +314,60 @@ public sealed class EditorAssist : IDisposable
             return;
         }
 
-        var generation = _generation;
+        _hoverRequest?.Cancel();
+        _hoverRequest?.Dispose();
+        var request = new CancellationTokenSource();
+        _hoverRequest = request;
+        _hoverGeneration++;
+        var generation = _hoverGeneration;
+        var document = _editor.Document;
+        var version = document.Version;
+        var text = _editor.Text;
         try
         {
-            var reply = await service.GetAsync(_editor.Text, offset, CancellationToken.None,
-                _options.ResolveDocumentPath?.Invoke());
-            if (generation != _generation)
+            var reply = await service.GetAsync(text, offset, request.Token, _options.ResolveDocumentPath?.Invoke());
+            if (generation != _hoverGeneration || request.IsCancellationRequested ||
+                !ReferenceEquals(document, _editor.Document) || !ReferenceEquals(version, _editor.Document.Version) ||
+                offset != HoverPresenter.OffsetFromPointer(_editor, e))
             {
                 return;
             }
+
             _hover.Show(reply);
         }
         catch (OperationCanceledException)
         {
         }
+        catch (Exception)
+        {
+            if (generation == _hoverGeneration)
+            {
+                _hover.Hide();
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_hoverRequest, request))
+            {
+                _hoverRequest = null;
+            }
+
+            request.Dispose();
+        }
     }
 
-    private void OnPointerHoverStopped(object? sender, PointerEventArgs e) => _hover.Hide();
+    private void OnPointerHoverStopped(object? sender, PointerEventArgs e)
+    {
+        _hoverGeneration++;
+        _hoverRequest?.Cancel();
+        _hover.Hide();
+    }
 
-    private void OnVisualLinesChanged(object? sender, EventArgs e) => _hover.Hide();
+    private void OnVisualLinesChanged(object? sender, EventArgs e)
+    {
+        _hoverGeneration++;
+        _hover.Hide();
+    }
 
     private void CancelRequest()
     {

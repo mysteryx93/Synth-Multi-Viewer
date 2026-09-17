@@ -44,4 +44,10 @@ public sealed class LexerOptions
     /// Gets whether doubled quotes represent an escaped quote.
     /// </summary>
     public bool DoubledQuotes { get; init; }
+
+    /// <summary>
+    /// Gets whether AviSynth <c>\</c> line continuations are joined into spaces of the same length
+    /// before comments and strings are masked.
+    /// </summary>
+    public bool BackslashLineContinuations { get; init; }
 }

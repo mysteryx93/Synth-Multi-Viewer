@@ -51,6 +51,7 @@ public sealed class DocumentBindings
             ? dictionary.Comparer
             : StringComparer.Ordinal;
         var merged = new Dictionary<string, TypeRef>(Names, comparer);
+        List<Symbol>? extra = null;
         foreach (var scope in Scopes)
         {
             if (caret < scope.Start || caret > scope.End)
@@ -62,12 +63,20 @@ public sealed class DocumentBindings
             {
                 merged[pair.Key] = pair.Value;
             }
+
+            if (scope.Symbols.Count == 0)
+            {
+                continue;
+            }
+
+            extra ??= [..BufferSymbols];
+            extra.AddRange(scope.Symbols);
         }
 
         return new DocumentBindings
         {
             Names = merged,
-            BufferSymbols = BufferSymbols,
+            BufferSymbols = extra ?? BufferSymbols,
             CoreAliases = CoreAliases,
             ModuleAliases = ModuleAliases,
             ScriptModules = ScriptModules,

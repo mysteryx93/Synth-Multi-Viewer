@@ -29,11 +29,11 @@ internal static class VapourSynthMembers
         }
         if (type == VapourSynthTypes.VideoNode)
         {
-            return Concat(VapourSynthHostTypes.VideoNodeMembers, index.BoundNamespaces);
+            return Concat(VapourSynthHostTypes.VideoNodeMembers, index.BoundNamespaces(type));
         }
         if (type == VapourSynthTypes.AudioNode)
         {
-            return Concat(VapourSynthHostTypes.AudioNodeMembers, index.BoundNamespaces);
+            return Concat(VapourSynthHostTypes.AudioNodeMembers, index.BoundNamespaces(type));
         }
         if (type == VapourSynthTypes.Format)
         {
@@ -47,7 +47,8 @@ internal static class VapourSynthMembers
         var ns = VapourSynthTypes.NamespaceOf(type);
         if (ns != null)
         {
-            return index.Functions(ns, VapourSynthTypes.IsBound(type));
+            return index.Functions(ns, VapourSynthTypes.IsBound(type),
+                VapourSynthTypes.IsBound(type) ? VapourSynthTypes.BoundNode(type) : default);
         }
         return [];
     }

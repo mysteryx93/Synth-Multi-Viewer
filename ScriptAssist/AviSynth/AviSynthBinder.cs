@@ -102,7 +102,7 @@ internal static class AviSynthBinder
 
         foreach (var parameter in symbol.Parameters)
         {
-            var name = ParameterNames.Of(parameter);
+            var name = ParameterNames.OfAviSynth(parameter);
             if (name == null)
             {
                 continue;

@@ -30,6 +30,7 @@ public class ScriptLanguageFactoryTests
 
         factory.IsEnabled = false;
         factory.Configure("one", "a");
+        Assert.Null(factory.Create("one"));
         Assert.Equal(0, count);
         factory.IsEnabled = true;
         factory.Configure("one", "a");

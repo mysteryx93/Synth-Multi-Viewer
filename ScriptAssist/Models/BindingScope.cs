@@ -35,4 +35,9 @@ public sealed class BindingScope
     /// Gets the function's raw parameter strings.
     /// </summary>
     public IReadOnlyList<string> Parameters { get; init; } = [];
+
+    /// <summary>
+    /// Gets function symbols imported or declared only inside this scope.
+    /// </summary>
+    public IReadOnlyList<Symbol> Symbols { get; init; } = [];
 }
