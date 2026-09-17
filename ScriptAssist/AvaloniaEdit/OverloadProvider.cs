@@ -63,9 +63,10 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
             index++;
         }
 
-        if (index < parameters.Length)
+        var physical = PhysicalIndex(parameters, index);
+        if (physical < parameters.Length)
         {
-            return "Parameter " + (index + 1) + ": " + parameters[index];
+            return "Parameter " + (index + 1) + ": " + parameters[physical];
         }
 
         if (Repeats(parameters[^1]))
@@ -92,13 +93,35 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
                 index++;
             }
 
-            if (index < parameters.Length || (parameters.Length > 0 && Repeats(parameters[^1])))
+            var physical = PhysicalIndex(parameters, index);
+            if (physical < parameters.Length || (parameters.Length > 0 && Repeats(parameters[^1])))
             {
                 return i;
             }
         }
 
         return 0;
+    }
+
+    private static int PhysicalIndex(string[] parameters, int visibleIndex)
+    {
+        var seen = 0;
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            if (ParameterNames.IsSeparator(parameters[i]))
+            {
+                continue;
+            }
+
+            if (seen == visibleIndex)
+            {
+                return i;
+            }
+
+            seen++;
+        }
+
+        return parameters.Length;
     }
 
     private static bool IsImplicitFirst(string parameter) =>

@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace HanumanInstitute.ScriptAssist.VapourSynth;
 
 /// <summary>
@@ -27,14 +25,16 @@ internal static class VapourSynthBinder
         var modulesByPath = new Dictionary<string, List<Symbol>>(StringComparer.Ordinal);
         var buffer = new List<Symbol>();
         var index = VapourSynthCatalogIndex.Build(catalog);
-        var scopes = FunctionScopes(clean, quoted, Current(names, modules, cores, scriptModules, buffer), index);
+        var statements = StatementScanner.Scan(clean, token);
+        var scopes = FunctionScopes(clean, quoted, statements,
+            Current(names, modules, cores, scriptModules, buffer), index);
         foreach (var symbol in VapourSynthFunctions.Parse(text, lexer, token))
         {
             buffer.Add(symbol);
         }
 
         var n = 0;
-        foreach (var span in StatementScanner.Scan(clean, token))
+        foreach (var span in statements)
         {
             if ((n++ & 63) == 0)
             {
@@ -46,6 +46,7 @@ internal static class VapourSynthBinder
         }
 
         names.Remove("");
+        DeriveAliases(names, modules, cores);
         return Current(names, modules, cores, scriptModules, buffer, scopes);
     }
 
@@ -150,8 +151,7 @@ internal static class VapourSynthBinder
             {
                 if (source == "core")
                 {
-                    cores.Add(alias);
-                    targetNames[alias] = VapourSynthTypes.Core;
+                    SetName(alias, VapourSynthTypes.Core, scope, names);
                 }
             }
 
@@ -168,8 +168,7 @@ internal static class VapourSynthBinder
     {
         if (imported is "vapoursynth" or "vs")
         {
-            SetName(alias, VapourSynthTypes.Module, scope, names, modules, cores);
-            modules.Add(alias);
+            SetName(alias, VapourSynthTypes.Module, scope, names);
             return;
         }
 
@@ -181,41 +180,58 @@ internal static class VapourSynthBinder
 
         if (!explicitAlias && imported.Contains('.', StringComparison.Ordinal))
         {
-            BindDotted(imported, loaded.Value, scope, documentPath, scriptModules, names, modules, cores, exports);
+            BindDotted(imported, loaded.Value, scope, documentPath, scriptModules, names, exports);
             return;
         }
 
         var type = VapourSynthTypes.Script(loaded.Value.Id);
-        SetName(alias, type, scope, names, modules, cores);
+        SetName(alias, type, scope, names);
         ExportAlias(alias, type, scope, exports);
     }
 
     private static void BindDotted(string imported, LoadedScript loaded, BindingScope? scope, string? documentPath,
         Dictionary<string, IReadOnlyList<Symbol>> scriptModules, Dictionary<string, TypeRef> names,
-        HashSet<string> modules, HashSet<string> cores, List<Symbol>? exports)
+        List<Symbol>? exports)
     {
-        var first = imported[..imported.IndexOf('.')];
-        var rest = imported[(first.Length + 1)..];
-        var child = rest.Contains('.', StringComparison.Ordinal) ? rest[..rest.IndexOf('.')] : rest;
-        var pkgId = (documentPath ?? "") + "::" + first;
-        if (!scriptModules.TryGetValue(pkgId, out var pkg))
+        var parts = imported.Split('.');
+        if (parts.Length < 2)
         {
-            pkg = new List<Symbol>();
-            scriptModules[pkgId] = pkg;
+            return;
         }
 
-        var members = pkg as List<Symbol> ?? [..pkg];
-        if (!ReferenceEquals(members, pkg))
+        var rootId = NamespaceId(documentPath, parts[0]);
+        var parentId = rootId;
+        for (var i = 1; i < parts.Length; i++)
         {
-            scriptModules[pkgId] = members;
+            var child = parts[i];
+            var childId = i == parts.Length - 1
+                ? loaded.Id
+                : NamespaceId(documentPath, string.Join('.', parts, 0, i + 1));
+            var members = MutableModule(scriptModules, parentId);
+            members.RemoveAll(symbol => symbol.Name.Equals(child, StringComparison.Ordinal));
+            members.Add(new Symbol(child, null, SymbolKind.Namespace,
+                ReturnType: VapourSynthTypes.Script(childId).Id));
+            parentId = childId;
         }
 
-        members.RemoveAll(symbol => symbol.Name.Equals(child, StringComparison.Ordinal));
-        members.Add(new Symbol(child, null, SymbolKind.Namespace,
-            ReturnType: VapourSynthTypes.Script(loaded.Id).Id));
-        var type = VapourSynthTypes.Script(pkgId);
-        SetName(first, type, scope, names, modules, cores);
-        ExportAlias(first, type, scope, exports);
+        var type = VapourSynthTypes.Script(rootId);
+        SetName(parts[0], type, scope, names);
+        ExportAlias(parts[0], type, scope, exports);
+    }
+
+    private static string NamespaceId(string? documentPath, string prefix) =>
+        (documentPath ?? "") + "::" + prefix;
+
+    private static List<Symbol> MutableModule(Dictionary<string, IReadOnlyList<Symbol>> scriptModules, string id)
+    {
+        if (scriptModules.TryGetValue(id, out var existing) && existing is List<Symbol> list)
+        {
+            return list;
+        }
+
+        var created = existing == null ? [] : existing.ToList();
+        scriptModules[id] = created;
+        return created;
     }
 
     private static void ExportAlias(string alias, TypeRef type, BindingScope? scope, List<Symbol>? exports)
@@ -323,11 +339,10 @@ internal static class VapourSynthBinder
             return;
         }
 
-        SetName(name, type, scope, names, modules, cores);
+        SetName(name, type, scope, names);
     }
 
-    private static void SetName(string name, TypeRef type, BindingScope? scope, Dictionary<string, TypeRef> names,
-        HashSet<string> modules, HashSet<string> cores)
+    private static void SetName(string name, TypeRef type, BindingScope? scope, Dictionary<string, TypeRef> names)
     {
         if (scope != null)
         {
@@ -336,28 +351,38 @@ internal static class VapourSynthBinder
         }
 
         names[name] = type;
-        if (type == VapourSynthTypes.Core)
-        {
-            cores.Add(name);
-        }
-        else if (name != "core")
-        {
-            cores.Remove(name);
-        }
+    }
 
-        if (type == VapourSynthTypes.Module)
+    private static void DeriveAliases(Dictionary<string, TypeRef> names, HashSet<string> modules, HashSet<string> cores)
+    {
+        modules.Clear();
+        cores.Clear();
+        foreach (var pair in names)
         {
-            modules.Add(name);
+            if (pair.Value == VapourSynthTypes.Core)
+            {
+                cores.Add(pair.Key);
+            }
+
+            if (pair.Value == VapourSynthTypes.Module)
+            {
+                modules.Add(pair.Key);
+            }
         }
     }
 
-    private static List<BindingScope> FunctionScopes(string clean, string quoted, DocumentBindings bindings,
-        VapourSynthCatalogIndex index)
+    private static List<BindingScope> FunctionScopes(string clean, string quoted,
+        IReadOnlyList<StatementScanner.Span> statements, DocumentBindings bindings, VapourSynthCatalogIndex index)
     {
         var scopes = new List<BindingScope>();
-        foreach (Match match in VapourSynthPatterns.AnyDef().Matches(clean))
+        for (var i = 0; i < statements.Count; i++)
         {
-            var open = match.Index + match.Length - 1;
+            var span = statements[i];
+            if (!TryDef(quoted, span, out var name, out var open))
+            {
+                continue;
+            }
+
             var close = FunctionHeaders.MatchingClose(clean, open);
             if (close < 0)
             {
@@ -370,9 +395,9 @@ internal static class VapourSynthBinder
             BindParameters(parameters, names, bindings, index);
             scopes.Add(new BindingScope
             {
-                Start = match.Index,
-                End = BlockEnd(clean, headerEnd),
-                Name = match.Groups[1].Value,
+                Start = span.Start,
+                End = BlockEnd(clean, statements, i, span, headerEnd),
+                Name = name,
                 HeaderEnd = headerEnd,
                 Names = names,
                 Parameters = parameters,
@@ -381,6 +406,31 @@ internal static class VapourSynthBinder
         }
 
         return scopes;
+    }
+
+    private static bool TryDef(string quoted, StatementScanner.Span span, out string name, out int open)
+    {
+        name = "";
+        open = -1;
+        if (!Keyword(quoted, span.Start, span.End, "def"))
+        {
+            return false;
+        }
+
+        var i = AfterKeyword(quoted, span.Start, span.End, "def");
+        if (!TryIdent(quoted, ref i, span.End, out name))
+        {
+            return false;
+        }
+
+        SkipWs(quoted, ref i, span.End);
+        if (i >= span.End || quoted[i] != '(')
+        {
+            return false;
+        }
+
+        open = i;
+        return true;
     }
 
     private static void BindParameters(IReadOnlyList<string> parameters, Dictionary<string, TypeRef> names,
@@ -449,78 +499,59 @@ internal static class VapourSynthBinder
         return i < text.Length && text[i] == ':' ? i + 1 : parenClose + 1;
     }
 
-    private static int BlockEnd(string text, int headerEnd)
+    private static int BlockEnd(string text, IReadOnlyList<StatementScanner.Span> statements, int defIndex,
+        StatementScanner.Span def, int headerEnd)
     {
         var i = headerEnd;
-        while (i < text.Length && text[i] is ' ' or '\t')
+        while (i < def.End && i < text.Length && text[i] is ' ' or '\t')
         {
             i++;
         }
 
-        if (i < text.Length && text[i] is not '\n' and not '\r' and not '#')
+        if (i < def.End && i < text.Length && text[i] is not '\n' and not '\r' and not '#')
         {
-            return LineEnd(text, i);
+            return def.End;
         }
 
-        i = NextLineStart(text, headerEnd);
+        var defIndent = IndentAt(text, def.Start);
         var bodyIndent = -1;
-        while (i < text.Length)
+        for (var n = defIndex + 1; n < statements.Count; n++)
         {
-            if (LineIsBlankOrComment(text, i))
-            {
-                i = NextLineStart(text, i);
-                continue;
-            }
-
-            var indent = LineIndent(text, i);
+            var statement = statements[n];
+            var indent = IndentAt(text, statement.Start);
             if (bodyIndent < 0)
             {
-                if (indent == 0)
+                if (indent <= defIndent)
                 {
-                    return i == 0 ? headerEnd : i - 1;
+                    var start = LineStart(text, statement.Start);
+                    return start == 0 ? headerEnd : start - 1;
                 }
 
                 bodyIndent = indent;
-            }
-            else if (indent < bodyIndent)
-            {
-                return i - 1;
+                continue;
             }
 
-            i = NextLineStart(text, i);
+            if (indent < bodyIndent)
+            {
+                var start = LineStart(text, statement.Start);
+                return start == 0 ? headerEnd : start - 1;
+            }
         }
 
         return text.Length;
     }
 
-    private static int LineEnd(string text, int offset)
+    private static int IndentAt(string text, int offset) => LineIndent(text, LineStart(text, offset));
+
+    private static int LineStart(string text, int offset)
     {
-        while (offset < text.Length && text[offset] is not '\n' and not '\r')
+        var i = offset;
+        while (i > 0 && text[i - 1] is not '\n' and not '\r')
         {
-            offset++;
+            i--;
         }
 
-        return offset;
-    }
-
-    private static int NextLineStart(string text, int offset)
-    {
-        while (offset < text.Length && text[offset] is not '\n' and not '\r')
-        {
-            offset++;
-        }
-
-        if (offset < text.Length && text[offset] == '\r')
-        {
-            offset++;
-        }
-
-        if (offset < text.Length && text[offset] == '\n')
-        {
-            offset++;
-        }
-
-        return offset;
+        return i;
     }
 
     private static int LineIndent(string text, int lineStart)
@@ -536,35 +567,10 @@ internal static class VapourSynthBinder
         return n;
     }
 
-    private static bool LineIsBlankOrComment(string text, int lineStart)
-    {
-        var i = lineStart;
-        while (i < text.Length && text[i] is ' ' or '\t')
-        {
-            i++;
-        }
-
-        return i == text.Length || text[i] is '\n' or '\r' or '#';
-    }
-
     private static DocumentBindings ForInfer(Dictionary<string, TypeRef> names, HashSet<string> modules,
         HashSet<string> cores, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer,
-        IReadOnlyList<BindingScope> scopes, int offset)
-    {
-        var scope = Innermost(scopes, offset);
-        if (scope == null)
-        {
-            return Current(names, modules, cores, scriptModules, buffer, scopes);
-        }
-
-        var merged = new Dictionary<string, TypeRef>(names, names.Comparer);
-        foreach (var pair in scope.Names)
-        {
-            merged[pair.Key] = pair.Value;
-        }
-
-        return Current(merged, modules, cores, scriptModules, buffer, scopes);
-    }
+        IReadOnlyList<BindingScope> scopes, int offset) =>
+        Current(names, modules, cores, scriptModules, buffer, scopes).At(offset);
 
     private static BindingScope? Innermost(IReadOnlyList<BindingScope> scopes, int offset)
     {
@@ -718,9 +724,10 @@ internal static class VapourSynthBinder
         var empty = Current(new Dictionary<string, TypeRef>(StringComparer.Ordinal),
             new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal), scriptModules,
             members);
-        var scopes = FunctionScopes(clean, quoted, empty, VapourSynthCatalogIndex.Build([]));
+        var statements = StatementScanner.Scan(clean, token);
+        var scopes = FunctionScopes(clean, quoted, statements, empty, VapourSynthCatalogIndex.Build([]));
         var extras = new List<Symbol>();
-        foreach (var span in StatementScanner.Scan(clean, token))
+        foreach (var span in statements)
         {
             token.ThrowIfCancellationRequested();
             if (Innermost(scopes, span.Start) != null)

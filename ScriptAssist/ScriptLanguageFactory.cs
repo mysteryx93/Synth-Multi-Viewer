@@ -57,6 +57,14 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
                 throw new ArgumentException("Duplicate language '{0}'.".FormatInvariant(profile.Id), nameof(profiles));
             }
         }
+
+        foreach (var profile in _profiles.Values)
+        {
+            if (profile.Service is LanguageService service)
+            {
+                service.AllowRequests = () => IsEnabled;
+            }
+        }
     }
 
     /// <inheritdoc />

@@ -32,6 +32,26 @@ internal static class VapourSynthTypeWalker
     public static TypeRef Infer(string expression, DocumentBindings bindings, VapourSynthCatalogIndex index)
     {
         expression = ExpressionParts.UnwrapParentheses(expression);
+        if (IsInteger(expression))
+        {
+            return VapourSynthTypes.Int;
+        }
+
+        if (IsFloat(expression))
+        {
+            return VapourSynthTypes.Float;
+        }
+
+        if (expression is "True" or "False")
+        {
+            return VapourSynthTypes.Bool;
+        }
+
+        if (IsStringLiteral(expression))
+        {
+            return VapourSynthTypes.String;
+        }
+
         var parts = ExpressionParts.SplitAddMul(expression);
         var node = TypeRef.Unknown;
         var last = TypeRef.Unknown;
@@ -128,11 +148,11 @@ internal static class VapourSynthTypeWalker
         {
             return typed;
         }
-        if (bindings.CoreAliases.Contains(name) || name == "core")
+        if (name == "core")
         {
             return VapourSynthTypes.Core;
         }
-        if (bindings.ModuleAliases.Contains(name) || name is "vs" or "vapoursynth")
+        if (name is "vs" or "vapoursynth")
         {
             return VapourSynthTypes.Module;
         }
@@ -210,11 +230,27 @@ internal static class VapourSynthTypeWalker
             }
         }
 
-        return current == VapourSynthTypes.Module ? VapourSynthTypes.Core : current;
+        if (current == VapourSynthTypes.Module)
+        {
+            return VapourSynthTypes.Core;
+        }
+
+        if (current == VapourSynthTypes.Int || current == VapourSynthTypes.Float ||
+            current == VapourSynthTypes.Bool || current == VapourSynthTypes.String)
+        {
+            return TypeRef.Unknown;
+        }
+
+        return current;
     }
 
     private static Symbol? FindFunction(string name, DocumentBindings bindings)
     {
+        if (bindings.Names.ContainsKey(name))
+        {
+            return null;
+        }
+
         foreach (var symbol in bindings.BufferSymbols)
         {
             if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)

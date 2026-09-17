@@ -129,12 +129,6 @@ internal sealed class VapourSynthCatalogIndex
         return map.ContainsKey(ns);
     }
 
-    /// <summary>
-    /// Gets whether <paramref name="ns"/> binds to a node.
-    /// </summary>
-    public bool HasBoundNamespace(string ns) =>
-        _boundVideo.ContainsKey(ns) || _boundAudio.ContainsKey(ns);
-
     private static void AddBound(Dictionary<string, List<Symbol>> map, List<Symbol> namespaces, string ns,
         Symbol symbol)
     {

@@ -39,6 +39,24 @@ public class ScriptLanguageFactoryTests
     }
 
     [Fact]
+    public async Task RetainedServiceSkipsEnumerationWhileDisabled()
+    {
+        var count = 0;
+        var catalog = new CatalogCache(() =>
+        {
+            Interlocked.Increment(ref count);
+            return (IReadOnlyList<Symbol>)[];
+        });
+        var factory = new ScriptLanguageFactory(
+            [new LanguageProfile("one", new VapourSynthLanguage(), catalog)]);
+        var service = factory.Create("one")!;
+        factory.IsEnabled = false;
+        var reply = await service.GetAsync("clip", 4, CancellationToken.None);
+        Assert.Empty(reply.Items);
+        Assert.Equal(0, count);
+    }
+
+    [Fact]
     public void Create_UnknownLanguage_ReturnsNull()
     {
         var factory = new ScriptLanguageFactory(

@@ -57,7 +57,14 @@ internal static class VapourSynthMembers
     {
         var items = new List<Symbol>(keywords.Count + bindings.Names.Count + bindings.BufferSymbols.Count);
         items.AddRange(keywords);
-        items.AddRange(bindings.BufferSymbols);
+        foreach (var symbol in bindings.BufferSymbols)
+        {
+            if (!bindings.Names.ContainsKey(symbol.Name))
+            {
+                items.Add(symbol);
+            }
+        }
+
         foreach (var pair in bindings.Names)
         {
             items.Add(new Symbol(pair.Key, null, SymbolKind.Local,

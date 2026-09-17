@@ -37,7 +37,7 @@ var service = factory.Create(ScriptLanguageFactory.VapourSynth)!;
 Reply reply = await service.GetAsync(text, caret, cancellationToken, documentPath);
 ```
 
-`Reply` contains completion items, call insight, and hover text. Discard it if the document, caret, language, or path changed while awaiting it. `Create` returns null while `IsEnabled` is false so catalog enumeration cannot start from a disabled factory.
+`Reply` contains completion items, call insight, and hover text. Discard it if the document, caret, language, or path changed while awaiting it. `Create` returns null while `IsEnabled` is false. A service obtained earlier also skips catalog enumeration on `GetAsync` while the factory remains disabled.
 
 ## Catalog lifecycle
 

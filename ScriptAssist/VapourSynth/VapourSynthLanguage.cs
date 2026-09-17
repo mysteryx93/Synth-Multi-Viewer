@@ -14,7 +14,8 @@ public sealed class VapourSynthLanguage : ILanguage
         HashLineComments = true,
         SingleQuotes = true,
         TripleQuotes = true,
-        StringEscapes = true
+        StringEscapes = true,
+        PythonLineContinuations = true
     };
 
     /// <summary>
@@ -142,7 +143,7 @@ public sealed class VapourSynthLanguage : ILanguage
             }
         }
 
-        if (callee.Count == 1)
+        if (callee.Count == 1 && !bindings.Names.ContainsKey(name))
         {
             List<Symbol>? local = null;
             foreach (var symbol in bindings.BufferSymbols)
@@ -230,11 +231,14 @@ public sealed class VapourSynthLanguage : ILanguage
             }
         }
 
-        foreach (var symbol in bindings.BufferSymbols)
+        if (!bindings.Names.ContainsKey(name))
         {
-            if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
+            foreach (var symbol in bindings.BufferSymbols)
             {
-                return new HoverInfo(symbol.Signature, path.Start, path.End - path.Start);
+                if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
+                {
+                    return new HoverInfo(symbol.Signature, path.Start, path.End - path.Start);
+                }
             }
         }
 

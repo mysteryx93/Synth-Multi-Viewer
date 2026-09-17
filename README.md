@@ -53,6 +53,8 @@ This repo also contains .NET API wrapper for [VapourSynth](ApiVapourSynth/) and 
 
 [ScriptAssist](ScriptAssist/README.md) provides completion, call insight, and hover for VapourSynth and AviSynth, with AvaloniaEdit and headless APIs. It analyzes text and supplied catalogs without executing scripts or requiring Python.
 
+This is a very powerful editor. AI was **definitely** used to write this module.
+
 ### License
 
 [MIT License](LICENSE.md)

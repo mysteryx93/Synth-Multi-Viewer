@@ -11,7 +11,9 @@ public interface IScriptLanguageFactory
     bool IsEnabled { get; set; }
 
     /// <summary>
-    /// Returns the shared service for <paramref name="language"/>, or null when the id is unknown.
+    /// Returns the shared service for <paramref name="language"/>, or null when the id is unknown
+    /// or <see cref="IsEnabled"/> is false. A service obtained earlier still skips catalog work on
+    /// <c>GetAsync</c> while this factory is disabled.
     /// </summary>
     ILanguageService? Create(string language);
 

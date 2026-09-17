@@ -12,7 +12,7 @@ internal static class ParameterNames
     public static string? OfPython(string parameter)
     {
         var text = StripDefault(parameter.Trim());
-        if (text.Length == 0 || text[0] == '*')
+        if (text.Length == 0 || IsSeparator(text) || text[0] == '*')
         {
             return null;
         }
@@ -27,9 +27,13 @@ internal static class ParameterNames
     }
 
     /// <summary>
-    /// Returns the argument name for native VapourSynth <c>left:int:opt</c> forms.
+    /// Gets whether <paramref name="parameter"/> is a Python <c>*</c> or <c>/</c> separator.
     /// </summary>
-    public static string? OfNative(string parameter) => OfPython(parameter);
+    public static bool IsSeparator(string parameter)
+    {
+        var text = parameter.Trim();
+        return text is "*" or "/";
+    }
 
     /// <summary>
     /// Returns the argument name for AviSynth <c>int [left]</c> / <c>int "left"</c> / <c>clip c</c>.

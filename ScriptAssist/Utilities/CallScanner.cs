@@ -24,12 +24,9 @@ internal static class CallScanner
             {
                 stack.Push(new CallFrame(c, i, 0, i + 1));
             }
-            else if (c is ')' or ']' or '}')
+            else if (c is ')' or ']' or '}' && stack.Count > 0)
             {
-                if (stack.Count > 0)
-                {
-                    stack.Pop();
-                }
+                stack.Pop();
             }
             else if (c == ',' && stack.Count > 0)
             {
@@ -38,31 +35,40 @@ internal static class CallScanner
             }
         }
 
+        var nested = false;
         foreach (var frame in stack)
         {
             if (frame.Delimiter != '(')
             {
+                nested = true;
                 continue;
             }
 
             var callee = ExpressionReader.Callee(code, frame.Offset);
             if (callee.Count == 0)
             {
+                nested = true;
                 continue;
             }
 
             var resolved = language.ResolveCall(callee, bindings, catalog);
             if (resolved is { Overloads.Count: > 0 })
             {
-                var parameter = NamedVisibleIndex(resolved, code[frame.ArgumentStart..], language);
-                return new CallInsight(resolved.Overloads, parameter ?? frame.Parameter, resolved.ImplicitReceiver);
+                var argumentList = code[(frame.Offset + 1)..];
+                var current = code[frame.ArgumentStart..];
+                var parameter = NamedVisibleIndex(resolved, current, language) ?? frame.Parameter;
+                return new CallInsight(resolved.Overloads, parameter, resolved.ImplicitReceiver,
+                    ParameterNames.KeywordEqualsIndex(current) >= 0, nested, UsedNames(argumentList, language.Comparison));
             }
 
             if (callee[^1].Name.Length > 0)
             {
                 return null;
             }
+
+            nested = true;
         }
+
         return null;
     }
 
@@ -115,57 +121,33 @@ internal static class CallScanner
                 continue;
             }
 
-            for (var i = 0; i < overload.Parameters.Length; i++)
+            var visible = 0;
+            foreach (var parameter in overload.Parameters)
             {
-                var parameterName = language.ParameterName(overload.Parameters[i]);
-                if (parameterName == null || !parameterName.Equals(name, language.Comparison))
+                if (ParameterNames.IsSeparator(parameter))
                 {
                     continue;
                 }
 
-                var visible = i - skip;
-                return visible >= 0 ? visible : null;
+                var parameterName = language.ParameterName(parameter);
+                if (parameterName != null && parameterName.Equals(name, language.Comparison))
+                {
+                    var mapped = visible - skip;
+                    return mapped >= 0 ? mapped : null;
+                }
+
+                visible++;
             }
         }
 
         return null;
     }
 
-    private readonly record struct CallFrame(char Delimiter, int Offset, int Parameter, int ArgumentStart);
-}
-
-/// <summary>
-/// Reads named-argument position inside the innermost unclosed call.
-/// </summary>
-internal static class CallArguments
-{
-    /// <summary>
-    /// Gets whether the caret sits in a <c>name=value</c> value.
-    /// </summary>
-    public static bool InValue(string prefix)
-    {
-        if (!TryInside(prefix, out var inside))
-        {
-            return false;
-        }
-
-        var current = LastArgument(inside);
-        return ParameterNames.KeywordEqualsIndex(current) >= 0;
-    }
-
-    /// <summary>
-    /// Gets keyword argument names already present in the innermost call.
-    /// </summary>
-    public static HashSet<string> UsedNames(string prefix, StringComparison comparison)
+    private static HashSet<string> UsedNames(string inside, StringComparison comparison)
     {
         var used = new HashSet<string>(comparison == StringComparison.OrdinalIgnoreCase
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal);
-        if (!TryInside(prefix, out var inside))
-        {
-            return used;
-        }
-
         foreach (var part in ParameterNames.Split(inside))
         {
             var eq = ParameterNames.KeywordEqualsIndex(part);
@@ -184,83 +166,5 @@ internal static class CallArguments
         return used;
     }
 
-    private static bool TryInside(string prefix, out string inside)
-    {
-        inside = "";
-        var stack = new Stack<int>();
-        var other = 0;
-        for (var i = 0; i < prefix.Length; i++)
-        {
-            var c = prefix[i];
-            if (c is '[' or '{')
-            {
-                other++;
-            }
-            else if (c is ']' or '}' && other > 0)
-            {
-                other--;
-            }
-            else if (c == '(')
-            {
-                stack.Push(i);
-            }
-            else if (c == ')' && stack.Count > 0)
-            {
-                stack.Pop();
-            }
-        }
-
-        if (stack.Count == 0)
-        {
-            return false;
-        }
-
-        inside = prefix[(stack.Peek() + 1)..];
-        return true;
-    }
-
-    private static string LastArgument(string inside)
-    {
-        var start = 0;
-        var depth = 0;
-        var quote = '\0';
-        for (var i = 0; i < inside.Length; i++)
-        {
-            var c = inside[i];
-            if (quote != '\0')
-            {
-                if (c == '\\' && i + 1 < inside.Length)
-                {
-                    i++;
-                    continue;
-                }
-
-                if (c == quote)
-                {
-                    quote = '\0';
-                }
-
-                continue;
-            }
-
-            if (c is '"' or '\'')
-            {
-                quote = c;
-            }
-            else if (c is '(' or '[' or '{')
-            {
-                depth++;
-            }
-            else if (c is ')' or ']' or '}' && depth > 0)
-            {
-                depth--;
-            }
-            else if (c == ',' && depth == 0)
-            {
-                start = i + 1;
-            }
-        }
-
-        return inside[start..].Trim();
-    }
+    private readonly record struct CallFrame(char Delimiter, int Offset, int Parameter, int ArgumentStart);
 }

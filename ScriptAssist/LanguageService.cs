@@ -12,6 +12,12 @@ public sealed class LanguageService : ILanguageService
     private string? _cachedPath;
     private IReadOnlyList<Symbol>? _cachedCatalog;
     private DocumentSnapshot? _cachedSnapshot;
+    private int _generation;
+
+    /// <summary>
+    /// Optional enablement gate. When it returns false, <see cref="GetAsync"/> skips catalog enumeration.
+    /// </summary>
+    internal Func<bool>? AllowRequests { get; set; }
 
     /// <summary>
     /// Creates a service for <paramref name="language"/> using <paramref name="catalog"/>.
@@ -26,6 +32,11 @@ public sealed class LanguageService : ILanguageService
     public async Task<Reply> GetAsync(string text, int caret, CancellationToken cancellationToken,
         string? documentPath = null)
     {
+        if (AllowRequests?.Invoke() == false)
+        {
+            return new([], null);
+        }
+
         var native = await _catalog.GetAsync(cancellationToken).ConfigureAwait(false);
         return await Task.Run(() => Analyze(text, caret, native, cancellationToken, documentPath), cancellationToken)
             .ConfigureAwait(false);
@@ -57,9 +68,8 @@ public sealed class LanguageService : ILanguageService
         var items = CallScanner.InnermostUnclosed(prefix.Code, token) == '[' && path.Segments.Count == 0
             ? new List<CompletionItem>()
             : Complete(path, receiver, snapshot, bindings, token);
-        AddParameterNames(items, path, insight, prefix.Code);
-        var hoverPath = ExpressionReader.Read(snapshot.Masked.Code, caret);
-        var hover = _language.Hover(snapshot.Masked.Code, hoverPath, bindings, snapshot.Catalog);
+        AddParameterNames(items, path, insight);
+        var hover = _language.Hover(snapshot.Masked.Code, path, bindings, snapshot.Catalog);
         var comparison = _language.Comparison;
         var comparer = comparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         return new(items.DistinctBy(x => x.InsertionText, comparer).OrderByDescending(x => x.Priority)
@@ -98,6 +108,7 @@ public sealed class LanguageService : ILanguageService
     {
         lock (_cacheGate)
         {
+            _generation++;
             _cachedText = null;
             _cachedPath = null;
             _cachedCatalog = null;
@@ -105,14 +116,16 @@ public sealed class LanguageService : ILanguageService
         }
     }
 
-    private void AddParameterNames(List<CompletionItem> items, CaretPath path, CallInsight? insight, string prefix)
+    private void AddParameterNames(List<CompletionItem> items, CaretPath path, CallInsight? insight)
     {
-        if (insight == null || path.Segments.Count > 0 || CallArguments.InValue(prefix))
+        if (insight == null || path.Segments.Count > 0 || insight.InArgumentValue || insight.InNestedDelimiter)
         {
             return;
         }
 
-        var used = CallArguments.UsedNames(prefix, _language.Comparison);
+        var used = insight.UsedArgumentNames ?? new HashSet<string>(_language.Comparison == StringComparison.OrdinalIgnoreCase
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal);
         var seen = new HashSet<string>(_language.Comparison == StringComparison.OrdinalIgnoreCase
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal);
@@ -142,6 +155,7 @@ public sealed class LanguageService : ILanguageService
     private DocumentSnapshot Snapshot(string text, IReadOnlyList<Symbol> native, CancellationToken token,
         string? documentPath)
     {
+        int generation;
         lock (_cacheGate)
         {
             if (_cachedSnapshot != null && _cachedText == text && _cachedPath == documentPath &&
@@ -149,6 +163,8 @@ public sealed class LanguageService : ILanguageService
             {
                 return _cachedSnapshot;
             }
+
+            generation = _generation;
         }
 
         var masked = BufferLexer.Mask(text, _language.Lexer, token: token);
@@ -176,6 +192,11 @@ public sealed class LanguageService : ILanguageService
         var snapshot = new DocumentSnapshot(masked, bindings, catalog);
         lock (_cacheGate)
         {
+            if (_generation != generation)
+            {
+                return snapshot;
+            }
+
             _cachedText = text;
             _cachedPath = documentPath;
             _cachedCatalog = native;

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 using HanumanInstitute.ScriptAssist.AviSynth;
 using HanumanInstitute.ScriptAssist.VapourSynth;
 using Xunit;
@@ -121,12 +122,12 @@ public class ReviewRegressionTests
             return null;
         };
         var service = VsService(read);
-        var a = "import a\na.";
+        var a = "import a\nimport b\na.";
         var fromA = service.Analyze(a, a.Length, Vs);
         Assert.Contains(fromA.Items, x => x.InsertionText == "OnlyA");
         Assert.DoesNotContain(fromA.Items, x => x.InsertionText == "OnlyB");
 
-        var b = "import b\nb.";
+        var b = "import a\nimport b\nb.";
         var fromB = service.Analyze(b, b.Length, Vs);
         Assert.Contains(fromB.Items, x => x.InsertionText == "OnlyB");
         Assert.DoesNotContain(fromB.Items, x => x.InsertionText == "OnlyA");
@@ -279,5 +280,212 @@ public class ReviewRegressionTests
         var text = "name = \"hello\nclip = core.std.BlankClip()\nclip.";
         var reply = VsService().Analyze(text, text.Length, Vs);
         Assert.Contains(reply.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void MultilineCallInsideFunctionKeepsScope()
+    {
+        var text = """
+            def f(clip):
+                result = core.std.BlankClip(
+            width=640
+                )
+                clip.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Crop");
+    }
+
+    [Fact]
+    public void ScopedImportAndNestedDefInferAssignment()
+    {
+        var helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+
+        var imported = """
+            def f(clip):
+                from helper import Filter
+                result = Filter(clip)
+                result.
+            """;
+        var fromImport = service.Analyze(imported, imported.Length, Vs);
+        Assert.Contains(fromImport.Items, x => x.InsertionText == "std");
+
+        var nested = """
+            def outer(clip):
+                def inner():
+                    result = clip
+                    result.
+            """;
+        var inner = VsService().Analyze(nested, nested.Length, Vs);
+        Assert.Contains(inner.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void ScopedCoreAliasDoesNotLeak()
+    {
+        var text = """
+            def f():
+                from vapoursynth import core as local
+                local.std.BlankClip()
+            local.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+
+        var imported = """
+            def f():
+                import vapoursynth as local
+            local.
+            """;
+        var module = VsService().Analyze(imported, imported.Length, Vs);
+        Assert.DoesNotContain(module.Items, x => x.InsertionText == "core");
+    }
+
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public void PythonContinuationsKeepTypes(string newline)
+    {
+        var assigned = "clip = \\" + newline + "core.std.BlankClip()" + newline + "clip.";
+        var reply = VsService().Analyze(assigned, assigned.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+
+        var dotted = "clip = core.std.\\" + newline + "BlankClip()" + newline + "clip.";
+        var dottedReply = VsService().Analyze(dotted, dotted.Length, Vs);
+        Assert.Contains(dottedReply.Items, x => x.InsertionText == "std");
+
+        var helper = "def Filter(clip):\n    return clip\n";
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+        var imported = "from helper import \\" + newline + "Filter" + newline + "Fil";
+        var names = service.Analyze(imported, imported.Length, Vs);
+        Assert.Contains(names.Items, x => x.InsertionText == "Filter");
+    }
+
+    [Fact]
+    public async Task InvalidateDoesNotPublishStaleInFlightSnapshot()
+    {
+        var started = new ManualResetEventSlim(false);
+        var proceed = new ManualResetEventSlim(false);
+        var current = "def Old():\n    return 1\n";
+        IncludeReader read = (specifier, _) =>
+        {
+            if (specifier != "helper")
+            {
+                return null;
+            }
+
+            var file = new IncludeFile("/plugins/helper.py", current);
+            started.Set();
+            proceed.Wait();
+            return file;
+        };
+        var service = new LanguageService(new VapourSynthLanguage(read), new CatalogCache(() => []));
+        var text = "import helper as h\nh.";
+        var native = Array.Empty<Symbol>();
+        var first = Task.Run(() => service.Analyze(text, text.Length, native));
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+        current = "def New():\n    return 1\n";
+        service.Invalidate();
+        proceed.Set();
+        await first;
+        var next = service.Analyze(text, text.Length, native);
+        Assert.Contains(next.Items, x => x.InsertionText == "New");
+        Assert.DoesNotContain(next.Items, x => x.InsertionText == "Old");
+    }
+
+    [Fact]
+    public void ThreeComponentImportKeepsIntermediateNamespace()
+    {
+        var helper = "def Filter(clip):\n    return clip\n";
+        var service = VsService((specifier, _) => specifier == "pkg.sub.helper"
+            ? new IncludeFile("/plugins/pkg/sub/helper.py", helper)
+            : null);
+
+        var mid = "import pkg.sub.helper\npkg.sub.";
+        var nested = service.Analyze(mid, mid.Length, Vs);
+        Assert.Contains(nested.Items, x => x.InsertionText == "helper");
+        Assert.DoesNotContain(nested.Items, x => x.InsertionText == "Filter");
+
+        var leaf = "import pkg.sub.helper\npkg.sub.helper.";
+        var members = service.Analyze(leaf, leaf.Length, Vs);
+        Assert.Contains(members.Items, x => x.InsertionText == "Filter");
+    }
+
+    [Fact]
+    public void ArgumentCompletionUsesResolvedCallFrame()
+    {
+        var list = "core.std.Crop([";
+        var inList = VsService().Analyze(list, list.Length, Vs);
+        Assert.DoesNotContain(inList.Items, x => x.InsertionText == "clip=");
+        Assert.DoesNotContain(inList.Items, x => x.InsertionText == "left=");
+
+        var grouping = "core.std.Crop(left=(";
+        var inValue = VsService().Analyze(grouping, grouping.Length, Vs);
+        Assert.DoesNotContain(inValue.Items, x => x.InsertionText == "clip=");
+        Assert.DoesNotContain(inValue.Items, x => x.InsertionText == "left=");
+        Assert.DoesNotContain(inValue.Items, x => x.InsertionText == "right=");
+
+        var call = """
+            def f(clip, *, radius=2):
+                return clip
+            f(x, 
+            """;
+        var insight = VsService().Analyze(call, call.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("Parameter 2: radius=2", OverloadProvider.ActiveParameterText(insight));
+    }
+
+    [Fact]
+    public void AssignmentShadowsFunctionSymbol()
+    {
+        var text = """
+            def Filter(clip) -> vs.VideoNode:
+                return clip
+            Filter = 2
+            Filter(
+            """;
+        var insight = VsService().Analyze(text, text.Length, Vs).Insight;
+        Assert.True(insight == null || insight.Overloads.All(x => x.Name != "Filter"));
+
+        var helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+        var imported = "from helper import Filter\nFilter = 2\nFilter(";
+        var rebound = service.Analyze(imported, imported.Length, Vs).Insight;
+        Assert.True(rebound == null || rebound.Overloads.All(x => x.Name != "Filter"));
+    }
+
+    [Fact]
+    public void StringWithOperatorKeepsStringType()
+    {
+        const string text = "name = \"a+b\"";
+        var hover = VsService().Analyze(text, text.IndexOf("name", StringComparison.Ordinal) + 1, Vs).Hover;
+        Assert.NotNull(hover);
+        Assert.Equal("str", hover.Text);
+    }
+
+    [Fact]
+    public void NativeReturnIdentifiersStayCompatible()
+    {
+        var text = """
+            def as_str() -> str:
+                return "x"
+            def as_bool() -> bool:
+                return True
+            a = as_str()
+            b = as_bool()
+            """;
+        var strHover = VsService().Analyze(text, text.IndexOf("a =", StringComparison.Ordinal) + 1, Vs).Hover;
+        Assert.Equal("str", strHover?.Text);
+        var boolHover = VsService().Analyze(text, text.IndexOf("b =", StringComparison.Ordinal) + 1, Vs).Hover;
+        Assert.Equal("bool", boolHover?.Text);
     }
 }

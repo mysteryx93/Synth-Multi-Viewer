@@ -41,15 +41,16 @@ internal static class StatementScanner
                 Add(spans, code, start, i);
                 start = i + 1;
             }
-            else if (depth == 0 && (c == '\n' || c == '\r') && !Continues(code, i))
+            else if (depth == 0 && (c == '\n' || c == '\r'))
             {
-                Add(spans, code, start, i);
-                if (c == '\r' && i + 1 < code.Length && code[i + 1] == '\n')
+                var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
+                if (!Continues(code, i))
                 {
-                    i++;
+                    Add(spans, code, start, i);
+                    start = last + 1;
                 }
 
-                start = i + 1;
+                i = last;
             }
 
             i++;

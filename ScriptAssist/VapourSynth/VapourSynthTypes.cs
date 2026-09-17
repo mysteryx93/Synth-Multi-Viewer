@@ -106,12 +106,13 @@ public static class VapourSynthTypes
             .Replace(":empty", "", StringComparison.Ordinal);
         return type switch
         {
-            "vnode" => VideoNode,
-            "anode" => AudioNode,
+            "vnode" or "VideoNode" => VideoNode,
+            "anode" or "AudioNode" => AudioNode,
             "int" => Int,
             "float" => Float,
-            "data" => String,
-            "vframe" => VideoFrame,
+            "bool" => Bool,
+            "data" or "string" or "str" => String,
+            "vframe" or "VideoFrame" => VideoFrame,
             "func" => new("func"),
             _ => TypeRef.Unknown
         };

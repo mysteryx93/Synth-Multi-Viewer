@@ -50,4 +50,10 @@ public sealed class LexerOptions
     /// before comments and strings are masked.
     /// </summary>
     public bool BackslashLineContinuations { get; init; }
+
+    /// <summary>
+    /// Gets whether Python <c>\</c> line continuations are joined into spaces of the same length,
+    /// skipping strings and comments.
+    /// </summary>
+    public bool PythonLineContinuations { get; init; }
 }

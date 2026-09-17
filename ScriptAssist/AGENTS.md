@@ -66,7 +66,7 @@ The snapshot key is **text + document path + catalog reference**, not editor ver
 - Offer members only for a known receiver. `clip = core.std.BlankClip()` enables node properties and bound plugin namespaces; unknown receivers stay silent.
 - Dotted assignments must not create locals. Preserve node types through supported `+`, `*`, and slice expressions.
 - `FromReturn` ignores empty semicolon parts; two or more return keys stay unknown. Use realistic `clip:vnode;` return strings in tests. Node arrays currently collapse to the node type.
-- Function scopes include indented methods/nested defs; imported-module exports use column-zero defs only. Blank/comment/masked-string lines must not end a body. Outer scopes overlay before inner scopes.
+- Function scopes follow logical statements and the statement’s initial indentation, including indented methods/nested defs; imported-module exports use column-zero defs only. Blank/comment/masked-string lines must not end a body. Outer scopes overlay before inner scopes. Name lookup, aliases, and function symbols share that overlay; a later assignment shadows a function of the same name.
 - Infer parameters from supported annotations/defaults, then the single naming convention `clip` → VideoNode. Do not guess `Input`, `src`, or `self`. Generic annotations currently have parsing gaps (below).
 - Imported `.py` definitions enter the importing document through `import`/`from`; do not expose every discovered file at root. Failed imports must not overwrite names with Unknown. A `script:id` member is a module, not a function call.
 - Declare `Formats`/`Families` before `ModuleMembers` in `VapourSynthHostTypes` to avoid static initialization failures. Fraction members (`clip.fps.`) remain unsupported.
@@ -74,7 +74,7 @@ The snapshot key is **text + document path + catalog reference**, not editor ver
 ## Catalogs, includes, and editor lifecycle
 
 - Catalog callbacks run in the background. `SetKey` only remembers configuration; `Refresh` starts enumeration; cancelling `GetAsync` cancels the wait, not native work. Enumeration failures become an empty catalog. The cache retains the current task until configuration changes or refresh is forced.
-- `IsEnabled` is a factory bool; the editor options callback follows it. Disabled `Configure` stores the key, disabled `Refresh` does nothing, and `Create` returns null. Duplicate profile ids throw.
+- `IsEnabled` is a factory bool; the editor options callback follows it. Disabled `Configure` stores the key, disabled `Refresh` does nothing, and `Create` returns null. Retained services skip `GetAsync` catalog work while the factory is disabled. Duplicate profile ids throw.
 - `IncludeReader(specifier, fromPath)` returns full resolved path + text, or null. The host owns I/O; `ScriptFiles` builds candidates and invokes its supplied reader. Missing/unreadable candidates must return null so lookup can continue.
 - Use absolute include paths directly; otherwise search beside the importing file, then host roots. Python leading dots are relative to that file's directory, never a rooted path produced by replacing dots. Track resolved paths to prevent cycles.
 - Pass `documentPath` through `GetAsync`/`Bind`. Unsaved buffers lack a sibling directory but can use configured roots. Python site-packages belongs in script search roots, never native autoload directories.
@@ -85,9 +85,9 @@ Reference host: `ScriptAssistService` supplies `ScriptCatalogs` and `ScriptInclu
 ## Analysis notes
 
 - VS bindings scan logical statements (brackets, `;`, `\` continuations) so assignments keep original RHS spans. Column-0 `def` symbols, return annotations, and annotation-only names use the existing type table. Imports follow source order and function scope; module identity is the resolved path.
-- Parameter names are language-specific (`OfPython` / `OfNative` / `OfAviSynth`). Bound node completion filters video vs audio first arguments. `UnionByName` keeps native overload groups.
-- `ILanguageService.Invalidate` drops analysis snapshots independently of catalog identity. Factory `Refresh` invalidates every profile. `Create` returns null while disabled.
-- Expression reading walks consecutive `()` / `[]` suffixes. AviSynth `BackslashLineContinuations` joins before mask so completion and binding share prepared source. Unterminated single-line strings recover at the next newline.
+- Parameter names are language-specific (`OfPython` / `OfAviSynth`). Bound node completion filters video vs audio first arguments. `UnionByName` keeps native overload groups. Argument completion reuses the resolved call frame and skips `*`/`/` separators.
+- `ILanguageService.Invalidate` increments a generation and drops snapshots independently of catalog identity; in-flight analysis must not publish a stale snapshot. Factory `Refresh` invalidates every profile. `Create` returns null while disabled.
+- Expression reading walks consecutive `()` / `[]` suffixes. AviSynth `BackslashLineContinuations` joins before mask; Python joins `\` continuations outside strings and comments. Unterminated single-line strings recover at the next newline. CRLF is one newline.
 
 ## Validation
 

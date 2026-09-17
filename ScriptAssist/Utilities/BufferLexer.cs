@@ -18,7 +18,11 @@ internal static partial class BufferLexer
     /// </summary>
     public static LexedBuffer Mask(string text, LexerOptions options, bool maskStrings = true, CancellationToken token = default)
     {
-        if (options.BackslashLineContinuations)
+        if (options.PythonLineContinuations)
+        {
+            text = JoinPythonContinuations(text, options);
+        }
+        else if (options.BackslashLineContinuations)
         {
             text = JoinBackslashLines(text);
         }
@@ -153,6 +157,114 @@ internal static partial class BufferLexer
     /// </summary>
     public static string JoinBackslashLines(string text) =>
         BackslashLine().Replace(text, static match => new string(' ', match.Length));
+
+    /// <summary>
+    /// Turns Python <c>\</c> line continuations outside strings and comments into spaces of the same length.
+    /// </summary>
+    public static string JoinPythonContinuations(string text, LexerOptions options)
+    {
+        var code = text.ToCharArray();
+        var quote = '\0';
+        var triple = false;
+        var line = false;
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            var next = i + 1 < text.Length ? text[i + 1] : '\0';
+            if (line)
+            {
+                if (c == '\n')
+                {
+                    line = false;
+                }
+
+                continue;
+            }
+
+            if (quote != '\0')
+            {
+                if (!triple && c is '\n' or '\r')
+                {
+                    quote = '\0';
+                    continue;
+                }
+
+                if (options.StringEscapes && c == '\\' && next != '\0')
+                {
+                    i++;
+                    continue;
+                }
+
+                if (c != quote)
+                {
+                    continue;
+                }
+
+                if (triple)
+                {
+                    if (next == quote && i + 2 < text.Length && text[i + 2] == quote)
+                    {
+                        i += 2;
+                        quote = '\0';
+                    }
+                }
+                else if (options.DoubledQuotes && next == quote)
+                {
+                    i++;
+                }
+                else
+                {
+                    quote = '\0';
+                }
+
+                continue;
+            }
+
+            if (options.HashLineComments && c == '#')
+            {
+                line = true;
+                continue;
+            }
+
+            if (c == '"' || (options.SingleQuotes && c == '\''))
+            {
+                quote = c;
+                triple = options.TripleQuotes && next == c && i + 2 < text.Length && text[i + 2] == c;
+                if (triple)
+                {
+                    i += 2;
+                }
+
+                continue;
+            }
+
+            if (c != '\\')
+            {
+                continue;
+            }
+
+            var j = i + 1;
+            while (j < text.Length && text[j] is ' ' or '\t')
+            {
+                j++;
+            }
+
+            if (j >= text.Length || text[j] is not ('\r' or '\n'))
+            {
+                continue;
+            }
+
+            var last = text[j] == '\r' && j + 1 < text.Length && text[j + 1] == '\n' ? j + 1 : j;
+            for (var k = i; k <= last; k++)
+            {
+                code[k] = ' ';
+            }
+
+            i = last;
+        }
+
+        return new string(code);
+    }
 
     [GeneratedRegex(@"\\[ \t]*\r?\n[ \t]*\\?|\r?\n[ \t]*\\")]
     private static partial Regex BackslashLine();
