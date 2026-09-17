@@ -150,6 +150,12 @@ public sealed class EditorAssist : IDisposable
                 return;
             }
 
+            if (Disabled())
+            {
+                Dismiss();
+                return;
+            }
+
             var service = _options.ResolveService();
             if (service == null)
             {
@@ -161,17 +167,25 @@ public sealed class EditorAssist : IDisposable
             var caret = _editor.CaretOffset;
             var context = _editor.DataContext;
             var text = _editor.Text;
+            var path = _options.ResolveDocumentPath?.Invoke();
             if (!_editor.IsKeyboardFocusWithin || !_editor.IsEffectivelyVisible)
             {
                 return;
             }
 
-            var reply = await service.GetAsync(text, caret, request.Token, _options.ResolveDocumentPath?.Invoke());
+            var reply = await service.GetAsync(text, caret, request.Token, path);
             if (generation != _generation || request.IsCancellationRequested ||
                 !ReferenceEquals(document, _editor.Document) || !ReferenceEquals(version, _editor.Document.Version) ||
                 caret != _editor.CaretOffset || !ReferenceEquals(context, _editor.DataContext) ||
-                !_editor.IsKeyboardFocusWithin || !_editor.IsEffectivelyVisible)
+                !_editor.IsKeyboardFocusWithin || !_editor.IsEffectivelyVisible ||
+                CallbacksChanged(service, path))
             {
+                return;
+            }
+
+            if (Disabled())
+            {
+                Dismiss();
                 return;
             }
 
@@ -297,20 +311,29 @@ public sealed class EditorAssist : IDisposable
 
     private async void OnPointerHover(object? sender, PointerEventArgs e)
     {
-        if (_options.IsEnabled?.Invoke() == false || _completion.Window != null ||
-            !_editor.IsEffectivelyVisible)
-        {
-            return;
-        }
-
-        var service = _options.ResolveService();
-        if (service == null)
+        if (Disabled() || _completion.Window != null || !_editor.IsEffectivelyVisible)
         {
             return;
         }
 
         var offset = HoverPresenter.OffsetFromPointer(_editor, e);
         if (offset < 0)
+        {
+            return;
+        }
+
+        await RequestHoverAsync(offset, e);
+    }
+
+    internal async Task RequestHoverAsync(int offset, PointerEventArgs? pointer = null)
+    {
+        if (Disabled() || _completion.Window != null || !_editor.IsEffectivelyVisible)
+        {
+            return;
+        }
+
+        var service = _options.ResolveService();
+        if (service == null)
         {
             return;
         }
@@ -324,13 +347,21 @@ public sealed class EditorAssist : IDisposable
         var document = _editor.Document;
         var version = document.Version;
         var text = _editor.Text;
+        var path = _options.ResolveDocumentPath?.Invoke();
         try
         {
-            var reply = await service.GetAsync(text, offset, request.Token, _options.ResolveDocumentPath?.Invoke());
+            var reply = await service.GetAsync(text, offset, request.Token, path);
             if (generation != _hoverGeneration || request.IsCancellationRequested ||
                 !ReferenceEquals(document, _editor.Document) || !ReferenceEquals(version, _editor.Document.Version) ||
-                offset != HoverPresenter.OffsetFromPointer(_editor, e))
+                (pointer != null && offset != HoverPresenter.OffsetFromPointer(_editor, pointer)) ||
+                CallbacksChanged(service, path))
             {
+                return;
+            }
+
+            if (Disabled())
+            {
+                _hover.Hide();
                 return;
             }
 
@@ -375,4 +406,10 @@ public sealed class EditorAssist : IDisposable
         _request?.Cancel();
         _request = null;
     }
+
+    private bool Disabled() => _options.IsEnabled?.Invoke() == false;
+
+    private bool CallbacksChanged(ILanguageService? service, string? path) =>
+        !ReferenceEquals(service, _options.ResolveService()) ||
+        !string.Equals(path, _options.ResolveDocumentPath?.Invoke(), StringComparison.Ordinal);
 }

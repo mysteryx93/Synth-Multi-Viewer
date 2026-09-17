@@ -213,7 +213,7 @@ public static class AviSynthFunctions
             return "";
         }
 
-        return parts[0].TrimEnd('*', '+');
+        return parts[0];
     }
 
     private static int NamedCount(Symbol symbol)

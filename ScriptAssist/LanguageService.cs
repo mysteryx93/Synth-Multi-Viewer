@@ -51,8 +51,9 @@ public sealed class LanguageService : ILanguageService
         if (caret < 0 || caret > text.Length) { return new([], null); }
 
         var snapshot = Snapshot(text, native, token, documentPath);
+        var rawPrefix = caret == text.Length ? text : text[..caret];
         var prefix = caret == text.Length ? snapshot.Masked
-            : BufferLexer.Mask(text[..caret], _language.Lexer, token: token);
+            : BufferLexer.Mask(rawPrefix, _language.Lexer, token: token);
         if (prefix.InLiteral)
         {
             return new([], null);
@@ -64,12 +65,12 @@ public sealed class LanguageService : ILanguageService
         var receiver = _language.TypeOf(path.Segments, bindings, snapshot.Catalog);
         var scan = bindings.InFunctionHeader(caret)
             ? null
-            : CallScanner.Find(prefix.Code, _language, bindings, snapshot.Catalog, token);
+            : CallScanner.Find(prefix.Code, _language, bindings, snapshot.Catalog, token, rawPrefix);
         var insight = scan?.Insight;
         var items = CallScanner.InnermostUnclosed(prefix.Code, token) == '[' && path.Segments.Count == 0
             ? new List<CompletionItem>()
             : Complete(path, receiver, snapshot, bindings, token);
-        AddParameterNames(items, path, scan);
+        AddParameterNames(items, path, scan, snapshot.Masked.Code);
         var hover = _language.Hover(snapshot.Masked.Code, path, bindings, snapshot.Catalog);
         var comparison = _language.Comparison;
         var comparer = comparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -104,6 +105,17 @@ public sealed class LanguageService : ILanguageService
         return last < 0 ? name : name[(last + 1)..];
     }
 
+    private static string ParameterInsertion(string name, string code, int end)
+    {
+        var i = end;
+        while (i < code.Length && char.IsWhiteSpace(code[i]))
+        {
+            i++;
+        }
+
+        return i < code.Length && code[i] == '=' ? name : name + "=";
+    }
+
     /// <inheritdoc />
     public void Invalidate()
     {
@@ -117,7 +129,7 @@ public sealed class LanguageService : ILanguageService
         }
     }
 
-    private void AddParameterNames(List<CompletionItem> items, CaretPath path, CallScan? scan)
+    private void AddParameterNames(List<CompletionItem> items, CaretPath path, CallScan? scan, string code)
     {
         if (scan == null || path.Segments.Count > 0 || scan.InNestedDelimiter ||
             !ParameterNames.AtArgumentStart(scan.CurrentArgument))
@@ -180,7 +192,8 @@ public sealed class LanguageService : ILanguageService
                     continue;
                 }
 
-                items.Add(new(name + "=", path.Start, path.End - path.Start, SymbolKind.Keyword, parameter, 2));
+                items.Add(new(ParameterInsertion(name, code, path.End), path.Start, path.End - path.Start,
+                    SymbolKind.Keyword, parameter, 2));
             }
         }
     }

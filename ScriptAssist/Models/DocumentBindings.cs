@@ -17,16 +17,6 @@ public sealed class DocumentBindings
     public IReadOnlyList<Symbol> BufferSymbols { get; init; } = [];
 
     /// <summary>
-    /// Gets names that alias the script core.
-    /// </summary>
-    public IReadOnlySet<string> CoreAliases { get; init; } = new HashSet<string>(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Gets names that alias the host module.
-    /// </summary>
-    public IReadOnlySet<string> ModuleAliases { get; init; } = new HashSet<string>(StringComparer.Ordinal);
-
-    /// <summary>
     /// Gets parsed functions of imported script modules, keyed by module id.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<Symbol>> ScriptModules { get; init; } =
@@ -84,8 +74,6 @@ public sealed class DocumentBindings
         {
             Names = merged,
             BufferSymbols = [..functions.Values],
-            CoreAliases = CoreAliases,
-            ModuleAliases = ModuleAliases,
             ScriptModules = ScriptModules,
             Scopes = Scopes
         };

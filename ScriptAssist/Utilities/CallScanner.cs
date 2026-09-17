@@ -9,7 +9,7 @@ internal static class CallScanner
     /// Walks <paramref name="code"/> and returns insight when the language resolves the callee.
     /// </summary>
     public static CallScan? Find(string code, ILanguage language, DocumentBindings bindings,
-        IReadOnlyList<Symbol> catalog, CancellationToken token)
+        IReadOnlyList<Symbol> catalog, CancellationToken token, string? source = null)
     {
         var comparer = language.Comparison == StringComparison.OrdinalIgnoreCase
             ? StringComparer.OrdinalIgnoreCase
@@ -60,10 +60,9 @@ internal static class CallScanner
             var resolved = language.ResolveCall(callee, bindings, catalog);
             if (resolved is { Overloads.Count: > 0 })
             {
-                var argumentList = code[(frame.Offset + 1)..];
-                var current = code[frame.ArgumentStart..];
+                var current = (source ?? code)[frame.ArgumentStart..];
                 var parameter = NamedVisibleIndex(resolved, current, language) ?? frame.Parameter;
-                return new CallScan(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested, argumentList,
+                return new CallScan(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested,
                     current, frame.UsedNames, frame.Positional);
             }
 
@@ -206,7 +205,6 @@ internal sealed record CallScan(
     int ActiveParameter,
     bool ImplicitClip,
     bool InNestedDelimiter,
-    string ArgumentList,
     string CurrentArgument,
     IReadOnlySet<string> UsedNames,
     int PositionalConsumed)

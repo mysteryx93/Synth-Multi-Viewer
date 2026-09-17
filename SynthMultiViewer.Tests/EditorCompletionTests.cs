@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using HanumanInstitute.ScriptAssist;
 using HanumanInstitute.ScriptAssist.AvaloniaEdit;
@@ -144,6 +145,93 @@ public class EditorCompletionTests
         editor.DismissCompletion();
         return true;
     }, TestContext.Current.CancellationToken);
+
+    [Theory]
+    [InlineData("service")]
+    [InlineData("path")]
+    [InlineData("enabled")]
+    public Task StaleReplyIsDiscardedWhenAssistCallbacksChange(string change) =>
+        UiSession.Dispatch(async () =>
+        {
+            var delayed = new DelayedService();
+            ILanguageService? current = delayed;
+            string? path = "/tmp/a.vpy";
+            var enabled = true;
+            var editor = new TextEditor { Text = "co" };
+            var assist = new EditorAssist(editor, new EditorAssistOptions
+            {
+                ResolveService = () => current,
+                IsEnabled = () => enabled,
+                ResolveDocumentPath = () => path
+            });
+            assist.Attach();
+            using var shown = TestSupport.Show(new Window { Content = editor, Width = 400, Height = 200 });
+            editor.TextArea.Focus();
+            editor.CaretOffset = 2;
+            var request = assist.RequestAsync(delay: TimeSpan.Zero);
+            await delayed.Started.Task;
+            switch (change)
+            {
+                case "service":
+                    current = Service();
+                    break;
+                case "path":
+                    path = "/tmp/b.vpy";
+                    break;
+                case "enabled":
+                    enabled = false;
+                    break;
+            }
+
+            delayed.Reply.SetResult(new([new("core", 0, 2, SymbolKind.Keyword, "core")], null));
+            await request;
+            Assert.Null(assist.DisplayedReply);
+            assist.Dispose();
+            return true;
+        }, TestContext.Current.CancellationToken);
+
+    [Theory]
+    [InlineData("service")]
+    [InlineData("path")]
+    [InlineData("enabled")]
+    public Task StaleHoverIsDiscardedWhenAssistCallbacksChange(string change) =>
+        UiSession.Dispatch(async () =>
+        {
+            var delayed = new DelayedService();
+            ILanguageService? current = delayed;
+            string? path = "/tmp/a.vpy";
+            var enabled = true;
+            var editor = new TextEditor { Text = "clip" };
+            var assist = new EditorAssist(editor, new EditorAssistOptions
+            {
+                ResolveService = () => current,
+                IsEnabled = () => enabled,
+                ResolveDocumentPath = () => path
+            });
+            assist.Attach();
+            using var shown = TestSupport.Show(new Window { Content = editor, Width = 400, Height = 200 });
+            editor.TextArea.Focus();
+            var request = assist.RequestHoverAsync(0);
+            await delayed.Started.Task;
+            switch (change)
+            {
+                case "service":
+                    current = Service();
+                    break;
+                case "path":
+                    path = "/tmp/b.vpy";
+                    break;
+                case "enabled":
+                    enabled = false;
+                    break;
+            }
+
+            delayed.Reply.SetResult(new([], null, new HoverInfo("VideoNode", 0, 4)));
+            await request;
+            Assert.Null(ToolTip.GetTip(editor.TextArea.TextView));
+            assist.Dispose();
+            return true;
+        }, TestContext.Current.CancellationToken);
 
     private static HeadlessUnitTestSession UiSession =>
         HeadlessUnitTestSession.GetOrStartForAssembly(typeof(TestApplication).Assembly);

@@ -137,6 +137,16 @@ public class ScriptIncludesTests
     }
 
     [Fact]
+    public void AviSynthUnionKeepsRepeatingNativeWhenParsedDropsModifier()
+    {
+        var native = new[] { new Symbol("Foo", ["clip", "int+"]) };
+        var parsed = new[] { new Symbol("Foo", ["clip c", "int count"]) };
+        var merged = AviSynthFunctions.UnionByName(native, parsed);
+        var foo = Assert.Single(merged, x => x.Name == "Foo");
+        Assert.Equal(["clip", "int+"], foo.Parameters!);
+    }
+
+    [Fact]
     public void AviSynthUnionKeepsIncompatibleSingleNativeSignature()
     {
         var native = new[] { new Symbol("Foo", ["int"]) };

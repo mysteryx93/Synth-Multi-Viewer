@@ -732,6 +732,128 @@ public class ReviewRegressionTests
     }
 
     [Fact]
+    public void FunctionBodyKeepsStatementOrder()
+    {
+        var assignment = """
+            def f():
+                make = 1
+                def make() -> vs.VideoNode:
+                    return clip
+                result = make()
+                result.
+            """;
+        var assigned = VsService().Analyze(assignment, assignment.Length, Vs);
+        Assert.Contains(assigned.Items, x => x.InsertionText == "std");
+
+        var helper = "def make() -> vs.VideoNode:\n    return clip\n";
+        var imported = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+        var earlierImport = """
+            def f():
+                from helper import make
+                def make() -> int:
+                    return 1
+                result = make()
+                result.
+            """;
+        var shadowed = imported.Analyze(earlierImport, earlierImport.Length, Vs);
+        Assert.DoesNotContain(shadowed.Items, x => x.InsertionText == "std");
+
+        var nestedDefault = """
+            def f():
+                base = core.std.BlankClip()
+                def inner(source=base):
+                    source.
+            """;
+        var defaults = VsService().Analyze(nestedDefault, nestedDefault.Length, Vs);
+        Assert.Contains(defaults.Items, x => x.InsertionText == "std");
+        Assert.Contains(defaults.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void ClassBodyDoesNotLeakIntoModuleOrDropMethodLocals()
+    {
+        var leaked = """
+            clip = core.std.BlankClip()
+            class C:
+                clip = 1
+            clip.
+            """;
+        var reply = VsService().Analyze(leaked, leaked.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+
+        var helper = "def Filter():\n    return 1\n";
+        var imported = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+        var classImport = """
+            class C:
+                import helper as h
+            h.
+            """;
+        var members = imported.Analyze(classImport, classImport.Length, Vs);
+        Assert.DoesNotContain(members.Items, x => x.InsertionText == "Filter");
+
+        var nested = """
+            class C:
+                def g(self):
+                    def make(clip) -> vs.VideoNode:
+                        return clip
+                    result = make(clip)
+                    result.
+            """;
+        var inside = VsService().Analyze(nested, nested.Length, Vs);
+        Assert.Contains(inside.Items, x => x.InsertionText == "std");
+        Assert.Contains(inside.Items, x => x.InsertionText == "width");
+        Assert.DoesNotContain(VsService().Analyze(nested + "\nm", (nested + "\nm").Length, Vs).Items,
+            x => x.InsertionText == "make");
+    }
+
+    [Fact]
+    public void PlaceholderPackageDoesNotMergeIntoUnrelatedAlias()
+    {
+        IncludeReader read = (specifier, _) => specifier switch
+        {
+            "pkg.sub" => new IncludeFile("/plugins/pkg/sub/__init__.py", "def SubFn():\n    return 1\n"),
+            "other" => new IncludeFile("/plugins/other.py", "def OtherFn():\n    return 1\n"),
+            _ => null
+        };
+        var text = "import pkg.sub\nimport other as pkg\npkg.";
+        var reply = VsService(read).Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "OtherFn");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "sub");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "SubFn");
+    }
+
+    [Fact]
+    public void ParameterCompletionDoesNotInsertSecondEquals()
+    {
+        var text = """
+            def f(radius=2):
+                return radius
+            f(radius=2)
+            """;
+        var caret = text.LastIndexOf("radius", StringComparison.Ordinal) + 3;
+        var item = Assert.Single(VsService().Analyze(text, caret, Vs).Items,
+            x => x.InsertionText is "radius" or "radius=");
+        Assert.Equal("radius", item.InsertionText);
+    }
+
+    [Fact]
+    public void ParameterCompletionSkipsNamesAfterExistingValue()
+    {
+        var text = """
+            def f(path, radius=2):
+                return path
+            f("input.mkv"
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "path=");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "radius=");
+    }
+
+    [Fact]
     public void LaterDeclaredHelperTypesFunctionBody()
     {
         var text = """

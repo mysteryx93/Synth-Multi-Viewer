@@ -38,13 +38,41 @@ internal static class VapourSynthBinder
 
             if (Keyword(quoted, span.Start, span.End, "def"))
             {
-                BindDefHeader(quoted, span, scopes, buffer, names, scriptModules, index, classes);
                 var self = Innermost(scopes, span.Start);
-                if (self != null && self.Start == span.Start && self.HeaderEnd < span.End)
+                if (self == null || self.Start != span.Start)
                 {
-                    deferred.Add(span);
+                    continue;
                 }
 
+                if (EnclosedByClass(self, classes, scopes))
+                {
+                    BindParameters(self.Parameters, ScopeNames(self),
+                        ForInfer(names, scriptModules, buffer, scopes, span.Start), index);
+                    if (self.HeaderEnd < span.End)
+                    {
+                        deferred.Add(span);
+                    }
+
+                    continue;
+                }
+
+                if (Parent(scopes, self) == null)
+                {
+                    BindDefHeader(quoted, span, scopes, buffer, names, scriptModules, index, classes);
+                    if (self.HeaderEnd < span.End)
+                    {
+                        deferred.Add(span);
+                    }
+
+                    continue;
+                }
+
+                deferred.Add(span);
+                continue;
+            }
+
+            if (DirectlyInClass(span.Start, classes, scopes))
+            {
                 continue;
             }
 
@@ -67,8 +95,20 @@ internal static class VapourSynthBinder
         foreach (var span in deferred)
         {
             token.ThrowIfCancellationRequested();
+            if (DirectlyInClass(span.Start, classes, scopes) && !Keyword(quoted, span.Start, span.End, "def"))
+            {
+                continue;
+            }
+
             if (Keyword(quoted, span.Start, span.End, "def"))
             {
+                var self = Innermost(scopes, span.Start);
+                if (self != null && self.Start == span.Start && Parent(scopes, self) != null &&
+                    !EnclosedByClass(self, classes, scopes))
+                {
+                    BindDefHeader(quoted, span, scopes, buffer, names, scriptModules, index, classes);
+                }
+
                 BindDefBody(quoted, span, scopes, names, scriptModules, buffer, index);
                 continue;
             }
@@ -210,7 +250,7 @@ internal static class VapourSynthBinder
             return;
         }
 
-        var id = AdoptModuleId(alias, loaded.Value.Id, scope, names, scriptModules, buffer);
+        var id = AdoptModuleId(alias, loaded.Value.Id, imported, scope, names, scriptModules, buffer);
         ExportAlias(alias, VapourSynthTypes.Script(id), scope, exports);
     }
 
@@ -242,7 +282,7 @@ internal static class VapourSynthBinder
 
             if (i == 0)
             {
-                parentId = AdoptModuleId(parts[0], id, scope, names, scriptModules, buffer);
+                parentId = AdoptModuleId(parts[0], id, prefix, scope, names, scriptModules, buffer);
                 continue;
             }
 
@@ -276,8 +316,8 @@ internal static class VapourSynthBinder
         return fallback;
     }
 
-    private static string AdoptModuleId(string alias, string id, BindingScope? scope, Dictionary<string, TypeRef> names,
-        Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer)
+    private static string AdoptModuleId(string alias, string id, string specifier, BindingScope? scope,
+        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer)
     {
         var table = scope == null ? names : ScopeNames(scope);
         if (table.TryGetValue(alias, out var existing))
@@ -285,7 +325,8 @@ internal static class VapourSynthBinder
             var oldId = VapourSynthTypes.ScriptOf(existing);
             if (oldId != null && oldId != id)
             {
-                if (IsPlaceholder(oldId) && !IsPlaceholder(id))
+                if (IsPlaceholder(oldId) && !IsPlaceholder(id) &&
+                    PlaceholderPackage(oldId).Equals(RootPackage(specifier), StringComparison.Ordinal))
                 {
                     MergeModules(scriptModules, id, oldId);
                 }
@@ -301,6 +342,19 @@ internal static class VapourSynthBinder
     }
 
     private static bool IsPlaceholder(string id) => id.Contains("::", StringComparison.Ordinal);
+
+    private static string PlaceholderPackage(string id)
+    {
+        var separator = id.LastIndexOf("::", StringComparison.Ordinal);
+        var prefix = separator < 0 ? id : id[(separator + 2)..];
+        return RootPackage(prefix);
+    }
+
+    private static string RootPackage(string specifier)
+    {
+        var dot = specifier.IndexOf('.');
+        return dot < 0 ? specifier : specifier[..dot];
+    }
 
     private static string PreferId(string left, string right)
     {
@@ -553,7 +607,7 @@ internal static class VapourSynthBinder
 
         BindParameters(self.Parameters, ScopeNames(self), ForInfer(names, scriptModules, buffer, scopes, span.Start),
             index);
-        if (InRange(span.Start, classes))
+        if (EnclosedByClass(self, classes, scopes))
         {
             return;
         }
@@ -685,14 +739,35 @@ internal static class VapourSynthBinder
         return headerEnd > close;
     }
 
-    private static bool InRange(int offset, IReadOnlyList<(int Start, int End)> ranges)
+    private static bool DirectlyInClass(int offset, IReadOnlyList<(int Start, int End)> classes,
+        IReadOnlyList<BindingScope> scopes)
     {
-        foreach (var range in ranges)
+        foreach (var range in classes)
         {
-            if (offset > range.Start && offset <= range.End)
+            if (offset <= range.Start || offset > range.End)
             {
-                return true;
+                continue;
             }
+
+            var inner = Innermost(scopes, offset);
+            return inner == null || inner.Start <= range.Start;
+        }
+
+        return false;
+    }
+
+    private static bool EnclosedByClass(BindingScope self, IReadOnlyList<(int Start, int End)> classes,
+        IReadOnlyList<BindingScope> scopes)
+    {
+        var parent = Parent(scopes, self);
+        foreach (var range in classes)
+        {
+            if (self.Start <= range.Start || self.Start > range.End)
+            {
+                continue;
+            }
+
+            return parent == null || range.Start >= parent.Start;
         }
 
         return false;
