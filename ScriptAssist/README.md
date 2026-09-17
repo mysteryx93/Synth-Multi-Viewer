@@ -1,61 +1,61 @@
 # ScriptAssist
 
-Completion, call insight, and hover for **VapourSynth** and **AviSynth** in [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit).
+Completion, call insight, and hover for **VapourSynth** and **AviSynth**, with an [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit) integration and a headless API.
 
-It knows the hosted object model (`vs`, `core`, `VideoNode`, AviSynth `last` and clip-taking filters). It is not a Python language server, not an AviSynth interpreter, and it never evaluates the buffer or loads a native core.
+ScriptAssist analyzes text and supplied catalogs. It requires no Python runtime, never executes scripts, and never loads a native core itself.
 
-Package: `HanumanInstitute.ScriptAssist` (this project, `net10.0`, MIT, not on NuGet). How the library is laid out: [AGENTS.md](AGENTS.md).
+Targets .NET 10. Uses `Avalonia.AvaloniaEdit` and `HanumanInstitute.Validators`. Add a project reference:
 
 ```xml
 <ProjectReference Include="path/to/ScriptAssist/ScriptAssist.csproj" />
 ```
 
-Depends on `Avalonia.AvaloniaEdit` and `HanumanInstitute.Validators`. Import `HanumanInstitute.ScriptAssist` and `HanumanInstitute.ScriptAssist.AvaloniaEdit`. Do not global-using the AviSynth or VapourSynth namespaces.
+## Attach to an editor
 
-## Host it
-
-The factory already owns both languages. This assembly does not reference `ApiVapourSynth` / `ApiAviSynth`, so it never loads a native core. Catalogs come from those API projects (`VsCatalog.Read` / `AvsCatalog.Read`), not from the host app; you map them to `Symbol` and pass the funcs. Disk reads for `Import` / `import` stay outside the library because search paths are yours (`IncludeReader`).
+Supply two catalog callbacks returning `IReadOnlyList<Symbol>` (see [Catalogs](#catalogs)). The factory provides both languages; include readers are optional.
 
 ```csharp
-IReadOnlyList<Symbol> VsSymbols() => /* VsCatalog.Read() → core.ns.Name */;
-IReadOnlyList<Symbol> AvsSymbols() => /* AvsCatalog.Read() → bare names */;
+using HanumanInstitute.ScriptAssist;
+using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 
-var factory = new ScriptLanguageFactory(VsSymbols, AvsSymbols, ReadPython, ReadAviSynth);
-factory.Configure(ScriptLanguageFactory.VapourSynth, vsKey);
-factory.Configure(ScriptLanguageFactory.AviSynth, avsKey);
+var factory = new ScriptLanguageFactory(ReadVsCatalog, ReadAvsCatalog);
 
-var assist = new EditorAssist(editor, factory, () => ScriptLanguageFactory.VapourSynth, () => openPath);
+var assist = new EditorAssist(editor, factory,
+    () => ScriptLanguageFactory.VapourSynth,
+    () => documentPath);
 assist.Attach();
 ```
 
-`Create` / `Configure` ids are `ScriptLanguageFactory.VapourSynth` and `.AviSynth` (`"VapourSynth"` / `"AviSynth"`). Unknown ids: `Create` returns null, `Configure` is a no-op.
+Keep `assist` for the editor's lifetime and call `Dispose()` when finished. The callbacks can return the current language and file path when an editor switches documents. Use `ScriptLanguageFactory.AviSynth` for AviSynth.
 
-`IsEnabled` defaults to true. Set it false to skip completion, insight, hover, and catalog enumeration. `Configure` while disabled only remembers the key (`SetKey`); enumeration starts again once it is enabled.
+Shortcuts: **Ctrl+Space** completion, **Ctrl+Shift+Space** call insight, **Ctrl+Shift+R** catalog refresh, **Escape** dismiss.
 
-Call `Configure` when the library path or plugin folders change. The key is opaque; a NUL-joined path works. `Refresh()` (Ctrl+Shift+R) re-enumerates. Pass `documentPath` so relative includes resolve; unsaved buffers only see the injected catalog.
-
-There is no Splat helper. Register `IScriptLanguageFactory` yourself if you use a locator.
-
-Headless (no UI):
+## Use without an editor
 
 ```csharp
 var service = factory.Create(ScriptLanguageFactory.VapourSynth)!;
 Reply reply = await service.GetAsync(text, caret, cancellationToken, documentPath);
 ```
 
-Discard the reply if the document or caret changed.
+`Reply` contains completion items, call insight, and hover text. Discard it if the document, caret, language, or path changed while awaiting it. Headless callers must check `factory.IsEnabled` themselves.
+
+## Catalog lifecycle
+
+Catalogs load on first request. Call `factory.Configure(language, catalogKey)` to prefetch or when native library/plugin settings change; choose a key representing those settings. `factory.Refresh()` forces enumeration again. Catalog callbacks run in the background; exceptions produce an empty catalog.
+
+`factory.IsEnabled` defaults to true. When false, `EditorAssist` skips requests, `Configure` only remembers the key, and `Refresh` does nothing. After re-enabling, the next request loads any pending catalog.
 
 ## Catalogs
 
-`CatalogCache` enumerates once per key on a background task. Exceptions become an empty catalog.
+The host maps native catalog entries to `Symbol`. This repository uses `VsCatalog.Read` / `AvsCatalog.Read` from the separate API projects; [ScriptCatalogs.cs](../SynthMultiViewer/Services/ScriptCatalogs.cs) shows the mapping.
 
-**VapourSynth** names are `core.<namespace>.<Function>`. Arguments are the native semicolon-separated strings. Return type is the API4 string (often `clip:vnode;`). Two or more return keys stay untyped.
+**VapourSynth:** use `core.<namespace>.<Function>`, one native argument descriptor per array entry, and the API4 return string. Multiple return keys remain untyped.
 
 ```csharp
-new Symbol("core.std.Crop", ["clip:vnode", "left:int:opt"], ReturnType: "clip:vnode;")
+new Symbol("core.std.Crop", ["clip:vnode", "left:int:opt"], ReturnType: "clip:vnode;");
 ```
 
-**AviSynth** names are bare filters. Decode `$Plugin!Name!Param$` with `AviSynthParameters.Parse`, or take headers from parsed `function` lines. Merge autoload plugins with plugin-folder scripts via `AviSynthFunctions.UnionByName` (parsed headers replace native only when native has no named parameters).
+**AviSynth:** use bare function names. `AviSynthParameters.Parse` (in `HanumanInstitute.ScriptAssist.AviSynth`) decodes the native parameter format:
 
 ```csharp
 new Symbol("Crop", AviSynthParameters.Parse("c[left]i[top]i"));
@@ -63,27 +63,43 @@ new Symbol("Crop", AviSynthParameters.Parse("c[left]i[top]i"));
 
 ## Includes
 
-The library never reads disk. Pass an `IncludeReader`:
+Pass optional readers to follow external scripts. Each returns an `IncludeFile` with its resolved full path and text, or `null` when unavailable. The host owns search directories and disk access.
 
 ```csharp
 IncludeFile? ReadAviSynth(string specifier, string? fromPath) =>
-    ScriptFiles.AviSynth(specifier, fromPath, pluginDirectories, File.ReadAllText);
+    ScriptFiles.AviSynth(specifier, fromPath, pluginDirectories, TryRead);
 
 IncludeFile? ReadPython(string specifier, string? fromPath) =>
-    ScriptFiles.PythonModule(specifier, fromPath, pluginAndSitePackageDirs, File.ReadAllText);
+    ScriptFiles.PythonModule(specifier, fromPath, pythonDirectories, TryRead);
+
+static string? TryRead(string path)
+{
+    try { return File.ReadAllText(path); }
+    catch (IOException) { return null; }
+    catch (UnauthorizedAccessException) { return null; }
+}
+
+var factory = new ScriptLanguageFactory(
+    ReadVsCatalog, ReadAvsCatalog, ReadPython, ReadAviSynth);
 ```
 
-AviSynth looks for `.avs` / `.avsi` beside the script and in plugin folders. VapourSynth looks for `name.py` and `name/__init__.py` beside the script, in plugin folders, and in Python site-packages. Nested `Import` / `import` / `from` (including `from *` and `from .mod`) follow a visited-set of resolved paths. `import os` stays silent. Native `core.ns.Func` still comes only from the catalog you injected.
+`ScriptFiles` uses absolute paths directly; otherwise it tries paths beside `fromPath`, then the supplied directories. AviSynth uses the supplied filename, including its extension; Python tries `name.py` and `name/__init__.py`. Leading-dot Python imports resolve relative to the importing file. Include plugin or site-packages directories in the host's roots as needed.
 
-## Not in scope
+Pass the open document's path for sibling imports. Unsaved buffers can still use supplied search roots. Autoload AviSynth scripts can be parsed with `AviSynthFunctions.Parse` and merged into the host catalog with `UnionByName`.
 
-Evaluating scripts, GScript `if`/`Eval` as scopes, running Python, stdlib/numpy, `__all__`, array/`vnode[]` as a distinct type, map keys, nested `FrameEval` defs, Python `class` bodies in imported modules, `f.props`.
+## Scope
+
+Type inference and import parsing are partial. Supported assistance includes core/node members, catalog signatures, local bindings, and imported script function headers. This is not a full Python or AviSynth interpreter.
+
+Outside scope: stdlib/numpy analysis, `__all__`, imported Python class members, array/list element types, map keys, `f.props`, GScript/Eval scopes, and nested FrameEval function environments.
 
 ## Tests
+
+Run from the repository root:
 
 ```bash
 dotnet build ScriptAssist.Tests/ScriptAssist.Tests.csproj
 dotnet ScriptAssist.Tests/bin/Debug/net10.0/ScriptAssist.Tests.dll
 ```
 
-xunit.v3 **executable**. Do not use `dotnet test` / VSTest on .NET 10 for this project.
+The tests use the xunit.v3 executable runner, rather than `dotnet test` / VSTest. Implementation notes: [AGENTS.md](AGENTS.md).

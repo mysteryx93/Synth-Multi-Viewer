@@ -51,7 +51,7 @@ This repo also contains .NET API wrapper for [VapourSynth](ApiVapourSynth/) and 
 
 ### ScriptAssist
 
-Catalog-driven completion and Intellisense for VapourSynth and AviSynth on AvaloniaEdit.
+[ScriptAssist](ScriptAssist/README.md) provides completion, call insight, and hover for VapourSynth and AviSynth, with AvaloniaEdit and headless APIs. It analyzes text and supplied catalogs without executing scripts or requiring Python.
 
 ### License
 
