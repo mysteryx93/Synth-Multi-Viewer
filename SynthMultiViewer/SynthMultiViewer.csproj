@@ -34,6 +34,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="HanumanInstitute.Validators" />
     <PackageReference Include="HanumanInstitute.MvvmDialogs" />
     <PackageReference Include="HanumanInstitute.MvvmDialogs.Avalonia" />
     <PackageReference Include="HanumanInstitute.MvvmDialogs.Avalonia.MessageBox" />
@@ -41,5 +42,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MediaSynthPlayer\MediaSynthPlayer.csproj" />
+    <ProjectReference Include="..\ScriptAssist\ScriptAssist.csproj" />
   </ItemGroup>
 </Project>

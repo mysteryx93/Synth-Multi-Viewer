@@ -12,7 +12,7 @@ public static class CommandLineScripts
     {
         foreach (var raw in args.Skip(1))
         {
-            if (string.IsNullOrWhiteSpace(raw) || raw.StartsWith('-'))
+            if (!raw.HasText() || raw.StartsWith('-'))
             {
                 continue;
             }

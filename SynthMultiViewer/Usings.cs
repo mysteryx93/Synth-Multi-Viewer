@@ -3,6 +3,8 @@ global using System.Collections.ObjectModel;
 global using System.Collections.Generic;
 global using System.Linq;
 global using System.Threading.Tasks;
+global using HanumanInstitute.Validators;
+global using HanumanInstitute.ScriptAssist;
 global using HanumanInstitute.MediaSynthUI;
 global using HanumanInstitute.SynthMultiViewer.ViewModels;
 global using ReactiveUI;

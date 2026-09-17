@@ -25,7 +25,7 @@ public static class FramePropertyDisplay
     };
 
     private static string Named(string? label, string raw) =>
-        string.IsNullOrEmpty(label) || label == raw ? raw : raw + " (" + label + ")";
+        !label.HasValue() || label == raw ? raw : raw + " (" + label + ")";
 
     private static string? Matrix(string value) => value switch
     {

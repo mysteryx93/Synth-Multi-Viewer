@@ -150,7 +150,7 @@ internal sealed class AvsNative : IDisposable
         for (var i = 0; i < count; i++)
         {
             var key = Marshal.PtrToStringUTF8(_propGetKey!(environment, map, i));
-            if (string.IsNullOrEmpty(key))
+            if (!key.HasValue())
             {
                 continue;
             }

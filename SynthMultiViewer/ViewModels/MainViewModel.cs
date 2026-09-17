@@ -60,7 +60,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
                     return;
                 }
 
-                var coerced = Math.Clamp(value, MinZoom, MaxZoom);
+                var coerced = value.Clamp(MinZoom, MaxZoom);
                 if (Math.Abs(coerced - value) > double.Epsilon)
                 {
                     Zoom = coerced;
@@ -539,7 +539,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         if (!TryIndex(parameter, out var frames)) { return; }
 
         var last = Math.Max(0, (int)viewer.Duration.TotalSeconds);
-        var next = Math.Clamp((int)viewer.Position.TotalSeconds + frames, 0, last);
+        var next = ((int)viewer.Position.TotalSeconds + frames).Clamp(0, last);
         viewer.Position = TimeSpan.FromSeconds(next);
     }
 

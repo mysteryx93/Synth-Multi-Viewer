@@ -36,6 +36,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         AviSynthPath = settingsProvider.Value.AviSynthPath;
         AviSynthPluginFolders = settingsProvider.Value.AviSynthPluginFolders;
         AviSynthReplacePlugins = settingsProvider.Value.AviSynthReplacePlugins;
+        EnhanceEditorWithAutoComplete = settingsProvider.Value.EnhanceEditorWithAutoComplete;
         ApplyDetection(_frameworks.VapourSynth, _frameworks.AviSynth);
     }
 
@@ -94,6 +95,12 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
     /// </summary>
     [Reactive]
     public partial bool AviSynthReplacePlugins { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the script editor offers catalog-driven assistance.
+    /// </summary>
+    [Reactive]
+    public partial bool EnhanceEditorWithAutoComplete { get; set; }
 
     /// <summary>
     /// Gets whether VapourSynth can be loaded with the current path.
@@ -251,7 +258,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         OperatingSystem.IsWindows() ? ["dll"] : OperatingSystem.IsMacOS() ? ["dylib"] : ["so"];
 
     private static string FileNameIfExists(string path) =>
-        !string.IsNullOrWhiteSpace(path) && File.Exists(path) ? Path.GetFileName(path) : "";
+        path.HasText() && File.Exists(path) ? Path.GetFileName(path) : "";
 
     private static IDialogStorageFolder? ExistingFolder(string? path)
     {
@@ -261,7 +268,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
 
     private static string? FolderPath(string? path)
     {
-        if (string.IsNullOrWhiteSpace(path))
+        if (!path.HasText())
         {
             return null;
         }
@@ -298,6 +305,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         _settingsProvider.Value.AviSynthPath = AviSynthPath.Trim();
         _settingsProvider.Value.AviSynthPluginFolders = AviSynthPluginFolders.Trim();
         _settingsProvider.Value.AviSynthReplacePlugins = AviSynthReplacePlugins;
+        _settingsProvider.Value.EnhanceEditorWithAutoComplete = EnhanceEditorWithAutoComplete;
         _appTheme.RequestedTheme = Theme.ToString();
         _frameworks.Apply(_settingsProvider.Value);
         ApplyDetection(_frameworks.VapourSynth, _frameworks.AviSynth);
@@ -314,6 +322,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         AviSynthPath = "";
         AviSynthPluginFolders = "";
         AviSynthReplacePlugins = false;
+        EnhanceEditorWithAutoComplete = true;
     }
 
     private void ApplyDetection(FrameworkInstall vapourSynth, FrameworkInstall aviSynth)
@@ -332,7 +341,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
 
     private static string FormatStatus(FrameworkInstall install) => install.Status switch
     {
-        FrameworkStatus.Detected when !string.IsNullOrWhiteSpace(install.Version) =>
+        FrameworkStatus.Detected when install.Version.HasText() =>
             "(Detected " + install.Version + ")",
         FrameworkStatus.Detected => "(Detected)",
         FrameworkStatus.Error => "(Error)",
@@ -341,12 +350,12 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
 
     private static string? FormatStatusTip(FrameworkInstall install)
     {
-        if (!string.IsNullOrWhiteSpace(install.Message))
+        if (install.Message.HasText())
         {
             return install.Message;
         }
 
-        if (!string.IsNullOrWhiteSpace(install.VersionDetail))
+        if (install.VersionDetail.HasText())
         {
             return install.VersionDetail;
         }

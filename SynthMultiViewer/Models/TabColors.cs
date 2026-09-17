@@ -50,5 +50,5 @@ public static class TabColors
             (byte)(255 - color.B));
 
     private static byte ClampByte(double value) =>
-        (byte)Math.Clamp(Math.Round(value), 0, 255);
+        (byte)(Math.Round(value).Clamp(0d, 255d));
 }

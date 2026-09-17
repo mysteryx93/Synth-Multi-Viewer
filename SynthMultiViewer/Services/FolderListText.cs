@@ -10,7 +10,7 @@ public static class FolderListText
     /// </summary>
     public static IReadOnlyList<string> Parse(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (!text.HasText())
         {
             return [];
         }
@@ -36,7 +36,7 @@ public static class FolderListText
     /// </summary>
     public static string Append(string? text, string folder)
     {
-        if (string.IsNullOrWhiteSpace(folder))
+        if (!folder.HasText())
         {
             return text ?? "";
         }

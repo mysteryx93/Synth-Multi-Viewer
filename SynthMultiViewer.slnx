@@ -5,10 +5,13 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="ApiAviSynth/ApiAviSynth.csproj" />
+  <Project Path="../HanumanInstitute.Validators/Validators/HanumanInstitute.Validators.csproj" />
   <Project Path="ApiAviSynth.Tests/ApiAviSynth.Tests.csproj" />
   <Project Path="ApiVapourSynth/ApiVapourSynth.csproj" />
   <Project Path="ApiVapourSynth.Tests/ApiVapourSynth.Tests.csproj" />
   <Project Path="MediaSynthPlayer/MediaSynthPlayer.csproj" />
   <Project Path="SynthMultiViewer.Tests/SynthMultiViewer.Tests.csproj" />
+  <Project Path="ScriptAssist/ScriptAssist.csproj" />
+  <Project Path="ScriptAssist.Tests/ScriptAssist.Tests.csproj" />
   <Project Path="SynthMultiViewer/SynthMultiViewer.csproj" />
 </Solution>

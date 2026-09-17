@@ -27,6 +27,7 @@ public static class ViewModelLocator
         SplatRegistrations.RegisterLazySingleton<ISettingsProvider<AppSettingsData>, AppSettingsProvider>();
         SplatRegistrations.RegisterLazySingleton<IAppTheme, AppThemeService>();
         SplatRegistrations.RegisterLazySingleton<IDefaultScriptService, DefaultScriptService>();
+        SplatRegistrations.RegisterLazySingleton<IScriptLanguageFactory, ScriptAssistService>();
         SplatRegistrations.RegisterLazySingleton<IFrameworkDetectionService, FrameworkDetectionService>();
         SplatRegistrations.Register<MainViewModel>();
         SplatRegistrations.Register<HelpViewModel>();

@@ -22,6 +22,8 @@
                 <TextBlock Text="Theme" Classes="field-label" Width="72" />
                 <ComboBox Width="140" ItemsSource="{Binding ThemeList}" SelectedItem="{Binding Theme}" />
             </StackPanel>
+            <CheckBox Content="Enhance editor with auto-complete"
+                      IsChecked="{Binding EnhanceEditorWithAutoComplete}" />
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Classes="section-heading" Text="VapourSynth" />
                 <TextBlock x:Name="VapourSynthStatus" Text="{Binding VapourSynthStatus}" Classes="status"

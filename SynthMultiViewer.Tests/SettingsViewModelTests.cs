@@ -81,6 +81,7 @@ public class SettingsViewModelTests
         Assert.Equal("", model.AviSynthPath);
         Assert.Equal("", model.AviSynthPluginFolders);
         Assert.False(model.AviSynthReplacePlugins);
+        Assert.True(model.EnhanceEditorWithAutoComplete);
         Assert.Equal(Environment.ProcessorCount, model.VapourSynthThreads);
         Assert.Equal(AppTheme.Dark, settings.Value.Theme);
         Assert.Equal(0, settings.SaveCount);

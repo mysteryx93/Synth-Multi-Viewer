@@ -80,7 +80,7 @@ internal sealed class AvsPlayback : ISynthPlayback
 
         try
         {
-            index = Math.Clamp(index, 0, _video.FrameCount - 1);
+            index = index.Clamp(0, _video.FrameCount - 1);
             using var frame = script.GetFrame(index);
             var plane = frame.GetPlane(0);
             using var pixels = CopyPlane(plane);

@@ -7,8 +7,10 @@ using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using AvaloniaEdit.Document;
+using HanumanInstitute.ScriptAssist;
+using HanumanInstitute.ScriptAssist.AvaloniaEdit;
+using HanumanInstitute.ScriptAssist.VapourSynth;
 using HanumanInstitute.SynthMultiViewer.Controls;
-using HanumanInstitute.SynthMultiViewer.Services.Completion;
 using Xunit;
 
 namespace HanumanInstitute.SynthMultiViewer.Tests;
@@ -16,213 +18,63 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 [SuppressMessage("Usage", "xUnit1051:Calls to methods which accept CancellationToken should use TestContext.Current.CancellationToken")]
 public class EditorCompletionTests
 {
-    private static readonly FilterSymbol[] Vs =
+    private static readonly Symbol[] Vs =
     [
-        new("core.std.Crop", ["clip:vnode", "left:int:opt", "right:int:opt"]),
-        new("core.std.BlankClip", ["width:int:opt", "height:int:opt"]),
-        new("core.rife.RIFE", ["clip:vnode", "model:int:opt"]),
-        new("core.std.SelectEvery", ["clip:vnode", "cycle:int", "offsets:int[]"])
+        new("core.std.Crop", ["clip:vnode", "left:int:opt", "right:int:opt"], ReturnType: "clip:vnode"),
+        new("core.std.BlankClip", ["width:int:opt", "height:int:opt"], ReturnType: "clip:vnode"),
+        new("core.rife.RIFE", ["clip:vnode", "model:int:opt"], ReturnType: "clip:vnode"),
+        new("core.std.SelectEvery", ["clip:vnode", "cycle:int", "offsets:int[]"], ReturnType: "clip:vnode")
     ];
-    private static EditorLanguageService Service(bool avs = false) => new(avs, new CatalogCache(() => []));
 
-    [Theory]
-    [InlineData("core.", "std")]
-    [InlineData("core.std.", "Crop")]
-    [InlineData("core.rife.", "RIFE")]
-    [InlineData("vs.core.std.Cr", "Crop")]
-    [InlineData("vs.", "core")]
-    [InlineData("co", "core")]
-    [InlineData("c = vs.core\nc.", "std")]
-    [InlineData("c = vs.core\nc.std.", "Crop")]
-    [InlineData("c = vs.get_core()\nc.rife.", "RIFE")]
-    [InlineData("c = vs.core  # alias\nc.std.Cr", "Crop")]
-    [InlineData("import vapoursynth as vpy\nvpy.", "core")]
-    [InlineData("import vapoursynth as vpy\nvpy.core.std.", "Crop")]
-    [InlineData("from vapoursynth import core as c\nc.std.", "Crop")]
-    [InlineData("from vapoursynth import core\nc = core\nc.std.", "Crop")]
-    public void VapourSynthPaths(string text, string expected)
-    {
-        var reply = Service().Analyze(text, text.Length, Vs);
-        Assert.Contains(reply.Items, x => x.InsertionText == expected);
-    }
-
-    [Fact]
-    public void VapourSynthClipAssignmentIsNotACoreAlias()
-    {
-        var text = "clip = vs.core.std.BlankClip()\nclip.";
-        var reply = Service().Analyze(text, text.Length, Vs);
-        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
-    }
-
-    [Fact]
-    public void VapourSynthAliasedCallShowsInsight()
-    {
-        var text = "c = vs.core\nc.std.Crop(";
-        var insight = Service().Analyze(text, text.Length, Vs).Insight!;
-        Assert.Equal("core.std.Crop", insight.Overloads[0].Name);
-        Assert.Equal(0, insight.ActiveParameter);
-    }
-
-    [Theory]
-    [InlineData("clip = core.std.BlankClip()\ncl", "clip")]
-    [InlineData("src, dst = clip, clip\nds", "dst")]
-    [InlineData("import vapoursynth as vpy\nvp", "vpy")]
-    [InlineData("from vapoursynth import core as c\ncore.std.Crop(c", "c")]
-    [InlineData("clip = core.std.BlankClip(width=320)\nw", "while")]
-    public void BufferNamesCompleteAsLocals(string text, string expected)
-    {
-        var reply = Service().Analyze(text, text.Length, Vs);
-        Assert.Contains(reply.Items, x => x.InsertionText == expected);
-        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
-    }
-
-    [Fact]
-    public void AviSynthGlobalAssignmentCompletes()
-    {
-        var text = "global foo = last\nfo";
-        var reply = Service(true).Analyze(text, text.Length, []);
-        Assert.Contains(reply.Items, x => x.InsertionText == "foo");
-    }
-
-    [Theory]
-    [InlineData("# core.std.", false)]
-    [InlineData("\"core.std.", false)]
-    [InlineData("'''core.std.\n", false)]
-    [InlineData("/* Crop(\n", true)]
-    [InlineData("/[ Crop(\n", true)]
-    public void CommentsAndStringsSuppressCompletion(string text, bool avs)
-    {
-        var result = Service(avs).Analyze(text, text.Length, Vs);
-        Assert.Empty(result.Items);
-        Assert.Null(result.Insight);
-    }
+    private static LanguageService Service() =>
+        new(new VapourSynthLanguage(), new CatalogCache(() => []));
 
     [Fact]
     public void ExtraCommasStayOnRepeatingParameterOrStop()
     {
         var crop = new CallInsight([new("core.std.Crop", ["clip:vnode", "left:int:opt", "right:int:opt"])], 4, false);
-        Assert.Equal("No more parameters", EditorOverloadProvider.ActiveParameterText(crop));
+        Assert.Equal("No more parameters", OverloadProvider.ActiveParameterText(crop));
         var six = new CallInsight(
             [new("core.rife.RIFE", ["clip:vnode", "a:int:opt", "b:int:opt", "c:int:opt", "d:int:opt", "e:int:opt"])], 10,
             false);
-        Assert.Equal("No more parameters", EditorOverloadProvider.ActiveParameterText(six));
+        Assert.Equal("No more parameters", OverloadProvider.ActiveParameterText(six));
         var every = new CallInsight([new("core.std.SelectEvery", ["clip:vnode", "cycle:int", "offsets:int[]"])], 5, false);
-        Assert.Contains("offsets:int[]", EditorOverloadProvider.ActiveParameterText(every), StringComparison.Ordinal);
+        Assert.Contains("offsets:int[]", OverloadProvider.ActiveParameterText(every), StringComparison.Ordinal);
         var planes = new CallInsight([new("ShufflePlanes", ["clip", "int* [planes]"])], 3, false);
-        Assert.Contains("int* [planes]", EditorOverloadProvider.ActiveParameterText(planes), StringComparison.Ordinal);
+        Assert.Contains("int* [planes]", OverloadProvider.ActiveParameterText(planes), StringComparison.Ordinal);
     }
 
     [Fact]
     public void CompletionHintShowsTruncatedParametersOnly()
     {
         var longSignature = "core.rife.RIFE(" + string.Join(", ", Enumerable.Repeat("clip:vnode:opt", 20)) + ")";
-        var item = new EditorCompletion("RIFE", 0, 4, CompletionKind.Function, longSignature);
-        var hint = EditorCompletionData.HintText(item)!;
+        var item = new CompletionItem("RIFE", 0, 4, SymbolKind.Function, longSignature);
+        var hint = CompletionData.HintText(item)!;
         Assert.DoesNotContain("Function", hint, StringComparison.Ordinal);
         Assert.DoesNotContain("core.rife.RIFE", hint, StringComparison.Ordinal);
         Assert.StartsWith("clip:vnode:opt", hint, StringComparison.Ordinal);
         Assert.Contains("clip:vnode:opt, clip:vnode:opt", hint, StringComparison.Ordinal);
-        Assert.Equal("No parameters", EditorCompletionData.HintText(
-            new EditorCompletion("Foo", 0, 3, CompletionKind.Function, "Foo()")));
-        Assert.Null(EditorCompletionData.HintText(
-            new EditorCompletion("rife", 0, 4, CompletionKind.Namespace, "core.rife")));
-        var description = Assert.IsType<TextBlock>(new EditorCompletionData(item).Description);
-        Assert.Equal(EditorCompletionData.HintMaxWidth, description.MaxWidth);
-        Assert.Equal(EditorCompletionData.HintMaxLines, description.MaxLines);
+        Assert.Equal("No parameters", CompletionData.HintText(
+            new CompletionItem("Foo", 0, 3, SymbolKind.Function, "Foo()")));
+        Assert.Null(CompletionData.HintText(
+            new CompletionItem("rife", 0, 4, SymbolKind.Namespace, "core.rife")));
+        Assert.Equal("int", CompletionData.HintText(
+            new CompletionItem("width", 0, 5, SymbolKind.Property, "width: int")));
+        Assert.Equal("clip", CompletionData.HintText(
+            new CompletionItem("C", 0, 1, SymbolKind.Local, "C: clip")));
+        Assert.Equal("Fraction", CompletionData.HintText(
+            new CompletionItem("fps", 0, 3, SymbolKind.Property, "fps: Fraction")));
+        Assert.Null(CompletionData.HintText(
+            new CompletionItem("fps", 0, 3, SymbolKind.Property, "fps")));
+        var description = Assert.IsType<TextBlock>(new CompletionData(item).Description);
+        Assert.Equal(CompletionData.HintMaxWidth, description.MaxWidth);
+        Assert.Equal(CompletionData.HintMaxLines, description.MaxLines);
         Assert.Equal(TextWrapping.Wrap, description.TextWrapping);
         Assert.Equal(TextTrimming.CharacterEllipsis, description.TextTrimming);
         Assert.Equal(hint, description.Text);
-        var huge = EditorCompletionData.TruncateHint(new string('x', 500));
+        var huge = CompletionData.TruncateHint(new string('x', 500));
         Assert.True(huge.Length <= 400);
         Assert.EndsWith("…", huge);
-    }
-
-    [Fact]
-    public void NestedInsightTracksInnerThenOuterAndIgnoresStringCommas()
-    {
-        var text = "core.std.Crop(core.std.BlankClip(10, ";
-        var inner = Service().Analyze(text, text.Length, Vs).Insight!;
-        Assert.Equal("core.std.BlankClip", inner.Overloads[0].Name);
-        Assert.Equal(1, inner.ActiveParameter);
-        text += "20), 'a,b', ";
-        var outer = Service().Analyze(text, text.Length, Vs).Insight!;
-        Assert.Equal("core.std.Crop", outer.Overloads[0].Name);
-        Assert.Equal(2, outer.ActiveParameter);
-    }
-
-    [Theory]
-    [InlineData("Crop(10,", 1)]
-    [InlineData("Crop(10, ", 1)]
-    [InlineData("Crop(10, 20,", 2)]
-    [InlineData("Crop(10, 20, ", 2)]
-    [InlineData("last.Crop(10, ", 1)]
-    public void AviSynthCommaAdvancesParameterIncludingTrailingSpace(string text, int parameter)
-    {
-        var crop = new FilterSymbol("Crop", ["clip", "int [left]", "int [top]", "int [right]", "int [bottom]"]);
-        var insight = Service(true).Analyze(text, text.Length, [crop]).Insight!;
-        Assert.Equal("Crop", insight.Overloads[0].Name);
-        Assert.Equal(parameter, insight.ActiveParameter);
-    }
-
-    [Fact]
-    public void AviSynthBufferFunctionsAreLexedWithoutLoadingBufferPlugins()
-    {
-        var text = """
-            # function Fake() {}
-            /* function Fake2() {} */
-            LoadPlugin("only-in-buffer.dll")
-            function LocalFilter(
-                clip c,
-                int "amount" # argument comment
-                ) { return c }
-            last.LocalF
-            """;
-        var result = Service(true).Analyze(text, text.Length, []);
-        var item = Assert.Single(result.Items);
-        Assert.Equal("LocalFilter", item.InsertionText);
-        Assert.Contains("amount", item.Signature);
-        Assert.DoesNotContain("argument comment", item.Signature);
-        text = text[..^6] + "LocalFilter(";
-        var insight = Service(true).Analyze(text, text.Length, []).Insight!;
-        Assert.True(insight.ImplicitClip);
-        Assert.Contains("amount", new EditorOverloadProvider(insight).CurrentContent.ToString());
-    }
-
-    [Theory]
-    [InlineData("ci[left]i[top]i", "clip,int,int [left],int [top]")]
-    [InlineData("c[planes]i*", "clip,int* [planes]")]
-    [InlineData("c[items]a", "clip,array [items]")]
-    [InlineData("", "")]
-    public void AviSynthParameters(string format, string expected) =>
-        Assert.Equal(expected, string.Join(",", EditorCatalogs.ParseAvsParameters(format)!));
-
-    [Fact]
-    public void UnknownParametersStayUnknown()
-    {
-        Assert.Null(EditorCatalogs.ParseAvsParameters(null));
-        Assert.Null(EditorCatalogs.ParseAvsParameters("c[broken"));
-        Assert.Null(EditorCatalogs.ParseAvsParameters("z"));
-    }
-
-    [Fact]
-    public async Task EnumerationFailureIsCachedUntilPathChangeOrRefresh()
-    {
-        var count = 0;
-        var cache = new CatalogCache(() => { Interlocked.Increment(ref count); throw new InvalidOperationException(); });
-        cache.Refresh("path1");
-        var service = new EditorLanguageService(false, cache);
-        for (var i = 0; i < 5; i++)
-        {
-            Assert.Contains((await service.GetAsync("im", 2, CancellationToken.None)).Items, x => x.InsertionText == "import");
-            cache.Refresh("path1");
-        }
-        Assert.Equal(1, count);
-        cache.Refresh("path2");
-        await cache.GetAsync(CancellationToken.None);
-        Assert.Equal(2, count);
-        cache.Refresh("path2", true);
-        await cache.GetAsync(CancellationToken.None);
-        Assert.Equal(3, count);
     }
 
     [Fact]
@@ -233,7 +85,7 @@ public class EditorCompletionTests
         var editor = new BindableTextEditor { Text = text };
         var caret = text.IndexOf("变suffix", StringComparison.Ordinal) + 1;
         var item = Assert.Single(Service().Analyze(text, caret, []).Items, x => x.InsertionText == "变量");
-        new EditorCompletionData(item).Complete(editor.TextArea, new SimpleSegment(item.Start, item.Length), EventArgs.Empty);
+        new CompletionData(item).Complete(editor.TextArea, new SimpleSegment(item.Start, item.Length), EventArgs.Empty);
         Assert.Equal("# 😀\n变量 = 1\n变量", editor.Text);
         editor.Document.UndoStack.Undo();
         Assert.Equal(text, editor.Text);
@@ -278,7 +130,7 @@ public class EditorCompletionTests
                 editor.ScriptKind = MediaSynthUI.ScriptKind.AviSynth;
                 break;
         }
-        service.Reply.SetResult(new([new("core", 0, 2, CompletionKind.Keyword, "core")], null));
+        service.Reply.SetResult(new([new("core", 0, 2, SymbolKind.Keyword, "core")], null));
         await request;
         Assert.Null(editor.DisplayedReply);
         editor.DismissCompletion();
@@ -345,7 +197,7 @@ public class EditorCompletionTests
         await editor.RequestCompletionAsync(delay: TimeSpan.Zero);
         Assert.NotNull(editor.DisplayedReply);
         Assert.NotNull(editor.Completion);
-        Assert.Null(editor.Insight);
+        Assert.NotNull(editor.Insight);
         editor.DismissCompletion();
         return true;
     }, TestContext.Current.CancellationToken);
@@ -451,15 +303,16 @@ public class EditorCompletionTests
     private static BindableTextEditor OpenEditor(string text) => new()
     {
         Text = text,
-        LanguageService = new EditorLanguageService(false, new CatalogCache(() => Vs))
+        LanguageService = new LanguageService(new VapourSynthLanguage(), new CatalogCache(() => Vs))
     };
 
-    private sealed class DelayedService : IEditorLanguageService
+    private sealed class DelayedService : ILanguageService
     {
         public TaskCompletionSource<bool> Started { get; } = new();
-        public TaskCompletionSource<EditorReply> Reply { get; } = new();
+        public TaskCompletionSource<Reply> Reply { get; } = new();
 
-        public Task<EditorReply> GetAsync(string text, int caret, CancellationToken cancellationToken)
+        public Task<Reply> GetAsync(string text, int caret, CancellationToken cancellationToken,
+            string? documentPath = null)
         {
             Started.TrySetResult(true);
             return Reply.Task;

@@ -66,6 +66,46 @@ public class VsPathResolverTests
     }
 
     [Fact]
+    public void GetPythonModuleDirectories_WalksAncestorsForSitePackages()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "vs-python-" + Guid.NewGuid().ToString("N"));
+        var site = Path.Combine(root, "lib", "python3.14", "site-packages");
+        var package = Path.Combine(site, "vapoursynth");
+        Directory.CreateDirectory(package);
+        var libraryPath = Path.Combine(package, "libvapoursynth.so");
+
+        try
+        {
+            var directories = VsPathResolver.GetPythonModuleDirectories(libraryPath);
+            Assert.Contains(site, directories);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void GetPythonModuleDirectories_LibraryBesidePythonTree_FindsSitePackages()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "vs-lib-" + Guid.NewGuid().ToString("N"));
+        var lib = Path.Combine(root, "lib");
+        var site = Path.Combine(lib, "python3.12", "site-packages");
+        Directory.CreateDirectory(site);
+        var libraryPath = Path.Combine(lib, "libvapoursynth-script.so");
+
+        try
+        {
+            var directories = VsPathResolver.GetPythonModuleDirectories(libraryPath);
+            Assert.Contains(site, directories);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void GetSystemPluginDirectories_Linux_IncludesDistroAndLocalPaths()
     {
         Assert.SkipUnless(OperatingSystem.IsLinux(), "Linux plugin paths");

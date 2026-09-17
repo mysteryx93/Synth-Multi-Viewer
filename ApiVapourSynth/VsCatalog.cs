@@ -26,7 +26,8 @@ public static class VsCatalog
                 for (var function = api.GetNextPluginFunction(IntPtr.Zero, plugin); function != IntPtr.Zero;
                      function = api.GetNextPluginFunction(function, plugin))
                 {
-                    result.Add(new(space, api.PluginFunctionName(function), api.PluginFunctionArguments(function)));
+                    result.Add(new(space, api.PluginFunctionName(function), api.PluginFunctionArguments(function),
+                        api.PluginFunctionReturnType(function)));
                 }
             }
 
@@ -42,4 +43,4 @@ public static class VsCatalog
 /// <summary>
 /// Metadata copied from a native plugin function.
 /// </summary>
-public sealed record VsFilterInfo(string Namespace, string Name, string? Arguments);
+public sealed record VsFilterInfo(string Namespace, string Name, string? Arguments, string? ReturnType = null);

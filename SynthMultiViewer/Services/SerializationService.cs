@@ -9,7 +9,7 @@ public class SerializationService : ISerializationService
     public void SerializeToFile<T>(T dataToSerialize, string path)
     {
         var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory))
+        if (directory.HasValue())
         {
             Directory.CreateDirectory(directory);
         }

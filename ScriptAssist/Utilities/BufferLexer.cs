@@ -1,11 +1,9 @@
-using System.Globalization;
-
-namespace HanumanInstitute.SynthMultiViewer.Services.Completion;
+namespace HanumanInstitute.ScriptAssist;
 
 /// <summary>
 /// Position-preserving lexer; offsets remain AvaloniaEdit UTF-16 offsets.
 /// </summary>
-public static class BufferLexer
+internal static class BufferLexer
 {
     /// <summary>
     /// Recognizes UTF-16 identifier characters, including combining marks and surrogate pairs.
@@ -16,29 +14,21 @@ public static class BufferLexer
     /// <summary>
     /// Blanks comments and optionally strings while preserving original document offsets.
     /// </summary>
-    public static LexedBuffer Mask(string text, bool aviSynth, bool maskStrings = true)
+    public static LexedBuffer Mask(string text, LexerOptions options, bool maskStrings = true, CancellationToken token = default)
     {
         var code = text.ToCharArray();
         var quote = '\0';
         var triple = false;
         var line = false;
         var block = new Stack<char>();
-        void Hide(int index)
-        {
-            if (code[index] != '\n' && code[index] != '\r')
-            {
-                code[index] = ' ';
-            }
-        }
-        void HideString(int index)
-        {
-            if (maskStrings)
-            {
-                Hide(index);
-            }
-        }
+
         for (var i = 0; i < text.Length; i++)
         {
+            if ((i & 4095) == 0)
+            {
+                token.ThrowIfCancellationRequested();
+            }
+
             var c = text[i];
             var next = i + 1 < text.Length ? text[i + 1] : '\0';
             if (line)
@@ -53,29 +43,32 @@ public static class BufferLexer
                 }
                 continue;
             }
+
             if (block.Count > 0)
             {
                 Hide(i);
-                if (c == block.Peek() && next == '/')
+                if (IsBlockClose(block.Peek(), c, next))
                 {
                     Hide(++i);
                     block.Pop();
                 }
-                else if (c == '/' && next == '*')
+                else if (TryOpenBlock(c, next, options, out var nested))
                 {
                     Hide(++i);
-                    block.Push('*');
+                    block.Push(nested);
                 }
                 continue;
             }
+
             if (quote != '\0')
             {
                 HideString(i);
-                if (!aviSynth && c == '\\' && next != '\0')
+                if (options.StringEscapes && c == '\\' && next != '\0')
                 {
                     HideString(++i);
                     continue;
                 }
+
                 if (c == quote)
                 {
                     if (triple)
@@ -87,7 +80,7 @@ public static class BufferLexer
                             quote = '\0';
                         }
                     }
-                    else if (aviSynth && next == quote)
+                    else if (options.DoubledQuotes && next == quote)
                     {
                         HideString(++i);
                     }
@@ -98,21 +91,22 @@ public static class BufferLexer
                 }
                 continue;
             }
-            if (c == '#')
+
+            if (options.HashLineComments && c == '#')
             {
                 line = true;
                 Hide(i);
             }
-            else if (aviSynth && c == '/' && next is '*' or '[')
+            else if (TryOpenBlock(c, next, options, out var marker))
             {
-                block.Push(next == '*' ? '*' : ']');
+                block.Push(marker);
                 Hide(i);
                 Hide(++i);
             }
-            else if (c == '"' || (!aviSynth && c == '\''))
+            else if (c == '"' || (options.SingleQuotes && c == '\''))
             {
                 quote = c;
-                triple = next == c && i + 2 < text.Length && text[i + 2] == c;
+                triple = options.TripleQuotes && next == c && i + 2 < text.Length && text[i + 2] == c;
                 HideString(i);
                 if (triple)
                 {
@@ -121,11 +115,55 @@ public static class BufferLexer
                 }
             }
         }
-        return new(new string(code), quote != '\0' || line || block.Count > 0);
-    }
-}
 
-/// <summary>
-/// Position-preserving code and whether the buffer ends inside a comment or string.
-/// </summary>
-public sealed record LexedBuffer(string Code, bool InLiteral);
+        return new LexedBuffer(new string(code), quote != '\0' || line || block.Count > 0);
+
+        void HideString(int index)
+        {
+            if (maskStrings)
+            {
+                Hide(index);
+            }
+        }
+        
+        void Hide(int index)
+        {
+            if (code[index] != '\n' && code[index] != '\r')
+            {
+                code[index] = ' ';
+            }
+        }
+    }
+
+    /// <summary>
+    /// Closer markers: <c>*</c> is <c>*/</c>, <c>]</c> is <c>]/</c>, <c>[</c> is <c>*]</c>.
+    /// </summary>
+    private static bool TryOpenBlock(char c, char next, LexerOptions options, out char marker)
+    {
+        if (c == '/' && next == '*' && options.SlashStarBlocks)
+        {
+            marker = '*';
+            return true;
+        }
+
+        if (c == '/' && next == '[' && options.SlashBracketBlocks)
+        {
+            marker = ']';
+            return true;
+        }
+
+        if (c == '[' && next == '*' && options.StarBracketBlocks)
+        {
+            marker = '[';
+            return true;
+        }
+
+        marker = '\0';
+        return false;
+    }
+
+    private static bool IsBlockClose(char marker, char c, char next) =>
+        marker == '*' && c == '*' && next == '/' ||
+        marker == ']' && c == ']' && next == '/' ||
+        marker == '[' && c == '*' && next == ']';
+}

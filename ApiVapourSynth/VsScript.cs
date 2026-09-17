@@ -150,7 +150,7 @@ public sealed class VsScript : IDisposable
                 return true;
             }
 
-            if (string.IsNullOrWhiteSpace(detail))
+            if (!detail.HasText())
             {
                 return false;
             }
@@ -218,7 +218,7 @@ public sealed class VsScript : IDisposable
 
     private void EvaluateNamedBuffer(IntPtr buffer, string? scriptPath, string fallbackError)
     {
-        if (string.IsNullOrWhiteSpace(scriptPath))
+        if (!scriptPath.HasText())
         {
             using var unsaved = new Utf8Ptr(UnsavedScriptName);
             if (_scriptApi.EvaluateBuffer(_handle, buffer, unsaved.ptr) != 0)

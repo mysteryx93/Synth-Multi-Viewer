@@ -113,6 +113,52 @@ public static class VsPathResolver
                 .Concat(GetSystemPluginDirectories()).Where(Directory.Exists));
 
     /// <summary>
+    /// Returns directories that contain Python script plugins such as havsfunc, not native <c>.so</c> plugins.
+    /// </summary>
+    public static IReadOnlyList<string> GetPythonModuleDirectories(string? libraryPath = null)
+    {
+        var directories = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        if (libraryPath.HasText())
+        {
+            var directory = File.Exists(libraryPath) || Path.GetExtension(libraryPath).HasValue()
+                ? Path.GetDirectoryName(libraryPath)
+                : libraryPath;
+            for (var i = 0; i < 6 && directory.HasText(); i++)
+            {
+                AddPythonSites(directory, directories, seen);
+                directory = Path.GetDirectoryName(directory);
+            }
+        }
+
+        foreach (var root in UnixLibraryRoots)
+        {
+            AddPythonSites(root, directories, seen);
+        }
+
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (home.HasText())
+            {
+                AddPythonSites(Path.Combine(home, ".local", "lib"), directories, seen);
+            }
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            AddPythonSites(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Python"),
+                directories, seen);
+            AddPythonSites(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "VapourSynth"), directories, seen);
+            AddPythonSites(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Python"), directories, seen);
+        }
+
+        return directories;
+    }
+
+    /// <summary>
     /// Returns extra plugin directories to inject into VapourSynth.
     /// Add mode keeps detected system folders; replace mode uses only <paramref name="extraDirectories"/>.
     /// </summary>
@@ -249,6 +295,48 @@ public static class VsPathResolver
         var candidates = new List<string>(fileNames.Count);
         candidates.AddRange(fileNames.Select(fileName => Path.Combine(path, fileName)));
         return candidates;
+    }
+
+    private static void AddPythonSites(string? root, List<string> directories, HashSet<string> seen)
+    {
+        if (!root.HasText() || !Directory.Exists(root))
+        {
+            return;
+        }
+
+        var name = Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (name is "site-packages" or "dist-packages")
+        {
+            AddExisting(root, directories, seen);
+        }
+
+        AddExisting(Path.Combine(root, "site-packages"), directories, seen);
+        AddExisting(Path.Combine(root, "dist-packages"), directories, seen);
+        AddExisting(Path.Combine(root, "Lib", "site-packages"), directories, seen);
+        try
+        {
+            foreach (var python in Directory.EnumerateDirectories(root, "python3.*"))
+            {
+                AddExisting(Path.Combine(python, "site-packages"), directories, seen);
+                AddExisting(Path.Combine(python, "dist-packages"), directories, seen);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static void AddExisting(string path, List<string> directories, HashSet<string> seen)
+    {
+        if (!Directory.Exists(path) || !seen.Add(path))
+        {
+            return;
+        }
+
+        directories.Add(path);
     }
 
     private static IReadOnlyList<string> CreateLinuxLibraryRoots()

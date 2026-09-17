@@ -75,7 +75,7 @@ public class VsFrame : IDisposable
         {
             var keyPtr = api.MapGetKey(map, i);
             var key = Utf8Ptr.FromUtf8Ptr(keyPtr);
-            if (string.IsNullOrEmpty(key))
+            if (!key.HasValue())
             {
                 continue;
             }

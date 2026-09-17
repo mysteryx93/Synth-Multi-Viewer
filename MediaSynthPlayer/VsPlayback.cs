@@ -87,7 +87,7 @@ internal sealed class VsPlayback : ISynthPlayback
 
         try
         {
-            index = Math.Clamp(index, 0, video.NumFrames - 1);
+            index = index.Clamp(0, video.NumFrames - 1);
             using var frame = output.GetFrame(index);
             CopyFrame(frame, bitmap);
             sink.ShowBitmap();

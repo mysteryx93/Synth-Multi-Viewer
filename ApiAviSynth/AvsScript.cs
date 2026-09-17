@@ -91,7 +91,7 @@ public sealed class AvsScript : IDisposable
                     }
 
                     detail = value.GetString();
-                    if (string.IsNullOrWhiteSpace(detail))
+                    if (!detail.HasText())
                     {
                         return false;
                     }
@@ -139,7 +139,7 @@ public sealed class AvsScript : IDisposable
     public static AvsScript LoadScript(string script, string? scriptPath)
     {
         script.CheckNotNullOrEmpty();
-        var directory = string.IsNullOrWhiteSpace(scriptPath) ? null : Path.GetDirectoryName(ResolveScriptPath(scriptPath));
+        var directory = scriptPath.HasText() ? Path.GetDirectoryName(ResolveScriptPath(scriptPath)) : null;
         return Load((native, environment) =>
         {
             if (directory.HasValue() && Directory.Exists(directory))

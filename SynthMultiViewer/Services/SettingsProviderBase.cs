@@ -16,7 +16,7 @@ public abstract class SettingsProviderBase<T> : ISettingsProvider<T>
     /// </summary>
     protected SettingsProviderBase(ISerializationService serializationService)
     {
-        _serialization = serializationService ?? throw new ArgumentNullException(nameof(serializationService));
+        _serialization = serializationService.CheckNotNull();
     }
 
     /// <inheritdoc />

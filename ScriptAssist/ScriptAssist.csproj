@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>HanumanInstitute.ScriptAssist</RootNamespace>
+    <Description>Catalog-driven script editor assistance for AvaloniaEdit</Description>
+    <Product>ScriptAssist</Product>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.AvaloniaEdit" />
+    <PackageReference Include="HanumanInstitute.Validators" />
+    <InternalsVisibleTo Include="ScriptAssist.Tests" />
+    <InternalsVisibleTo Include="SynthMultiViewer.Tests" />
+  </ItemGroup>
+</Project>

@@ -52,6 +52,20 @@ public class AppSettingsProviderTests
         Assert.Equal("/opt/avs/plugins", loaded.AviSynthPluginFolders);
         Assert.False(loaded.AviSynthReplacePlugins);
         Assert.Equal(8, loaded.VapourSynthThreads);
+        Assert.True(loaded.EnhanceEditorWithAutoComplete);
+    }
+
+    [Fact]
+    public void Save_RoundTrip_PersistsEnhanceEditorWithAutoComplete()
+    {
+        using var file = new TemporaryConfig();
+        var provider = CreateProvider(file.Path);
+        provider.Value.EnhanceEditorWithAutoComplete = false;
+
+        provider.Save();
+        var loaded = CreateProvider(file.Path).Load();
+
+        Assert.False(loaded.EnhanceEditorWithAutoComplete);
     }
 
     [Fact]

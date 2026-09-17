@@ -32,6 +32,7 @@ internal sealed class VsCoreApi
     private readonly GetStringDelegate _getPluginNamespace;
     private readonly GetStringDelegate _getPluginFunctionName;
     private readonly GetStringDelegate _getPluginFunctionArguments;
+    private readonly GetStringDelegate? _getPluginFunctionReturnType;
 
     private VsCoreApi(VsCoreApiTable table)
     {
@@ -63,6 +64,11 @@ internal sealed class VsCoreApi
         _getPluginNamespace = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginNamespace);
         _getPluginFunctionName = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginFunctionName);
         _getPluginFunctionArguments = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginFunctionArguments);
+        if (table.GetPluginFunctionReturnType != IntPtr.Zero)
+        {
+            _getPluginFunctionReturnType =
+                Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginFunctionReturnType);
+        }
     }
 
     public void FreeNode(IntPtr node) => _freeNode(node);
@@ -98,6 +104,8 @@ internal sealed class VsCoreApi
     public string PluginNamespace(IntPtr plugin) => Marshal.PtrToStringUTF8(_getPluginNamespace(plugin)) ?? "";
     public string PluginFunctionName(IntPtr function) => Marshal.PtrToStringUTF8(_getPluginFunctionName(function)) ?? "";
     public string? PluginFunctionArguments(IntPtr function) => Marshal.PtrToStringUTF8(_getPluginFunctionArguments(function));
+    public string? PluginFunctionReturnType(IntPtr function) =>
+        _getPluginFunctionReturnType == null ? null : Marshal.PtrToStringUTF8(_getPluginFunctionReturnType(function));
 
     public static VsCoreApi Load(IntPtr pointer)
     {

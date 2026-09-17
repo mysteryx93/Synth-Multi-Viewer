@@ -9,10 +9,16 @@ namespace HanumanInstitute.SynthMultiViewer.Services;
 /// </summary>
 public sealed class FrameworkDetectionService : IFrameworkDetectionService
 {
+    private readonly IScriptLanguageFactory? _languages;
+
     /// <summary>
-    /// Creates a detector and applies paths from saved settings.
+    /// Creates a detector that applies paths and refreshes script-assist catalogs.
     /// </summary>
-    public FrameworkDetectionService(ISettingsProvider<AppSettingsData> settings) => Apply(settings.Value);
+    public FrameworkDetectionService(ISettingsProvider<AppSettingsData> settings, IScriptLanguageFactory? languages = null)
+    {
+        _languages = languages;
+        Apply(settings.Value);
+    }
 
     /// <inheritdoc />
     public FrameworkInstall VapourSynth { get; private set; } = new(false);
@@ -58,7 +64,14 @@ public sealed class FrameworkDetectionService : IFrameworkDetectionService
             AvsScript.GetPluginDirectories(aviSynthPath), aviSynthError,
             aviSynthVersion, aviSynthDetail);
 
-        Completion.EditorCatalogs.Configure(settings);
+        _languages?.Configure(
+            nameof(ScriptKind.VapourSynth),
+            string.Join("\0", settings.VapourSynthPath, settings.VapourSynthPluginFolders,
+                settings.VapourSynthReplacePlugins));
+        _languages?.Configure(
+            nameof(ScriptKind.AviSynth),
+            string.Join("\0", settings.AviSynthPath, settings.AviSynthPluginFolders,
+                settings.AviSynthReplacePlugins));
     }
 
     private static FrameworkInstall CreateInstall(
@@ -80,7 +93,7 @@ public sealed class FrameworkDetectionService : IFrameworkDetectionService
                 FirstMessage(error, "The library could not run a script."));
         }
 
-        if (!string.IsNullOrWhiteSpace(configuredPath))
+        if (configuredPath.HasText())
         {
             return new FrameworkInstall(
                 FrameworkStatus.Error, libraryPath, pluginDirectories,
@@ -91,5 +104,5 @@ public sealed class FrameworkDetectionService : IFrameworkDetectionService
     }
 
     private static string FirstMessage(string? error, string fallback) =>
-        string.IsNullOrWhiteSpace(error) ? fallback : error;
+        error.HasText() ? error : fallback;
 }

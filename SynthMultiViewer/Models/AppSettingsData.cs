@@ -59,4 +59,9 @@ public class AppSettingsData
     /// Gets or sets whether auto-detected AviSynth plugin folders are skipped.
     /// </summary>
     public bool AviSynthReplacePlugins { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the script editor offers catalog-driven assistance.
+    /// </summary>
+    public bool EnhanceEditorWithAutoComplete { get; set; } = true;
 }

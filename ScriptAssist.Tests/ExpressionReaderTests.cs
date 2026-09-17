@@ -1,0 +1,46 @@
+using Xunit;
+
+namespace HanumanInstitute.ScriptAssist.Tests;
+
+public class ExpressionReaderTests
+{
+    [Fact]
+    public void ParseIncludesTrailingCall()
+    {
+        var segments = ExpressionReader.Parse("vs.core.std.BlankClip()");
+        Assert.Equal(4, segments.Count);
+        Assert.Equal("vs", segments[0].Name);
+        Assert.Equal(PathSegmentKind.Name, segments[0].Kind);
+        Assert.Equal("BlankClip", segments[3].Name);
+        Assert.Equal(PathSegmentKind.Call, segments[3].Kind);
+    }
+
+    [Fact]
+    public void ParseIncludesTrailingIndex()
+    {
+        var segments = ExpressionReader.Parse("clip[0:10]");
+        Assert.Equal("clip", Assert.Single(segments).Name);
+        Assert.Equal(PathSegmentKind.Index, segments[0].Kind);
+    }
+
+    [Fact]
+    public void ReadWalksThroughClosedCall()
+    {
+        var code = "clip.std.Crop(0, 0, 2, 2).std.";
+        var path = ExpressionReader.Read(code, code.Length);
+        Assert.Equal("", path.Typed);
+        Assert.Equal(4, path.Segments.Count);
+        Assert.Equal("Crop", path.Segments[2].Name);
+        Assert.Equal(PathSegmentKind.Call, path.Segments[2].Kind);
+        Assert.Equal("std", path.Segments[3].Name);
+    }
+
+    [Fact]
+    public void UnwrapParenthesesStripsMatchingOuterPairsOnly()
+    {
+        Assert.Equal("cond ? a : b", ExpressionParts.UnwrapParentheses(" (cond ? a : b) "));
+        Assert.Equal("a + b", ExpressionParts.UnwrapParentheses("((a + b))"));
+        Assert.Equal("(a) + (b)", ExpressionParts.UnwrapParentheses("(a) + (b)"));
+        Assert.Equal("foo[0]", ExpressionParts.UnwrapParentheses("(foo[0])"));
+    }
+}

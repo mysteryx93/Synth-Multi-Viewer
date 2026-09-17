@@ -1,0 +1,39 @@
+using System.Text.RegularExpressions;
+
+namespace HanumanInstitute.ScriptAssist.AviSynth;
+
+/// <summary>
+/// Regular expressions for AviSynth buffer bindings.
+/// </summary>
+internal static partial class AviSynthPatterns
+{
+    [GeneratedRegex(@"\bfunction\s+([\p{L}_][\p{L}\p{N}_]*)\s*\(", RegexOptions.IgnoreCase)]
+    public static partial Regex Functions();
+
+    [GeneratedRegex(@"\bImport\s*\(\s*(?:""""""([\s\S]*?)""""""|""([^""]*)"")\s*\)", RegexOptions.IgnoreCase)]
+    public static partial Regex Import();
+
+    [GeneratedRegex(@"^\s*(?:(global)\s+)?([\p{L}_][\p{L}\p{N}_\p{M}]*)\s*=(?!=)\s*(.*)$",
+        RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    public static partial Regex NameAssign();
+
+    [GeneratedRegex(@"\\[ \t]*\r?\n[ \t]*\\?|\r?\n[ \t]*\\")]
+    public static partial Regex LineContinue();
+
+    [GeneratedRegex(@"\s+")]
+    public static partial Regex Whitespace();
+
+    /// <summary>
+    /// Turns AviSynth <c>\</c> line continuations into spaces of the same length.
+    /// </summary>
+    public static string JoinContinuations(string clean) =>
+        LineContinue().Replace(clean, static match => new string(' ', match.Length));
+
+    /// <summary>
+    /// Joins continuations, then masks comments and strings. <c>\</c> is preprocessing, so it
+    /// still joins a statement when the next line sits inside a triple-quoted string.
+    /// </summary>
+    public static string Clean(string text, LexerOptions lexer, bool maskStrings = true,
+        CancellationToken token = default) =>
+        BufferLexer.Mask(JoinContinuations(text), lexer, maskStrings, token: token).Code;
+}
