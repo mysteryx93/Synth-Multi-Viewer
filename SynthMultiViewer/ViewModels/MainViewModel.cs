@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Globalization;
 using System.Reactive.Linq;
 using System.Windows.Input;
@@ -16,7 +17,7 @@ namespace HanumanInstitute.SynthMultiViewer.ViewModels;
 /// <summary>
 /// Manages script tabs, shared viewer settings, and application commands.
 /// </summary>
-public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClosed
+public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClosed, IViewClosing
 {
     private readonly IDialogService _dialogService;
     private readonly IEnvironmentService _environmentService;
@@ -28,6 +29,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     private IScriptViewModel? _previousItem;
     private VideoPropertiesViewModel? _properties;
     private readonly VideoPropertiesPlacement _propertiesPlacement = new();
+    private readonly HashSet<IScriptViewModel> _closing = [];
     private bool _loaded;
 
     /// <summary>
@@ -351,6 +353,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         var editor = _dialogService.CreateViewModel<EditorViewModel>();
         editor.Kind = kind;
         editor.Script = script;
+        editor.MarkSaved();
         var index = TabAutoNumber.Next(ScriptList.Select(x => x.DisplayName), "Script");
         editor.Index = index;
         AddTab(editor, "Script " + index);
@@ -376,31 +379,45 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
 
     private async Task SaveImplAsync()
     {
-        if (SelectedItem is not IEditorViewModel item) { return; }
-
-        if (item.FileName == null)
+        if (SelectedItem is IEditorViewModel item)
         {
-            await SaveAsImplAsync();
-        }
-        else
-        {
-            await File.WriteAllTextAsync(item.FileName, item.Script);
+            await SaveEditorAsync(item);
         }
     }
 
     private async Task SaveAsImplAsync()
     {
-        if (SelectedItem is not IEditorViewModel item) { return; }
+        if (SelectedItem is IEditorViewModel item)
+        {
+            await SaveAsEditorAsync(item);
+        }
+    }
 
+    private async Task SaveEditorAsync(IEditorViewModel item)
+    {
+        if (item.FileName == null)
+        {
+            await SaveAsEditorAsync(item);
+            return;
+        }
+
+        await File.WriteAllTextAsync(item.FileName, item.Script);
+        item.MarkSaved();
+    }
+
+    private async Task SaveAsEditorAsync(IEditorViewModel item)
+    {
+        var vapoursynth = new FileFilter("VapourSynth Script",
+            ScriptKindLookup.FileFilterExtensions(ScriptKind.VapourSynth));
+        var avisynth = new FileFilter("AviSynth Script",
+            ScriptKindLookup.FileFilterExtensions(ScriptKind.AviSynth));
+        var all = new FileFilter("All files", "*");
         var settings = new SaveFileDialogSettings
         {
             DefaultExtension = ScriptKindLookup.DefaultExtension(item.Kind),
-            Filters =
-            {
-                new FileFilter("VapourSynth Script", ScriptKindLookup.FileFilterExtensions(ScriptKind.VapourSynth)),
-                new FileFilter("AviSynth Script", ScriptKindLookup.FileFilterExtensions(ScriptKind.AviSynth)),
-                new FileFilter("All files", "*")
-            }
+            Filters = item.Kind == ScriptKind.AviSynth
+                ? [avisynth, vapoursynth, all]
+                : [vapoursynth, avisynth, all]
         };
         var file = await _dialogService.ShowSaveFileDialogAsync(this, settings);
         if (file == null)
@@ -412,6 +429,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         item.FileName = file.LocalPath;
         item.DisplayName = Path.GetFileName(item.FileName);
         item.Kind = ScriptKindLookup.FromPath(item.FileName) ?? item.Kind;
+        item.MarkSaved();
     }
 
     private void RunImpl()
@@ -752,6 +770,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
                 editor.Kind = kind;
             }
             editor.Script = content;
+            editor.MarkSaved();
             AddTab(editor, Path.GetFileName(file));
             return true;
         }
@@ -780,10 +799,83 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         }
     }
 
-    private void ScriptOnRequestClose(object? sender, EventArgs e)
+    /// <inheritdoc />
+    public void OnClosing(CancelEventArgs e)
+    {
+        if (ScriptList.OfType<IEditorViewModel>().Any(x => x.IsDirty))
+        {
+            e.Cancel = true;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task OnClosingAsync(CancelEventArgs e)
+    {
+        foreach (var editor in ScriptList.OfType<IEditorViewModel>().ToList())
+        {
+            if (!editor.IsDirty)
+            {
+                continue;
+            }
+
+            if (!await ConfirmCloseAsync(editor))
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+
+        e.Cancel = false;
+    }
+
+    private async void ScriptOnRequestClose(object? sender, EventArgs e)
     {
         if (sender is not IScriptViewModel model) { return; }
 
+        if (model is IEditorViewModel editor && editor.IsDirty)
+        {
+            if (!_closing.Add(model))
+            {
+                return;
+            }
+
+            try
+            {
+                if (!await ConfirmCloseAsync(editor))
+                {
+                    return;
+                }
+            }
+            finally
+            {
+                _closing.Remove(model);
+            }
+        }
+
+        RemoveTab(model);
+    }
+
+    private async Task<bool> ConfirmCloseAsync(IEditorViewModel editor)
+    {
+        SelectedItem = editor;
+        var result = await _dialogService.ShowMessageBoxAsync(
+            this,
+            "Save changes to '" + editor.DisplayName + "'?",
+            "Unsaved document",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Warning,
+            defaultResult: null);
+        if (result == true)
+        {
+            await SaveEditorAsync(editor);
+            return !editor.IsDirty;
+        }
+
+        return result == false;
+    }
+
+    private void RemoveTab(IScriptViewModel model)
+    {
         model.RequestClose -= ScriptOnRequestClose;
 
         if (model is IViewerViewModel viewer)

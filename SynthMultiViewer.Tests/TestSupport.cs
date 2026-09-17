@@ -109,6 +109,7 @@ internal static class TestSupport
         public FakeDialogManager() : base(viewLocator: new ViewLocator()) { }
 
         private object? NextFrameworkResult { get; set; }
+        private readonly Queue<object?> _queued = new();
         public object? LastFrameworkSettings { get; private set; }
         public int FrameworkDialogCount { get; private set; }
 
@@ -122,12 +123,14 @@ internal static class TestSupport
                 ? Array.Empty<IDialogStorageFolder>()
                 : new IDialogStorageFolder[] { new DesktopDialogStorageFolder(path) };
 
+        public void QueueFrameworkResult(object? result) => _queued.Enqueue(result);
+
         public override Task<object?> ShowFrameworkDialogAsync<TSettings>(
             INotifyPropertyChanged? ownerViewModel, TSettings settings, Func<object?, string>? resultToString = null)
         {
             LastFrameworkSettings = settings;
             FrameworkDialogCount++;
-            return Task.FromResult(NextFrameworkResult);
+            return Task.FromResult(_queued.Count > 0 ? _queued.Dequeue() : NextFrameworkResult);
         }
     }
 

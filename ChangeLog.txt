@@ -1,6 +1,19 @@
 VapourSynth Multi-Viewer Change Log
 
+v1.4
+- Greatly enhanced text editor with ScriptAssist
+- Horizontal scrollbar page-right now behaves as expected
+- Ask save confirmation when closing document
+- Redesigned scrollbars
+
 v1.3
+- Enhanced text editor with auto-complete and plugin parameters information, for both VapourSynth and AviSynth
+- '-' and '=' characters are no longer being eaten by the editor
+- Add spacing in editor after line numbers
+- Dark mode is less dark
+- Redesigned seek bar
+
+v1.3 (2026-09-16)
 - Enhanced text editor with auto-complete and plugin parameters information, for both VapourSynth and AviSynth
 - '-' and '=' characters are no longer being eaten by the editor
 - Add spacing in editor after line numbers

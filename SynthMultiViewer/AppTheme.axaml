@@ -88,6 +88,7 @@
                                    ChromeDisabledHigh="#FF424242" />
         </FluentTheme.Palettes>
     </FluentTheme>
+    <StyleInclude Source="/Themes/ScrollBars.axaml" />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
     <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
     <Style Selector="TabStripItem">
@@ -102,6 +103,9 @@
     <!-- Shared control alignment and dialog layout. -->
     <Style Selector="Window">
         <Setter Property="UseLayoutRounding" Value="True" />
+    </Style>
+    <Style Selector="ScrollViewer">
+        <Setter Property="AllowAutoHide" Value="False" />
     </Style>
     <Style Selector="Button, ToggleButton">
         <Setter Property="HorizontalContentAlignment" Value="Center" />

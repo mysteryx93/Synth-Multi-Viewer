@@ -1,13 +1,16 @@
+using System.ComponentModel;
 using System.Reactive.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using HanumanInstitute.MediaSynthUI;
+using HanumanInstitute.MvvmDialogs.FrameworkDialogs;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
@@ -20,6 +23,9 @@ public class MainViewModelTests
 {
     static MainViewModelTests() =>
         RxAppBuilder.CreateReactiveUIBuilder().WithCoreServices().BuildApp();
+
+    private static HeadlessUnitTestSession UiSession =>
+        HeadlessUnitTestSession.GetOrStartForAssembly(typeof(TestApplication).Assembly);
 
     [AvaloniaFact]
     public async Task Load_FileUriArgument_OpensScript()
@@ -346,6 +352,153 @@ public class MainViewModelTests
         Assert.Empty(model.ScriptList);
         Assert.Null(model.SelectedItem);
     }
+
+    [Fact]
+    public Task Close_UnmodifiedEditor_DoesNotPrompt() => UiSession.Dispatch(async () =>
+    {
+        var manager = new TestSupport.FakeDialogManager();
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+
+        await model.SelectedItem!.Close.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(0, manager.FrameworkDialogCount);
+        Assert.Empty(model.ScriptList);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task Close_DirtyEditor_Cancel_KeepsTab() => UiSession.Dispatch(async () =>
+    {
+        var manager = new TestSupport.FakeDialogManager();
+        manager.QueueFrameworkResult(null);
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
+        editor.Script += " extra";
+
+        await editor.Close.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(editor, model.SelectedItem);
+        Assert.Contains(editor, model.ScriptList);
+        Assert.True(editor.IsDirty);
+        var prompt = Assert.IsType<MessageBoxSettings>(manager.LastFrameworkSettings);
+        Assert.Null(prompt.DefaultValue);
+        Assert.Equal(MessageBoxButton.YesNoCancel, prompt.Button);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task Close_DirtyEditor_Discard_ClosesWithoutSaving() => UiSession.Dispatch(async () =>
+    {
+        using var file = new TestSupport.TemporaryScript("original");
+        var manager = new TestSupport.FakeDialogManager();
+        manager.QueueFrameworkResult(false);
+        var model = TestSupport.CreateMain(manager: manager);
+        Assert.True(await model.ReadScriptFileAsync(file.Path));
+        var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
+        editor.Script = "changed";
+
+        await editor.Close.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(model.ScriptList);
+        Assert.Equal("original", File.ReadAllText(file.Path));
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task Close_DirtyEditor_Save_WritesAndCloses() => UiSession.Dispatch(async () =>
+    {
+        using var file = new TestSupport.TemporaryScript("original");
+        var manager = new TestSupport.FakeDialogManager();
+        manager.QueueFrameworkResult(true);
+        var model = TestSupport.CreateMain(manager: manager);
+        Assert.True(await model.ReadScriptFileAsync(file.Path));
+        var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
+        editor.Script = "changed";
+
+        await editor.Close.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(model.ScriptList);
+        Assert.Equal("changed", File.ReadAllText(file.Path));
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task Close_DirtyUntitled_SaveDialogCancelled_KeepsTab() => UiSession.Dispatch(async () =>
+    {
+        var manager = new TestSupport.FakeDialogManager();
+        manager.QueueFrameworkResult(true);
+        manager.QueueFrameworkResult(null);
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
+        editor.Script += " extra";
+
+        await editor.Close.Execute();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(editor, model.SelectedItem);
+        Assert.True(editor.IsDirty);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task OnClosing_DirtyEditor_CancelKeepsWindowOpen() => UiSession.Dispatch(async () =>
+    {
+        var manager = new TestSupport.FakeDialogManager();
+        manager.QueueFrameworkResult(null);
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+        Assert.IsType<EditorViewModel>(model.SelectedItem).Script += "x";
+        var args = new CancelEventArgs();
+
+        model.OnClosing(args);
+        Assert.True(args.Cancel);
+        await model.OnClosingAsync(args);
+
+        Assert.True(args.Cancel);
+        Assert.Single(model.ScriptList);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task SaveAs_AviSynth_SelectsAviSynthFilter() => UiSession.Dispatch(async () =>
+    {
+        var manager = new TestSupport.FakeDialogManager();
+        manager.QueueFrameworkResult(null);
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.NewAviSynth.Execute();
+
+        await model.SaveAs.Execute();
+
+        var settings = Assert.IsType<SaveFileDialogSettings>(manager.LastFrameworkSettings);
+        Assert.Equal(".avs", settings.DefaultExtension);
+        Assert.Equal("AviSynth Script", settings.Filters[0].Name);
+        Assert.Equal(["avs", "avsi"], settings.Filters[0].Extensions);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task SaveAs_VapourSynth_SelectsVapourSynthFilter() => UiSession.Dispatch(async () =>
+    {
+        var manager = new TestSupport.FakeDialogManager();
+        manager.QueueFrameworkResult(null);
+        var model = TestSupport.CreateMain(manager: manager);
+        await model.New.Execute();
+
+        await model.SaveAs.Execute();
+
+        var settings = Assert.IsType<SaveFileDialogSettings>(manager.LastFrameworkSettings);
+        Assert.Equal(".vpy", settings.DefaultExtension);
+        Assert.Equal("VapourSynth Script", settings.Filters[0].Name);
+        Assert.Equal(["vpy"], settings.Filters[0].Extensions);
+        return true;
+    }, TestContext.Current.CancellationToken);
 
     [AvaloniaFact]
     public async Task Close_MiddleTabClosed_SelectsFollowingTab()

@@ -1,5 +1,9 @@
 using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Data;
+using Avalonia.Layout;
+using Avalonia.VisualTree;
 using AvaloniaEdit;
 
 namespace HanumanInstitute.SynthMultiViewer.Controls;
@@ -9,6 +13,8 @@ namespace HanumanInstitute.SynthMultiViewer.Controls;
 /// </summary>
 public partial class BindableTextEditor : TextEditor
 {
+    private ScrollViewer? _scroll;
+
     /// <summary>
     /// Defines the bindable script text.
     /// </summary>
@@ -23,6 +29,45 @@ public partial class BindableTextEditor : TextEditor
     {
         TextChanged += (_, _) => SetCurrentValue(ScriptTextProperty, Text);
         InitializeCompletion();
+    }
+
+    /// <inheritdoc />
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        if (_scroll != null)
+        {
+            _scroll.LayoutUpdated -= OnScrollLayoutUpdated;
+        }
+
+        base.OnApplyTemplate(e);
+        _scroll = e.NameScope.Find<ScrollViewer>("PART_ScrollViewer");
+        if (_scroll != null)
+        {
+            _scroll.LayoutUpdated += OnScrollLayoutUpdated;
+        }
+    }
+
+    private void OnScrollLayoutUpdated(object? sender, EventArgs e)
+    {
+        if (_scroll == null)
+        {
+            return;
+        }
+
+        var viewport = _scroll.Viewport;
+        foreach (var bar in _scroll.GetVisualDescendants().OfType<ScrollBar>())
+        {
+            if (bar.Orientation == Orientation.Horizontal && viewport.Width > 0
+                && bar.LargeChange != viewport.Width)
+            {
+                bar.LargeChange = viewport.Width;
+            }
+            else if (bar.Orientation == Orientation.Vertical && viewport.Height > 0
+                && bar.LargeChange != viewport.Height)
+            {
+                bar.LargeChange = viewport.Height;
+            }
+        }
     }
 
     /// <summary>

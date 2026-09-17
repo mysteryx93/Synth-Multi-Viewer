@@ -13,6 +13,14 @@ public interface IEditorViewModel : IScriptViewModel
     /// Gets or sets the script text.
     /// </summary>
     string Script { get; set; }
+    /// <summary>
+    /// Gets whether the text has changed since it was last saved or loaded.
+    /// </summary>
+    bool IsDirty { get; }
+    /// <summary>
+    /// Marks the current text as saved.
+    /// </summary>
+    void MarkSaved();
 }
 
 /// <summary>
@@ -38,6 +46,14 @@ public partial class EditorViewModel : ScriptViewModel, IEditorViewModel
     /// <inheritdoc />
     [Reactive]
     public partial string Script { get; set; } = string.Empty;
+
+    private string _savedScript = string.Empty;
+
+    /// <inheritdoc />
+    public bool IsDirty => Script != _savedScript;
+
+    /// <inheritdoc />
+    public void MarkSaved() => _savedScript = Script ?? string.Empty;
 
     /// <summary>
     /// Gets the syntax highlighting asset for the current script kind.
