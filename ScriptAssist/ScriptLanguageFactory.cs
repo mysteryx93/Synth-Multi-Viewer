@@ -1,17 +1,51 @@
+using HanumanInstitute.ScriptAssist.AviSynth;
+using HanumanInstitute.ScriptAssist.VapourSynth;
+
 namespace HanumanInstitute.ScriptAssist;
 
 /// <summary>
-/// Holds one language service per registered profile.
+/// Holds the VapourSynth and AviSynth language services and their injected catalogs.
 /// </summary>
-public sealed class ScriptLanguageFactory : IScriptLanguageFactory
+public class ScriptLanguageFactory : IScriptLanguageFactory
 {
-    private readonly Dictionary<string, LanguageProfile> _profiles;
-    private readonly Func<bool>? _isEnabled;
+    /// <summary>
+    /// Host-facing id for VapourSynth. Matches <c>nameof(ScriptKind.VapourSynth)</c> in Synth Multi-Viewer.
+    /// </summary>
+    public const string VapourSynth = "VapourSynth";
 
     /// <summary>
-    /// Creates cached services around the given profiles. A null enablement probe means always on.
+    /// Host-facing id for AviSynth. Matches <c>nameof(ScriptKind.AviSynth)</c> in Synth Multi-Viewer.
     /// </summary>
-    public ScriptLanguageFactory(IReadOnlyList<LanguageProfile> profiles, Func<bool>? isEnabled = null)
+    public const string AviSynth = "AviSynth";
+
+    private readonly Dictionary<string, LanguageProfile> _profiles;
+
+    /// <summary>
+    /// Creates the built-in VapourSynth and AviSynth profiles. The host injects native catalogs and optional include readers.
+    /// </summary>
+    public ScriptLanguageFactory(
+        Func<IReadOnlyList<Symbol>> vapoursynthCatalog,
+        Func<IReadOnlyList<Symbol>> avisynthCatalog,
+        IncludeReader? vapoursynthIncludes = null,
+        IncludeReader? avisynthIncludes = null)
+        : this(
+        [
+            new LanguageProfile(
+                VapourSynth,
+                new VapourSynthLanguage(vapoursynthIncludes),
+                new CatalogCache(vapoursynthCatalog.CheckNotNull())),
+            new LanguageProfile(
+                AviSynth,
+                new AviSynthLanguage(avisynthIncludes),
+                new CatalogCache(avisynthCatalog.CheckNotNull()))
+        ])
+    {
+    }
+
+    /// <summary>
+    /// Creates cached services around the given profiles. Duplicate ids throw <see cref="ArgumentException"/>.
+    /// </summary>
+    public ScriptLanguageFactory(IReadOnlyList<LanguageProfile> profiles)
     {
         profiles.CheckNotNull();
         _profiles = new Dictionary<string, LanguageProfile>(StringComparer.Ordinal);
@@ -23,12 +57,10 @@ public sealed class ScriptLanguageFactory : IScriptLanguageFactory
                 throw new ArgumentException("Duplicate language '{0}'.".FormatInvariant(profile.Id), nameof(profiles));
             }
         }
-
-        _isEnabled = isEnabled;
     }
 
     /// <inheritdoc />
-    public bool IsEnabled => _isEnabled?.Invoke() != false;
+    public bool IsEnabled { get; set; } = true;
 
     /// <inheritdoc />
     public ILanguageService? Create(string language)

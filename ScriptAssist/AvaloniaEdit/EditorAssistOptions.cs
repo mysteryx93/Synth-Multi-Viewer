@@ -11,7 +11,8 @@ public sealed class EditorAssistOptions
     public required Func<ILanguageService?> ResolveService { get; init; }
 
     /// <summary>
-    /// When false, assistance is a no-op and catalogs are not requested.
+    /// When false, assistance is a no-op and catalogs are not requested. Point this at
+    /// <see cref="IScriptLanguageFactory.IsEnabled"/> when using a factory.
     /// </summary>
     public Func<bool>? IsEnabled { get; init; }
 

@@ -122,6 +122,8 @@ public sealed class AvsScript : IDisposable
     public static AvsScript LoadFile(string path)
     {
         var resolvedPath = ResolveScriptPath(path);
+        var text = File.ReadAllText(resolvedPath);
+        AvsImportGraph.ThrowIfRecursive(text, resolvedPath);
         return Load((native, environment) =>
             EvalClip(native, environment, "Import(\"" + Escape(resolvedPath) + "\")",
                 "AviSynth could not evaluate the script."));
@@ -139,7 +141,9 @@ public sealed class AvsScript : IDisposable
     public static AvsScript LoadScript(string script, string? scriptPath)
     {
         script.CheckNotNullOrEmpty();
-        var directory = scriptPath.HasText() ? Path.GetDirectoryName(ResolveScriptPath(scriptPath)) : null;
+        var resolvedPath = scriptPath.HasText() ? ResolveScriptPath(scriptPath) : null;
+        AvsImportGraph.ThrowIfRecursive(script, resolvedPath);
+        var directory = resolvedPath.HasText() ? Path.GetDirectoryName(resolvedPath) : null;
         return Load((native, environment) =>
         {
             if (directory.HasValue() && Directory.Exists(directory))

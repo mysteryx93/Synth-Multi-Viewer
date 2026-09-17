@@ -6,22 +6,32 @@ namespace HanumanInstitute.ScriptAssist.Tests;
 public class ScriptLanguageFactoryTests
 {
     [Fact]
+    public void HostConstructor_RegistersVapourSynthAndAviSynth()
+    {
+        var factory = new ScriptLanguageFactory(() => [], () => []);
+
+        Assert.True(factory.IsEnabled);
+        Assert.NotNull(factory.Create(ScriptLanguageFactory.VapourSynth));
+        Assert.NotNull(factory.Create(ScriptLanguageFactory.AviSynth));
+        Assert.Null(factory.Create("missing"));
+    }
+
+    [Fact]
     public async Task DisabledFactorySkipsEnumerationUntilEnabled()
     {
         var count = 0;
-        var enabled = false;
         var catalog = new CatalogCache(() =>
         {
             Interlocked.Increment(ref count);
             return (IReadOnlyList<Symbol>)[];
         });
         var factory = new ScriptLanguageFactory(
-            [new LanguageProfile("one", new VapourSynthLanguage(), catalog)],
-            () => enabled);
+            [new LanguageProfile("one", new VapourSynthLanguage(), catalog)]);
 
+        factory.IsEnabled = false;
         factory.Configure("one", "a");
         Assert.Equal(0, count);
-        enabled = true;
+        factory.IsEnabled = true;
         factory.Configure("one", "a");
         await catalog.GetAsync(CancellationToken.None);
         Assert.Equal(1, count);

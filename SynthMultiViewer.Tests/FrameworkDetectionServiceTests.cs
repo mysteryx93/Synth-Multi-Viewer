@@ -1,5 +1,6 @@
 using HanumanInstitute.ApiAviSynth;
 using HanumanInstitute.ApiVapourSynth;
+using HanumanInstitute.ScriptAssist;
 using HanumanInstitute.SynthMultiViewer.Services;
 using Xunit;
 
@@ -34,10 +35,39 @@ public class FrameworkDetectionServiceTests
         }
         finally
         {
-            VsHelper.SetDllPath("");
-            VsHelper.SetPluginFolders(null, false);
-            AvsScript.SetDllPath(null);
-            AvsScript.SetPluginFolders(null, false);
+            ResetNativePaths();
         }
+    }
+
+    [Fact]
+    public void Apply_WritesFactoryEnablementFromSettings()
+    {
+        var factory = new ScriptLanguageFactory(() => [], () => []);
+        var settings = new TestSupport.MemorySettingsProvider
+        {
+            Value = { EnhanceEditorWithAutoComplete = false }
+        };
+
+        try
+        {
+            var detection = new FrameworkDetectionService(settings, factory);
+            Assert.False(factory.IsEnabled);
+
+            settings.Value.EnhanceEditorWithAutoComplete = true;
+            detection.Apply(settings.Value);
+            Assert.True(factory.IsEnabled);
+        }
+        finally
+        {
+            ResetNativePaths();
+        }
+    }
+
+    private static void ResetNativePaths()
+    {
+        VsHelper.SetDllPath("");
+        VsHelper.SetPluginFolders(null, false);
+        AvsScript.SetDllPath(null);
+        AvsScript.SetPluginFolders(null, false);
     }
 }

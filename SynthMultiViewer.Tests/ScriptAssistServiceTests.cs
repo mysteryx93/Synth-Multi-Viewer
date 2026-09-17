@@ -1,5 +1,5 @@
 using HanumanInstitute.ApiVapourSynth;
-using HanumanInstitute.MediaSynthUI;
+using HanumanInstitute.ScriptAssist;
 using HanumanInstitute.SynthMultiViewer.Services;
 using Xunit;
 
@@ -8,29 +8,37 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 public class ScriptAssistServiceTests
 {
     [Fact]
-    public void IsEnabled_FollowsEnhanceEditorSetting()
+    public void Create_WellKnownLanguages_AreRegistered()
     {
-        var settings = new TestSupport.MemorySettingsProvider();
-        var service = new ScriptAssistService(settings);
+        var service = new ScriptAssistService(new TestSupport.MemorySettingsProvider());
 
         Assert.True(service.IsEnabled);
-        settings.Value.EnhanceEditorWithAutoComplete = false;
-        Assert.False(service.IsEnabled);
-        settings.Value.EnhanceEditorWithAutoComplete = true;
-        Assert.True(service.IsEnabled);
+        Assert.NotNull(service.Create(ScriptLanguageFactory.VapourSynth));
+        Assert.NotNull(service.Create(ScriptLanguageFactory.AviSynth));
     }
 
     [Fact]
-    public void Configure_WhenDisabled_DoesNotEnumerateNativeCatalogs()
+    public void Constructor_ReadsEnhanceEditorSetting()
     {
         var settings = new TestSupport.MemorySettingsProvider
         {
             Value = { EnhanceEditorWithAutoComplete = false }
         };
+
         var service = new ScriptAssistService(settings);
 
-        service.Configure(nameof(ScriptKind.VapourSynth), "a");
-        service.Configure(nameof(ScriptKind.AviSynth), "b");
+        Assert.False(service.IsEnabled);
+        settings.Value.EnhanceEditorWithAutoComplete = true;
+        Assert.False(service.IsEnabled);
+    }
+
+    [Fact]
+    public void Configure_WhenDisabled_DoesNotEnumerateNativeCatalogs()
+    {
+        var service = new ScriptAssistService(new TestSupport.MemorySettingsProvider()) { IsEnabled = false };
+
+        service.Configure(ScriptLanguageFactory.VapourSynth, "a");
+        service.Configure(ScriptLanguageFactory.AviSynth, "b");
         service.Refresh();
 
         Assert.False(service.IsEnabled);

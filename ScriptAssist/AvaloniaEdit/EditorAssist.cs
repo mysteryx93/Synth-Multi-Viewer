@@ -33,6 +33,29 @@ public sealed class EditorAssist : IDisposable
     }
 
     /// <summary>
+    /// Creates assistance that follows <paramref name="factory"/> enablement, catalogs, and refresh.
+    /// </summary>
+    public EditorAssist(
+        TextEditor editor, IScriptLanguageFactory factory, Func<string> language, Func<string?>? documentPath = null)
+        : this(editor, Options(factory, language, documentPath))
+    {
+    }
+
+    private static EditorAssistOptions Options(
+        IScriptLanguageFactory factory, Func<string> language, Func<string?>? documentPath)
+    {
+        factory.CheckNotNull();
+        language.CheckNotNull();
+        return new EditorAssistOptions
+        {
+            ResolveService = () => factory.Create(language()),
+            IsEnabled = () => factory.IsEnabled,
+            RefreshCatalogs = factory.Refresh,
+            ResolveDocumentPath = documentPath
+        };
+    }
+
+    /// <summary>
     /// Gets the currently displayed result, or null after dismissal.
     /// </summary>
     public Reply? DisplayedReply { get; private set; }

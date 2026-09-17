@@ -64,12 +64,18 @@ public sealed class FrameworkDetectionService : IFrameworkDetectionService
             AvsScript.GetPluginDirectories(aviSynthPath), aviSynthError,
             aviSynthVersion, aviSynthDetail);
 
-        _languages?.Configure(
-            nameof(ScriptKind.VapourSynth),
+        if (_languages == null)
+        {
+            return;
+        }
+
+        _languages.IsEnabled = settings.EnhanceEditorWithAutoComplete;
+        _languages.Configure(
+            ScriptLanguageFactory.VapourSynth,
             string.Join("\0", settings.VapourSynthPath, settings.VapourSynthPluginFolders,
                 settings.VapourSynthReplacePlugins));
-        _languages?.Configure(
-            nameof(ScriptKind.AviSynth),
+        _languages.Configure(
+            ScriptLanguageFactory.AviSynth,
             string.Join("\0", settings.AviSynthPath, settings.AviSynthPluginFolders,
                 settings.AviSynthReplacePlugins));
     }

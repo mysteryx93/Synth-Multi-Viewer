@@ -987,6 +987,21 @@ public class LanguageServiceTests
         Assert.Contains(reply.Items, x => x.InsertionText == "FromB");
     }
 
+    [Fact]
+    public void VapourSynthImportCycleDoesNotRecurseForever()
+    {
+        var files = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["a"] = "import b as x\ndef FromA(clip):\n    return clip\n",
+            ["b"] = "import a as y\ndef FromB(clip):\n    return clip\n"
+        };
+        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), new CatalogCache(() => []));
+        var text = "import a as m\nm.";
+        var reply = service.Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "FromA");
+        Assert.Contains(reply.Items, x => x.InsertionText == "x");
+    }
+
     private static IncludeReader HavsReader(string? text) =>
         FilesReader(text == null ? [] : new Dictionary<string, string> { ["havsfunc"] = text });
 

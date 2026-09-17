@@ -6,9 +6,9 @@ namespace HanumanInstitute.ScriptAssist;
 public interface IScriptLanguageFactory
 {
     /// <summary>
-    /// Gets whether assistance is currently enabled.
+    /// Gets or sets whether assistance is enabled. Defaults to true. Catalog enumeration runs only when this is true.
     /// </summary>
-    bool IsEnabled { get; }
+    bool IsEnabled { get; set; }
 
     /// <summary>
     /// Returns the shared service for <paramref name="language"/>, or null when the id is unknown.

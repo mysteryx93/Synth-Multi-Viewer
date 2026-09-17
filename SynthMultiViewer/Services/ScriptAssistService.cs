@@ -1,46 +1,22 @@
-using HanumanInstitute.ScriptAssist.AviSynth;
-using HanumanInstitute.ScriptAssist.VapourSynth;
 using HanumanInstitute.SynthMultiViewer.Models;
 
 namespace HanumanInstitute.SynthMultiViewer.Services;
 
 /// <summary>
-/// Hosts script-assist catalogs and the editor-enhancement setting.
+/// Script assistance wired to this app’s native catalogs and include readers.
 /// </summary>
-public sealed class ScriptAssistService : IScriptLanguageFactory
+public sealed class ScriptAssistService : ScriptLanguageFactory
 {
-    private readonly ISettingsProvider<AppSettingsData> _settings;
-    private readonly ScriptLanguageFactory _factory;
-
     /// <summary>
-    /// Creates the factory around native plugin catalogs and live settings.
+    /// Creates the factory around native catalogs and the editor-enhancement setting.
     /// </summary>
     public ScriptAssistService(ISettingsProvider<AppSettingsData> settings)
+        : base(
+            ScriptCatalogs.VapourSynth,
+            ScriptCatalogs.AviSynth,
+            ScriptIncludeIO.VapourSynth,
+            ScriptIncludeIO.AviSynth)
     {
-        _settings = settings;
-        _factory = new ScriptLanguageFactory(
-            [
-                new LanguageProfile(
-                    nameof(ScriptKind.VapourSynth),
-                    new VapourSynthLanguage(ScriptIncludeIO.VapourSynth),
-                    new CatalogCache(ScriptCatalogs.VapourSynth)),
-                new LanguageProfile(
-                    nameof(ScriptKind.AviSynth),
-                    new AviSynthLanguage(ScriptIncludeIO.AviSynth),
-                    new CatalogCache(ScriptCatalogs.AviSynth))
-            ],
-            () => _settings.Value.EnhanceEditorWithAutoComplete);
+        IsEnabled = settings.Value.EnhanceEditorWithAutoComplete;
     }
-
-    /// <inheritdoc />
-    public bool IsEnabled => _factory.IsEnabled;
-
-    /// <inheritdoc />
-    public ILanguageService? Create(string language) => _factory.Create(language);
-
-    /// <inheritdoc />
-    public void Configure(string language, string catalogKey) => _factory.Configure(language, catalogKey);
-
-    /// <inheritdoc />
-    public void Refresh() => _factory.Refresh();
 }

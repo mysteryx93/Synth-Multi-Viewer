@@ -49,6 +49,10 @@ VapourSynth and AviSynth must match that architecture. On Apple Silicon, Homebre
 
 This repo also contains .NET API wrapper for [VapourSynth](ApiVapourSynth/) and [AviSynth](ApiAviSynth/).
 
+### ScriptAssist
+
+Catalog-driven completion and Intellisense for VapourSynth and AviSynth on AvaloniaEdit.
+
 ### License
 
 [MIT License](LICENSE.md)
