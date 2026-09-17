@@ -16,6 +16,8 @@ public class ScriptIncludesTests
     [InlineData("clip", null)]
     [InlineData("int", null)]
     [InlineData("float", null)]
+    [InlineData("function", null)]
+    [InlineData("any", null)]
     [InlineData("*args", null)]
     [InlineData("", null)]
     public void AviSynthParameterNames(string parameter, string? expected) =>
@@ -33,6 +35,31 @@ public class ScriptIncludesTests
     [InlineData("", null)]
     public void PythonParameterNames(string parameter, string? expected) =>
         Assert.Equal(expected, ParameterNames.OfPython(parameter));
+
+    [Theory]
+    [InlineData("left:int:opt", "int")]
+    [InlineData("clip:vnode:opt", "vnode")]
+    [InlineData("format:int:opt", "int")]
+    [InlineData("radius: int = 1", "int")]
+    [InlineData("clip: vs.VideoNode", "vs.VideoNode")]
+    [InlineData("radius: Optional[int] = None", "Optional[int]")]
+    [InlineData("offsets:int[]", "int")]
+    [InlineData("planes=[0, 1]", null)]
+    [InlineData("clip", null)]
+    public void PythonParameterTypes(string parameter, string? expected) =>
+        Assert.Equal(expected, ParameterNames.PythonType(parameter));
+
+    [Theory]
+    [InlineData("int [height]", "int")]
+    [InlineData("int [blksizev]", "int")]
+    [InlineData("clip c", "clip")]
+    [InlineData("int \"width\"", "int")]
+    [InlineData("int* [planes]", "int")]
+    [InlineData("string \"Preset\"", "string")]
+    [InlineData("clip", "clip")]
+    [InlineData("*args", null)]
+    public void AviSynthParameterTypes(string parameter, string? expected) =>
+        Assert.Equal(expected, ParameterNames.AviSynthType(parameter));
 
     [Fact]
     public void ParameterSplitKeepsNestedCommas()
@@ -107,6 +134,16 @@ public class ScriptIncludesTests
         Assert.Equal(2, merged.Count(x => x.Name == "Foo"));
         Assert.Contains(merged, x => x.Name == "Foo" && x.Parameters is ["clip c"]);
         Assert.Contains(merged, x => x.Name == "Foo" && x.Parameters is ["int"]);
+    }
+
+    [Fact]
+    public void AviSynthUnionKeepsIncompatibleSingleNativeSignature()
+    {
+        var native = new[] { new Symbol("Foo", ["int"]) };
+        var parsed = new[] { new Symbol("Foo", ["clip c"]) };
+        var merged = AviSynthFunctions.UnionByName(native, parsed);
+        var foo = Assert.Single(merged, x => x.Name == "Foo");
+        Assert.Equal(["int"], foo.Parameters!);
     }
 
     [Fact]

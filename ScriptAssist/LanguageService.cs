@@ -129,7 +129,7 @@ public sealed class LanguageService : ILanguageService
         var seen = new HashSet<string>(_language.Comparison == StringComparison.OrdinalIgnoreCase
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal);
-        var consumed = ParameterNames.PositionalConsumed(scan.ArgumentList);
+        var consumed = scan.PositionalConsumed;
         foreach (var overload in scan.Overloads)
         {
             if (overload.Parameters == null)

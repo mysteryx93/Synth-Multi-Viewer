@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Media;
 using AvaloniaEdit;
 
 namespace HanumanInstitute.ScriptAssist.AvaloniaEdit;
@@ -14,16 +15,28 @@ internal sealed class HoverPresenter(TextEditor editor)
     /// </summary>
     public void Show(Reply reply)
     {
-        var view = editor.TextArea.TextView;
-        if (reply.Hover == null)
+        try
         {
-            ToolTip.SetTip(view, null);
-            ToolTip.SetIsOpen(view, false);
-            return;
-        }
+            Hide();
+            var text = reply.Hover?.Text;
+            if (!text.HasValue())
+            {
+                return;
+            }
 
-        ToolTip.SetTip(view, reply.Hover.Text);
-        ToolTip.SetIsOpen(view, true);
+            if (!editor.IsEffectivelyVisible)
+            {
+                return;
+            }
+
+            var view = editor.TextArea.TextView;
+            ToolTip.SetTip(view, CreateTip(text));
+            ToolTip.SetIsOpen(view, true);
+        }
+        catch
+        {
+            Hide();
+        }
     }
 
     /// <summary>
@@ -31,10 +44,29 @@ internal sealed class HoverPresenter(TextEditor editor)
     /// </summary>
     public void Hide()
     {
-        var view = editor.TextArea.TextView;
-        ToolTip.SetIsOpen(view, false);
-        ToolTip.SetTip(view, null);
+        try
+        {
+            var view = editor.TextArea.TextView;
+            ToolTip.SetIsOpen(view, false);
+            ToolTip.SetTip(view, null);
+        }
+        catch
+        {
+        }
     }
+
+    /// <summary>
+    /// Caps and wraps hover text the same way completion hints do.
+    /// </summary>
+    internal static TextBlock CreateTip(string text) =>
+        new()
+        {
+            Text = CompletionData.TruncateHint(text),
+            MaxWidth = CompletionData.HintMaxWidth,
+            MaxLines = CompletionData.HintMaxLines,
+            TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
 
     /// <summary>
     /// Maps a pointer position to a document offset, or -1 when outside the text.

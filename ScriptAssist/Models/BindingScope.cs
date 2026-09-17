@@ -26,6 +26,11 @@ public sealed class BindingScope
     public int HeaderEnd { get; init; }
 
     /// <summary>
+    /// Gets the index of the header's closing <c>)</c>, or -1.
+    /// </summary>
+    internal int ParenClose { get; init; } = -1;
+
+    /// <summary>
     /// Gets locals and parameters assigned in this function.
     /// </summary>
     public IReadOnlyDictionary<string, TypeRef> Names { get; init; } =

@@ -178,9 +178,9 @@ public sealed class VapourSynthLanguage : ILanguage
             return null;
         }
 
-        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var named))
+        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var parameter))
         {
-            return named;
+            return parameter == null ? null : TypeHover(name, path, ParameterType(parameter));
         }
 
         if (bindings.InFunctionHeader(path.Start) && path.Segments.Count == 0 &&
@@ -258,6 +258,24 @@ public sealed class VapourSynthLanguage : ILanguage
         }
 
         return new HoverInfo(type, path.Start, path.End - path.Start);
+    }
+
+    private static string? ParameterType(string parameter)
+    {
+        var key = ParameterNames.PythonType(parameter);
+        if (!key.HasValue())
+        {
+            return null;
+        }
+
+        var display = VapourSynthTypes.DisplayReturn(key);
+        if (display.HasValue() && display != key)
+        {
+            return display;
+        }
+
+        var annotated = VapourSynthTypes.FromAnnotation(key);
+        return annotated.IsUnknown ? display ?? key : VapourSynthTypes.Display(annotated);
     }
 
     private static bool IsParameterName(string name, int offset, DocumentBindings bindings)

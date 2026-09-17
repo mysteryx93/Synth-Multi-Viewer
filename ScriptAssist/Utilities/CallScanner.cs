@@ -11,6 +11,9 @@ internal static class CallScanner
     public static CallScan? Find(string code, ILanguage language, DocumentBindings bindings,
         IReadOnlyList<Symbol> catalog, CancellationToken token)
     {
+        var comparer = language.Comparison == StringComparison.OrdinalIgnoreCase
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
         var stack = new Stack<CallFrame>();
         for (var i = 0; i < code.Length; i++)
         {
@@ -22,7 +25,7 @@ internal static class CallScanner
             var c = code[i];
             if (c is '(' or '[' or '{')
             {
-                stack.Push(new CallFrame(c, i, 0, i + 1));
+                stack.Push(new CallFrame(c, i, i + 1, comparer));
             }
             else if (c is ')' or ']' or '}' && stack.Count > 0)
             {
@@ -30,8 +33,11 @@ internal static class CallScanner
             }
             else if (c == ',' && stack.Count > 0)
             {
-                var frame = stack.Pop();
-                stack.Push(new CallFrame(frame.Delimiter, frame.Offset, frame.Parameter + 1, i + 1));
+                stack.Peek().Comma(i + 1);
+            }
+            else if (c == '=' && stack.Count > 0 && ParameterNames.IsKeywordAssign(code, i))
+            {
+                stack.Peek().Keyword(code, i);
             }
         }
 
@@ -58,7 +64,7 @@ internal static class CallScanner
                 var current = code[frame.ArgumentStart..];
                 var parameter = NamedVisibleIndex(resolved, current, language) ?? frame.Parameter;
                 return new CallScan(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested, argumentList,
-                    current, UsedNames(argumentList, language.Comparison));
+                    current, frame.UsedNames, frame.Positional);
             }
 
             if (callee[^1].Name.Length > 0)
@@ -101,7 +107,7 @@ internal static class CallScanner
 
     private static int? NamedVisibleIndex(CallResolution resolved, string argument, ILanguage language)
     {
-        var eq = ParameterNames.KeywordEqualsIndex(argument);
+        var eq = ParameterNames.TopLevelKeywordEquals(argument);
         if (eq <= 0)
         {
             return null;
@@ -143,30 +149,53 @@ internal static class CallScanner
         return null;
     }
 
-    private static HashSet<string> UsedNames(string inside, StringComparison comparison)
+    private sealed class CallFrame(char delimiter, int offset, int argumentStart, StringComparer comparer)
     {
-        var used = new HashSet<string>(comparison == StringComparison.OrdinalIgnoreCase
-            ? StringComparer.OrdinalIgnoreCase
-            : StringComparer.Ordinal);
-        foreach (var part in ParameterNames.Split(inside))
+        public char Delimiter { get; } = delimiter;
+        public int Offset { get; } = offset;
+        public int Parameter { get; private set; }
+        public int ArgumentStart { get; private set; } = argumentStart;
+        public int Positional { get; private set; }
+        public HashSet<string> UsedNames { get; } = new(comparer);
+        private bool _keyword;
+
+        public void Comma(int nextStart)
         {
-            var eq = ParameterNames.KeywordEqualsIndex(part);
-            if (eq <= 0)
+            if (!_keyword)
             {
-                continue;
+                Positional++;
             }
 
-            var name = part[..eq].Trim();
-            if (name.Length > 0)
-            {
-                used.Add(name);
-            }
+            Parameter++;
+            ArgumentStart = nextStart;
+            _keyword = false;
         }
 
-        return used;
-    }
+        public void Keyword(string code, int equals)
+        {
+            if (Delimiter != '(' || _keyword)
+            {
+                return;
+            }
 
-    private readonly record struct CallFrame(char Delimiter, int Offset, int Parameter, int ArgumentStart);
+            var name = code[ArgumentStart..equals].Trim();
+            if (name.Length == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < name.Length; i++)
+            {
+                if (!BufferLexer.IsIdentifier(name[i]) || i == 0 && char.IsDigit(name[i]))
+                {
+                    return;
+                }
+            }
+
+            _keyword = true;
+            UsedNames.Add(name);
+        }
+    }
 }
 
 /// <summary>
@@ -179,7 +208,8 @@ internal sealed record CallScan(
     bool InNestedDelimiter,
     string ArgumentList,
     string CurrentArgument,
-    IReadOnlySet<string> UsedNames)
+    IReadOnlySet<string> UsedNames,
+    int PositionalConsumed)
 {
     /// <summary>
     /// Gets the consumer-facing insight.

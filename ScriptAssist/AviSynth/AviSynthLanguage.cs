@@ -120,9 +120,20 @@ public sealed class AviSynthLanguage : ILanguage
             return null;
         }
 
-        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var named))
+        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var parameter))
         {
-            return named;
+            if (parameter == null)
+            {
+                return null;
+            }
+
+            var type = ParameterNames.AviSynthType(parameter);
+            if (!type.HasValue() || type.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return new HoverInfo(type, path.Start, path.End - path.Start);
         }
 
         if (bindings.InFunctionHeader(path.Start) && !IsFunctionName(name, path.Start, bindings))

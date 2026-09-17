@@ -297,7 +297,8 @@ public sealed class EditorAssist : IDisposable
 
     private async void OnPointerHover(object? sender, PointerEventArgs e)
     {
-        if (_options.IsEnabled?.Invoke() == false || _completion.Window != null)
+        if (_options.IsEnabled?.Invoke() == false || _completion.Window != null ||
+            !_editor.IsEffectivelyVisible)
         {
             return;
         }

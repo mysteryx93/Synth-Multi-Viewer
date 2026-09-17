@@ -25,6 +25,8 @@ internal static class VapourSynthBinder
         var index = VapourSynthCatalogIndex.Build(catalog);
         var statements = StatementScanner.Scan(clean, token);
         var scopes = FunctionScopes(clean, quoted, statements);
+        var classes = ClassRanges(clean, quoted, statements);
+        var deferred = new List<StatementScanner.Span>();
 
         var n = 0;
         foreach (var span in statements)
@@ -34,34 +36,59 @@ internal static class VapourSynthBinder
                 token.ThrowIfCancellationRequested();
             }
 
-            ApplyStatement(quoted, span, documentPath, read, scriptModules, modulesByPath, lexer, token, buffer,
+            if (Keyword(quoted, span.Start, span.End, "def"))
+            {
+                BindDefHeader(quoted, span, scopes, buffer, names, scriptModules, index, classes);
+                var self = Innermost(scopes, span.Start);
+                if (self != null && self.Start == span.Start && self.HeaderEnd < span.End)
+                {
+                    deferred.Add(span);
+                }
+
+                continue;
+            }
+
+            var scope = Innermost(scopes, span.Start);
+            if (scope != null && span.Start < scope.HeaderEnd)
+            {
+                continue;
+            }
+
+            if (scope != null && span.Start >= scope.HeaderEnd)
+            {
+                deferred.Add(span);
+                continue;
+            }
+
+            ApplyBody(quoted, span, null, documentPath, read, scriptModules, modulesByPath, lexer, token, buffer,
                 names, scopes, index);
+        }
+
+        foreach (var span in deferred)
+        {
+            token.ThrowIfCancellationRequested();
+            if (Keyword(quoted, span.Start, span.End, "def"))
+            {
+                BindDefBody(quoted, span, scopes, names, scriptModules, buffer, index);
+                continue;
+            }
+
+            ApplyBody(quoted, span, Innermost(scopes, span.Start), documentPath, read, scriptModules, modulesByPath,
+                lexer, token, buffer, names, scopes, index);
         }
 
         names.Remove("");
         return Current(names, scriptModules, buffer, scopes);
     }
 
-    private static void ApplyStatement(string quoted, StatementScanner.Span span, string? documentPath,
-        IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
+    private static void ApplyBody(string quoted, StatementScanner.Span span, BindingScope? scope,
+        string? documentPath, IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, List<Symbol>> modulesByPath, LexerOptions lexer, CancellationToken token,
         List<Symbol> buffer, Dictionary<string, TypeRef> names, IReadOnlyList<BindingScope> scopes,
         VapourSynthCatalogIndex index)
     {
         var start = span.Start;
         var end = span.End;
-        if (Keyword(quoted, start, end, "def"))
-        {
-            BindDef(quoted, span, scopes, buffer, names, scriptModules, index);
-            return;
-        }
-
-        var scope = Innermost(scopes, start);
-        if (scope != null && start < scope.HeaderEnd)
-        {
-            return;
-        }
-
         if (Keyword(quoted, start, end, "import"))
         {
             ApplyImport(quoted, AfterKeyword(quoted, start, end, "import"), end, scope, documentPath, read,
@@ -258,9 +285,10 @@ internal static class VapourSynthBinder
             var oldId = VapourSynthTypes.ScriptOf(existing);
             if (oldId != null && oldId != id)
             {
-                var keep = PreferId(oldId, id);
-                MergeModules(scriptModules, keep, keep == oldId ? id : oldId);
-                id = keep;
+                if (IsPlaceholder(oldId) && !IsPlaceholder(id))
+                {
+                    MergeModules(scriptModules, id, oldId);
+                }
             }
             else if (oldId != null)
             {
@@ -271,6 +299,8 @@ internal static class VapourSynthBinder
         SetName(alias, VapourSynthTypes.Script(id), scope, names, buffer);
         return id;
     }
+
+    private static bool IsPlaceholder(string id) => id.Contains("::", StringComparison.Ordinal);
 
     private static string PreferId(string left, string right)
     {
@@ -511,23 +541,34 @@ internal static class VapourSynthBinder
     private static void RemoveSymbol(List<Symbol> target, string name) =>
         target.RemoveAll(symbol => symbol.Name.Equals(name, StringComparison.Ordinal));
 
-    private static void BindDef(string quoted, StatementScanner.Span span, IReadOnlyList<BindingScope> scopes,
+    private static void BindDefHeader(string quoted, StatementScanner.Span span, IReadOnlyList<BindingScope> scopes,
         List<Symbol> buffer, Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
-        VapourSynthCatalogIndex index)
+        VapourSynthCatalogIndex index, IReadOnlyList<(int Start, int End)> classes)
     {
         var self = Innermost(scopes, span.Start);
-        if (self == null || self.Start != span.Start || !TryDef(quoted, span, out _, out var open))
+        if (self == null || self.Start != span.Start)
         {
             return;
         }
 
         BindParameters(self.Parameters, ScopeNames(self), ForInfer(names, scriptModules, buffer, scopes, span.Start),
             index);
+        if (InRange(span.Start, classes))
+        {
+            return;
+        }
+
         var parameters = self.Parameters as string[] ?? [..self.Parameters];
-        var close = FunctionHeaders.MatchingClose(quoted, open);
-        var returnType = close >= 0 ? VapourSynthFunctions.ReturnId(quoted, close) : null;
+        var returnType = self.ParenClose >= 0 ? VapourSynthFunctions.ReturnId(quoted, self.ParenClose) : null;
         BindFunction(new Symbol(self.Name, parameters, ReturnType: returnType), Parent(scopes, self), buffer, names);
-        if (self.HeaderEnd >= span.End)
+    }
+
+    private static void BindDefBody(string quoted, StatementScanner.Span span, IReadOnlyList<BindingScope> scopes,
+        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer,
+        VapourSynthCatalogIndex index)
+    {
+        var self = Innermost(scopes, span.Start);
+        if (self == null || self.Start != span.Start || self.HeaderEnd >= span.End)
         {
             return;
         }
@@ -585,6 +626,7 @@ internal static class VapourSynthBinder
                 End = BlockEnd(clean, statements, i, span, headerEnd),
                 Name = name,
                 HeaderEnd = headerEnd,
+                ParenClose = close,
                 Names = new Dictionary<string, TypeRef>(StringComparer.Ordinal),
                 Parameters = parameters,
                 Symbols = new List<Symbol>()
@@ -592,6 +634,68 @@ internal static class VapourSynthBinder
         }
 
         return scopes;
+    }
+
+    private static List<(int Start, int End)> ClassRanges(string clean, string quoted,
+        IReadOnlyList<StatementScanner.Span> statements)
+    {
+        var ranges = new List<(int Start, int End)>();
+        for (var i = 0; i < statements.Count; i++)
+        {
+            var span = statements[i];
+            if (!TryClass(quoted, clean, span, out var headerEnd))
+            {
+                continue;
+            }
+
+            ranges.Add((span.Start, BlockEnd(clean, statements, i, span, headerEnd)));
+        }
+
+        return ranges;
+    }
+
+    private static bool TryClass(string quoted, string clean, StatementScanner.Span span, out int headerEnd)
+    {
+        headerEnd = span.Start;
+        if (!Keyword(quoted, span.Start, span.End, "class"))
+        {
+            return false;
+        }
+
+        var i = AfterKeyword(quoted, span.Start, span.End, "class");
+        if (!TryIdent(quoted, ref i, span.End, out _))
+        {
+            return false;
+        }
+
+        SkipWs(quoted, ref i, span.End);
+        var close = i > 0 ? i - 1 : 0;
+        if (i < span.End && quoted[i] == '(')
+        {
+            var match = FunctionHeaders.MatchingClose(clean, i);
+            if (match < 0)
+            {
+                return false;
+            }
+
+            close = match;
+        }
+
+        headerEnd = HeaderColon(clean, close);
+        return headerEnd > close;
+    }
+
+    private static bool InRange(int offset, IReadOnlyList<(int Start, int End)> ranges)
+    {
+        foreach (var range in ranges)
+        {
+            if (offset > range.Start && offset <= range.End)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryDef(string quoted, StatementScanner.Span span, out string name, out int open)
@@ -942,14 +1046,15 @@ internal static class VapourSynthBinder
                     continue;
                 }
 
-                if (!TryDef(quoted, span, out _, out var open))
+                if (!TryDef(quoted, span, out _, out _))
                 {
                     continue;
                 }
 
                 var parameters = inner.Parameters as string[] ?? [..inner.Parameters];
-                var close = FunctionHeaders.MatchingClose(quoted, open);
-                var returnType = close >= 0 ? VapourSynthFunctions.ReturnId(quoted, close) : null;
+                var returnType = inner.ParenClose >= 0
+                    ? VapourSynthFunctions.ReturnId(quoted, inner.ParenClose)
+                    : null;
                 ReplaceSymbol(extras, new Symbol(inner.Name, parameters, ReturnType: returnType));
                 continue;
             }

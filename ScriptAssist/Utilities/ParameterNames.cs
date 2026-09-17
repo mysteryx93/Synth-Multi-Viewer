@@ -27,6 +27,29 @@ internal static class ParameterNames
     }
 
     /// <summary>
+    /// Returns the type key from a Python or native VapourSynth parameter, without the name.
+    /// </summary>
+    public static string? PythonType(string parameter)
+    {
+        var text = StripDefault(parameter.Trim());
+        var colon = IndexOfTopLevel(text, ':');
+        if (colon < 0 || colon + 1 >= text.Length)
+        {
+            return null;
+        }
+
+        var type = text[(colon + 1)..].Trim();
+        var extra = type.IndexOf(':');
+        if (extra >= 0)
+        {
+            type = type[..extra];
+        }
+
+        type = type.Replace("[]", "", StringComparison.Ordinal).Trim();
+        return type.Length == 0 ? null : type;
+    }
+
+    /// <summary>
     /// Gets whether <paramref name="parameter"/> is a Python <c>*</c> or <c>/</c> separator.
     /// </summary>
     public static bool IsSeparator(string parameter)
@@ -78,6 +101,32 @@ internal static class ParameterNames
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Returns the AviSynth type word from <c>int [height]</c> / <c>clip c</c>, without the name.
+    /// </summary>
+    public static string? AviSynthType(string parameter)
+    {
+        var text = parameter.Trim();
+        if (text.Length == 0)
+        {
+            return null;
+        }
+
+        var i = 0;
+        while (i < text.Length && (char.IsLetter(text[i]) || text[i] == '_'))
+        {
+            i++;
+        }
+
+        if (i == 0)
+        {
+            return null;
+        }
+
+        var word = text[..i];
+        return IsAviSynthTypeWord(word) ? word : null;
     }
 
     /// <summary>
@@ -146,44 +195,53 @@ internal static class ParameterNames
     }
 
     /// <summary>
-    /// Counts previous positional arguments in an unclosed argument list.
-    /// </summary>
-    public static int PositionalConsumed(string argumentList)
-    {
-        var parts = Split(argumentList);
-        var trailingComma = argumentList.TrimEnd().EndsWith(',');
-        var count = trailingComma ? parts.Length : Math.Max(0, parts.Length - 1);
-        var consumed = 0;
-        for (var i = 0; i < count; i++)
-        {
-            if (KeywordEqualsIndex(parts[i]) < 0)
-            {
-                consumed++;
-            }
-        }
-
-        return consumed;
-    }
-
-    /// <summary>
     /// Index of a keyword <c>=</c> that is not part of <c>==</c>, <c>!=</c>, <c>&lt;=</c>, or <c>&gt;=</c>.
     /// </summary>
-    public static int KeywordEqualsIndex(string text)
+    public static int KeywordEqualsIndex(string text) => KeywordEqualsIndex(text, 0, text.Length, topLevel: false);
+
+    /// <summary>
+    /// Index of a top-level keyword <c>=</c> in <paramref name="text"/>.
+    /// </summary>
+    public static int TopLevelKeywordEquals(string text) => KeywordEqualsIndex(text, 0, text.Length, topLevel: true);
+
+    private static int KeywordEqualsIndex(string text, int start, int end, bool topLevel)
     {
-        for (var i = 0; i < text.Length; i++)
+        var depth = 0;
+        for (var i = start; i < end; i++)
         {
-            if (text[i] != '=')
+            var c = text[i];
+            if (topLevel)
+            {
+                if (c is '(' or '[' or '{')
+                {
+                    depth++;
+                    continue;
+                }
+
+                if (c is ')' or ']' or '}' && depth > 0)
+                {
+                    depth--;
+                    continue;
+                }
+
+                if (depth > 0)
+                {
+                    continue;
+                }
+            }
+
+            if (c != '=')
             {
                 continue;
             }
 
-            if (i + 1 < text.Length && text[i + 1] == '=')
+            if (i + 1 < end && text[i + 1] == '=')
             {
                 i++;
                 continue;
             }
 
-            if (i > 0 && text[i - 1] is '=' or '!' or '<' or '>')
+            if (i > start && text[i - 1] is '=' or '!' or '<' or '>')
             {
                 continue;
             }
@@ -192,6 +250,24 @@ internal static class ParameterNames
         }
 
         return -1;
+    }
+
+    /// <summary>
+    /// Index of a keyword <c>=</c> leftover marker for call-scanner reuse.
+    /// </summary>
+    internal static bool IsKeywordAssign(string text, int index)
+    {
+        if (index < 0 || index >= text.Length || text[index] != '=')
+        {
+            return false;
+        }
+
+        if (index + 1 < text.Length && text[index + 1] == '=')
+        {
+            return false;
+        }
+
+        return index == 0 || text[index - 1] is not ('=' or '!' or '<' or '>');
     }
 
     private static int IndexOfAviSynthOptional(string text)
@@ -270,6 +346,8 @@ internal static class ParameterNames
         text.Equals("string", StringComparison.OrdinalIgnoreCase) ||
         text.Equals("val", StringComparison.OrdinalIgnoreCase) ||
         text.Equals("func", StringComparison.OrdinalIgnoreCase) ||
+        text.Equals("function", StringComparison.OrdinalIgnoreCase) ||
+        text.Equals("any", StringComparison.OrdinalIgnoreCase) ||
         text.Equals("array", StringComparison.OrdinalIgnoreCase);
 
     private static string? Identifier(string text)

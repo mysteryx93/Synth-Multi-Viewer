@@ -6,14 +6,14 @@ namespace HanumanInstitute.ScriptAssist;
 internal static class NamedArgumentHover
 {
     /// <summary>
-    /// Returns true when the identifier is a keyword argument. <paramref name="hover"/> is set
-    /// when the name matches a parameter; a match-less <c>name=</c> still consumes the token.
+    /// Returns true when the identifier is a keyword argument. <paramref name="parameter"/> is the
+    /// matching catalog string; a match-less <c>name=</c> still consumes the token.
     /// </summary>
     public static bool TryGet(string code, CaretPath path, string name, ILanguage language,
         DocumentBindings bindings, IReadOnlyList<Symbol> catalog, StringComparison comparison,
-        out HoverInfo? hover)
+        out string? parameter)
     {
-        hover = null;
+        parameter = null;
         var i = path.End;
         while (i < code.Length && char.IsWhiteSpace(code[i]))
         {
@@ -39,12 +39,12 @@ internal static class NamedArgumentHover
                 continue;
             }
 
-            foreach (var parameter in overload.Parameters)
+            foreach (var candidate in overload.Parameters)
             {
-                var parameterName = language.ParameterName(parameter);
+                var parameterName = language.ParameterName(candidate);
                 if (parameterName != null && parameterName.Equals(name, comparison))
                 {
-                    hover = new HoverInfo(parameter, path.Start, path.End - path.Start);
+                    parameter = candidate;
                     return true;
                 }
             }

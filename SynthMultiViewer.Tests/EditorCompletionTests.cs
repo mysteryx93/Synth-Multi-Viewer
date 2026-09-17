@@ -75,6 +75,14 @@ public class EditorCompletionTests
         var huge = CompletionData.TruncateHint(new string('x', 500));
         Assert.True(huge.Length <= 400);
         Assert.EndsWith("…", huge);
+        var hover = HoverPresenter.CreateTip(new string('x', 500) + "(" + string.Join(", ",
+            Enumerable.Repeat("clip:vnode:opt", 20)) + ")");
+        Assert.Equal(CompletionData.HintMaxWidth, hover.MaxWidth);
+        Assert.Equal(CompletionData.HintMaxLines, hover.MaxLines);
+        Assert.Equal(TextWrapping.Wrap, hover.TextWrapping);
+        Assert.Equal(TextTrimming.CharacterEllipsis, hover.TextTrimming);
+        Assert.True(hover.Text!.Length <= 400);
+        Assert.EndsWith("…", hover.Text);
     }
 
     [Fact]

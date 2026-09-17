@@ -270,8 +270,31 @@ public class LanguageServiceTests
         var caret = text.IndexOf("width", StringComparison.Ordinal) + 1;
         var hover = VsService().Analyze(text, caret, Vs).Hover;
         Assert.NotNull(hover);
-        Assert.Equal("width:int:opt", hover.Text);
-        Assert.DoesNotContain("width: int", hover.Text, StringComparison.Ordinal);
+        Assert.Equal("int", hover.Text);
+        Assert.DoesNotContain("width", hover.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VapourSynthNamedArgumentAndValueBothShowType()
+    {
+        const string text = "w = 640\ncore.std.BlankClip(width=w)";
+        var name = VsService().Analyze(text, text.IndexOf("width=", StringComparison.Ordinal) + 1, Vs).Hover;
+        Assert.Equal("int", name?.Text);
+        var value = VsService().Analyze(text, text.IndexOf("=w", StringComparison.Ordinal) + 2, Vs).Hover;
+        Assert.Equal("int", value?.Text);
+    }
+
+    [Fact]
+    public void VapourSynthBoundNamedArgumentHoverIsTypeOnly()
+    {
+        var point = new Symbol("core.resize.Point",
+            ["clip:vnode", "width:int:opt", "height:int:opt", "format:int:opt"], ReturnType: "clip:vnode;");
+        var catalog = Vs.Concat([point]).ToArray();
+        const string text = "clip = core.std.BlankClip()\nclip.resize.Point(format=vs.YUV420P8)";
+        var hover = VsService().Analyze(text, text.IndexOf("format=", StringComparison.Ordinal) + 1, catalog).Hover;
+        Assert.NotNull(hover);
+        Assert.Equal("int", hover.Text);
+        Assert.DoesNotContain("format", hover.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -296,6 +319,15 @@ public class LanguageServiceTests
         var hover = VsService().Analyze(assigned, assigned.Length, catalog).Hover;
         Assert.NotNull(hover);
         Assert.Contains("VideoNode", hover.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AviSynthFunctionAndAnyAreNotKeywordNames()
+    {
+        var native = new[] { new Symbol("Foo", AviSynthParameters.Parse("n.")!) };
+        var reply = AvsService().Analyze("Foo(", 4, native);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "function=");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "any=");
     }
 
     [Fact]
@@ -380,8 +412,24 @@ public class LanguageServiceTests
         var caret = text.IndexOf("height", StringComparison.Ordinal) + 1;
         var hover = AvsService().Analyze(text, caret, [blank, height]).Hover;
         Assert.NotNull(hover);
-        Assert.Equal("int [height]", hover.Text);
+        Assert.Equal("int", hover.Text);
+        Assert.DoesNotContain("height", hover.Text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Height(", hover.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AviSynthNamedArgumentAndValueBothShowType()
+    {
+        var msuper = new Symbol("MSuper", ["clip", "int [blksize]", "int [blksizev]"]);
+        var text = """
+            function Foo(clip C, int blkSizeV) {
+                C.MSuper(blksizev=blkSizeV)
+            }
+            """;
+        var name = AvsService().Analyze(text, text.IndexOf("blksizev=", StringComparison.Ordinal) + 1, [msuper]).Hover;
+        Assert.Equal("int", name?.Text);
+        var value = AvsService().Analyze(text, text.IndexOf("=blkSizeV", StringComparison.Ordinal) + 2, [msuper]).Hover;
+        Assert.Equal("int", value?.Text);
     }
 
     [Fact]

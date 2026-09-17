@@ -125,7 +125,7 @@ public static class AviSynthFunctions
         }
 
         if (nativeGroup.Count == 1 && parsedGroup.Count == 1 && NamedCount(nativeGroup[0]) == 0 &&
-            NamedCount(parsedGroup[0]) > 0)
+            NamedCount(parsedGroup[0]) > 0 && IsIncompletePrefix(nativeGroup[0], parsedGroup[0]))
         {
             return parsedGroup;
         }
@@ -162,6 +162,26 @@ public static class AviSynthFunctions
         }
 
         return enriched;
+    }
+
+    private static bool IsIncompletePrefix(Symbol native, Symbol parsed)
+    {
+        var a = native.Parameters ?? [];
+        var b = parsed.Parameters ?? [];
+        if (a.Length == 0 || a.Length >= b.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < a.Length; i++)
+        {
+            if (!TypeKey(a[i]).Equals(TypeKey(b[i]), StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool SameShape(Symbol left, Symbol right)

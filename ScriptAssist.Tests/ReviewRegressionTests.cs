@@ -255,7 +255,7 @@ public class ReviewRegressionTests
     {
         var text = "core.std.BlankClip(width == 640)";
         var hover = VsService().Analyze(text, text.IndexOf("width", StringComparison.Ordinal) + 1, Vs).Hover;
-        Assert.True(hover == null || hover.Text != "width:int:opt");
+        Assert.True(hover == null || hover.Text != "int");
     }
 
     [Fact]
@@ -569,6 +569,28 @@ public class ReviewRegressionTests
     }
 
     [Fact]
+    public void ArgumentCompletionSkipsAlreadySuppliedSlots()
+    {
+        var text = """
+            def f(path, radius=2):
+                return path
+            f("input.mkv", 
+            """;
+        var afterString = VsService().Analyze(text, text.Length, Vs);
+        Assert.DoesNotContain(afterString.Items, x => x.InsertionText == "path=");
+        Assert.Contains(afterString.Items, x => x.InsertionText == "radius=");
+
+        var nested = """
+            def f(path, radius=2):
+                return path
+            f(core.std.BlankClip(width=640), 
+            """;
+        var afterCall = VsService().Analyze(nested, nested.Length, Vs);
+        Assert.DoesNotContain(afterCall.Items, x => x.InsertionText == "path=");
+        Assert.Contains(afterCall.Items, x => x.InsertionText == "radius=");
+    }
+
+    [Fact]
     public void OneLineFunctionBodyStaysInScope()
     {
         var leak = """
@@ -633,6 +655,105 @@ public class ReviewRegressionTests
         var reply = VsService().Analyze(text, text.Length, Vs);
         Assert.Contains(reply.Items, x => x.InsertionText == "std");
         Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void RebindingModuleAliasDoesNotMergeUnrelatedModules()
+    {
+        IncludeReader read = (specifier, _) => specifier switch
+        {
+            "helper" => new IncludeFile("/plugins/helper.py", "def Filter(clip):\n    return clip\n"),
+            "other" => new IncludeFile("/plugins/other.py", "def OtherFn():\n    return 1\n"),
+            _ => null
+        };
+        var service = VsService(read);
+
+        var rebound = """
+            import helper as mod
+            import other as mod
+            mod.
+            """;
+        var members = service.Analyze(rebound, rebound.Length, Vs);
+        Assert.Contains(members.Items, x => x.InsertionText == "OtherFn");
+        Assert.DoesNotContain(members.Items, x => x.InsertionText == "Filter");
+
+        var separate = """
+            import other as o
+            import helper as mod
+            import other as mod
+            o.
+            """;
+        var original = service.Analyze(separate, separate.Length, Vs);
+        Assert.Contains(original.Items, x => x.InsertionText == "OtherFn");
+        Assert.DoesNotContain(original.Items, x => x.InsertionText == "Filter");
+    }
+
+    [Fact]
+    public void EscapedQuoteInDefaultKeepsReturnType()
+    {
+        var local = """
+            def f(text="a\"b") -> vs.VideoNode:
+                return clip
+            clip = f()
+            clip.
+            """;
+        var reply = VsService().Analyze(local, local.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+
+        var helper = "def f(text=\"a\\\"b\") -> vs.VideoNode:\n    return clip\n";
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+        var imported = "from helper import f\nclip = f()\nclip.";
+        var fromImport = service.Analyze(imported, imported.Length, Vs);
+        Assert.Contains(fromImport.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void ClassMethodsAreNotModuleFunctions()
+    {
+        var text = """
+            class C:
+                def Apply(self, clip):
+                    return clip
+            App
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Apply");
+
+        var inside = """
+            class C:
+                def Apply(self, clip):
+                    clip.
+            """;
+        var members = VsService().Analyze(inside, inside.Length, Vs);
+        Assert.Contains(members.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void LaterDeclaredHelperTypesFunctionBody()
+    {
+        var text = """
+            def f():
+                result = make()
+                result.
+            def make() -> vs.VideoNode:
+                return clip
+            """;
+        var caret = text.IndexOf("result.", StringComparison.Ordinal) + "result.".Length;
+        var reply = VsService().Analyze(text, caret, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+
+        var moduleLevel = """
+            clip = make()
+            clip.
+            def make() -> vs.VideoNode:
+                return clip
+            """;
+        var early = VsService().Analyze(moduleLevel, moduleLevel.IndexOf("clip.", StringComparison.Ordinal) + 5, Vs);
+        Assert.DoesNotContain(early.Items, x => x.InsertionText == "std");
     }
 
     [Fact]
