@@ -26,11 +26,13 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 public class BehaviorTests
 {
     [AvaloniaFact]
-    public void HeaderEditDone_EnterPressed_CommitsBoundName()
+    public async Task HeaderEditDone_EnterPressed_CommitsBoundName()
     {
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
+        Dispatcher.UIThread.RunJobs();
         ((ICommand)model.Rename).Execute(null);
         Dispatcher.UIThread.RunJobs();
 
@@ -42,11 +44,13 @@ public class BehaviorTests
     }
 
     [AvaloniaFact]
-    public void HeaderEditCancel_EscapePressed_RestoresName()
+    public async Task HeaderEditCancel_EscapePressed_RestoresName()
     {
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
+        Dispatcher.UIThread.RunJobs();
         var original = model.SelectedItem!.DisplayName;
         ((ICommand)model.Rename).Execute(null);
         Dispatcher.UIThread.RunJobs();
@@ -59,11 +63,13 @@ public class BehaviorTests
     }
 
     [AvaloniaFact]
-    public void HeaderEditDone_BlankName_RestoresName()
+    public async Task HeaderEditDone_BlankName_RestoresName()
     {
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
+        Dispatcher.UIThread.RunJobs();
         var original = model.SelectedItem!.DisplayName;
         ((ICommand)model.Rename).Execute(null);
         Dispatcher.UIThread.RunJobs();
@@ -78,11 +84,13 @@ public class BehaviorTests
     }
 
     [AvaloniaFact]
-    public void HeaderEditDone_EmptyNameClickAway_RestoresName()
+    public async Task HeaderEditDone_EmptyNameClickAway_RestoresName()
     {
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
+        Dispatcher.UIThread.RunJobs();
         var original = model.SelectedItem!.DisplayName;
         ((ICommand)model.Rename).Execute(null);
         Dispatcher.UIThread.RunJobs();
@@ -98,11 +106,13 @@ public class BehaviorTests
     }
 
     [AvaloniaFact]
-    public void HeaderEditDone_FocusMovesAway_CommitsBoundName()
+    public async Task HeaderEditDone_FocusMovesAway_CommitsBoundName()
     {
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
+        Dispatcher.UIThread.RunJobs();
         ((ICommand)model.Rename).Execute(null);
         Dispatcher.UIThread.RunJobs();
 
@@ -119,6 +129,7 @@ public class BehaviorTests
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
         await model.Run.Execute();
         Dispatcher.UIThread.RunJobs();
         ((ICommand)model.Rename).Execute(null);
@@ -164,11 +175,13 @@ public class BehaviorTests
     }
 
     [AvaloniaFact]
-    public void WhenVisible_HeaderEditorShown_FocusesAndSelectsText()
+    public async Task WhenVisible_HeaderEditorShown_FocusesAndSelectsText()
     {
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
+        Dispatcher.UIThread.RunJobs();
 
         ((ICommand)model.Rename).Execute(null);
         Dispatcher.UIThread.RunJobs();
@@ -180,8 +193,8 @@ public class BehaviorTests
         Assert.Equal(box.Text!.Length, Math.Abs(box.SelectionEnd - box.SelectionStart));
     }
 
-    [AvaloniaFact]
-    public async Task Load_CreatesDefaultEditor_FocusesScriptEditor()
+    [Fact]
+    public Task Load_NoScripts_ShowsStartCanvas() => UiSession.Dispatch(async () =>
     {
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
@@ -190,8 +203,12 @@ public class BehaviorTests
         await model.Load.Execute();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.True(VisibleEditor(view).TextArea.IsFocused);
-    }
+        Assert.True(model.IsStartVisible);
+        Assert.Empty(model.ScriptList);
+        Assert.True(view.FindControl<ScrollViewer>("StartCanvas")!.IsVisible);
+        Assert.Empty(view.GetVisualDescendants().OfType<BindableTextEditor>());
+        return true;
+    }, TestContext.Current.CancellationToken);
 
     [AvaloniaFact]
     public async Task New_Executed_FocusesScriptEditor()
@@ -289,6 +306,7 @@ public class BehaviorTests
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
         await model.Run.Execute();
         Dispatcher.UIThread.RunJobs();
         var viewer = Assert.IsType<ViewerViewModel>(model.SelectedItem);
@@ -334,6 +352,7 @@ public class BehaviorTests
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
         await model.Run.Execute();
         Dispatcher.UIThread.RunJobs();
         var viewer = Assert.IsType<ViewerViewModel>(model.SelectedItem);
@@ -440,6 +459,7 @@ public class BehaviorTests
         var model = TestSupport.CreateMain();
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
+        await model.New.Execute();
         Dispatcher.UIThread.RunJobs();
         var editor = view.GetVisualDescendants().OfType<BindableTextEditor>().Single();
         var original = editor.Text;

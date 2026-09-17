@@ -152,18 +152,44 @@
                 </TabStrip.ItemTemplate>
             </TabStrip>
         </DockPanel>
-        <ItemsControl ItemsSource="{Binding ScriptList}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Grid />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:IScriptViewModel">
-                    <ContentControl Content="{Binding}" IsVisible="{Binding IsActive}"
-                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <Grid>
+            <ItemsControl ItemsSource="{Binding ScriptList}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <Grid />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:IScriptViewModel">
+                        <ContentControl Content="{Binding}" IsVisible="{Binding IsActive}"
+                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ScrollViewer x:Name="StartCanvas" IsVisible="{Binding IsStartVisible}"
+                          HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel Classes="start-canvas">
+                    <StackPanel Classes="start-actions">
+                        <Button x:Name="StartNewVapourSynth" Content="New VapourSynth" Command="{Binding New}" />
+                        <Button x:Name="StartNewAviSynth" Content="New AviSynth" Command="{Binding NewAviSynth}" />
+                        <Button x:Name="StartOpen" Content="Open" Command="{Binding Open}" />
+                    </StackPanel>
+                    <TextBlock Text="Drop a script here" Classes="start-hint" />
+                    <ItemsControl x:Name="StartRecents" ItemsSource="{Binding Recents}"
+                                  IsVisible="{Binding HasRecents}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RecentFileItem">
+                                <Button Classes="start-recent"
+                                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).OpenRecent}"
+                                        CommandParameter="{Binding Path}" ToolTip.Tip="{Binding Path}"
+                                        Content="{Binding Name}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding EngineStatus}" IsVisible="{Binding HasEngineStatus}"
+                               Classes="start-status" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
     </DockPanel>
 </Window>

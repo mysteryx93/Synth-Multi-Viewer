@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.MvvmDialogs.FrameworkDialogs;
 using HanumanInstitute.SynthMultiViewer.Models;
+using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
 using ReactiveUI.Builder;
@@ -1161,5 +1162,204 @@ public class MainViewModelTests
         {
             File.Delete(path);
         }
+    }
+
+    [Fact]
+    public async Task Load_NoArguments_LeavesEmptyStart()
+    {
+        var model = TestSupport.CreateMain();
+
+        await model.Load.Execute();
+
+        Assert.Empty(model.ScriptList);
+        Assert.True(model.IsStartVisible);
+        Assert.Null(model.SelectedItem);
+    }
+
+    [Fact]
+    public Task New_HidesStart_CloseLastTabShowsStart() => UiSession.Dispatch(async () =>
+    {
+        var model = TestSupport.CreateMain();
+        await model.Load.Execute();
+
+        await model.New.Execute();
+        Assert.False(model.IsStartVisible);
+        Assert.Single(model.ScriptList);
+
+        await model.SelectedItem!.Close.Execute();
+
+        Assert.True(model.IsStartVisible);
+        Assert.Empty(model.ScriptList);
+        Assert.Null(model.SelectedItem);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task New_DoesNotRememberUntitled() => UiSession.Dispatch(async () =>
+    {
+        var settings = new TestSupport.MemorySettingsProvider();
+        var model = TestSupport.CreateMain(settings: settings);
+
+        await model.New.Execute();
+        await model.SelectedItem!.Close.Execute();
+
+        Assert.Empty(settings.Value.RecentFiles);
+        Assert.Empty(model.Recents);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task ReadScriptFileAsync_RemembersRecentAndShowsOnStart() => UiSession.Dispatch(async () =>
+    {
+        using var file = new TestSupport.TemporaryScript("clip");
+        var settings = new TestSupport.MemorySettingsProvider();
+        var model = TestSupport.CreateMain(settings: settings);
+
+        Assert.True(await model.ReadScriptFileAsync(file.Path));
+        Assert.Equal([file.Path], settings.Value.RecentFiles);
+        Assert.False(model.IsStartVisible);
+
+        await model.SelectedItem!.Close.Execute();
+
+        Assert.True(model.IsStartVisible);
+        Assert.Equal(file.Path, Assert.Single(model.Recents).Path);
+        Assert.Equal(Path.GetFileName(file.Path), model.Recents[0].Name);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task Recents_Reopen_MovesToFront() => UiSession.Dispatch(async () =>
+    {
+        using var first = new TestSupport.TemporaryScript("a");
+        using var second = new TestSupport.TemporaryScript("b");
+        var settings = new TestSupport.MemorySettingsProvider();
+        var model = TestSupport.CreateMain(settings: settings);
+
+        Assert.True(await model.ReadScriptFileAsync(first.Path));
+        Assert.True(await model.ReadScriptFileAsync(second.Path));
+        Assert.Equal([second.Path, first.Path], settings.Value.RecentFiles);
+
+        Assert.True(await model.ReadScriptFileAsync(first.Path));
+
+        Assert.Equal([first.Path, second.Path], settings.Value.RecentFiles);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task Recents_Cap8_DropsOldest() => UiSession.Dispatch(async () =>
+    {
+        var settings = new TestSupport.MemorySettingsProvider();
+        var model = TestSupport.CreateMain(settings: settings);
+        var files = new List<TestSupport.TemporaryScript>();
+        try
+        {
+            for (var i = 0; i < 9; i++)
+            {
+                var file = new TestSupport.TemporaryScript(i.ToString());
+                files.Add(file);
+                Assert.True(await model.ReadScriptFileAsync(file.Path));
+            }
+
+            Assert.Equal(8, settings.Value.RecentFiles.Count);
+            Assert.Equal(files[8].Path, settings.Value.RecentFiles[0]);
+            Assert.DoesNotContain(files[0].Path, settings.Value.RecentFiles);
+            return true;
+        }
+        finally
+        {
+            foreach (var file in files)
+            {
+                file.Dispose();
+            }
+        }
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public void Recents_MissingFile_PrunedOnStart()
+    {
+        var settings = new TestSupport.MemorySettingsProvider();
+        settings.Value.RecentFiles.Add(Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.vpy"));
+
+        var model = TestSupport.CreateMain(settings: settings);
+
+        Assert.Empty(model.Recents);
+        Assert.Empty(settings.Value.RecentFiles);
+        Assert.True(settings.SaveCount > 0);
+    }
+
+    [Fact]
+    public Task OpenRecent_Missing_PrunesAndShowsError() => UiSession.Dispatch(async () =>
+    {
+        var manager = new TestSupport.FakeDialogManager();
+        var settings = new TestSupport.MemorySettingsProvider();
+        var missing = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.vpy");
+        await File.WriteAllTextAsync(missing, "clip");
+        settings.Value.RecentFiles.Add(missing);
+        var model = TestSupport.CreateMain(settings: settings, manager: manager);
+        Assert.Single(model.Recents);
+        File.Delete(missing);
+
+        await model.OpenRecent.Execute(missing);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(model.Recents);
+        Assert.Empty(settings.Value.RecentFiles);
+        Assert.IsType<MessageBoxSettings>(manager.LastFrameworkSettings);
+        Assert.True(model.IsStartVisible);
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public Task Save_ExistingPath_RemembersFile() => UiSession.Dispatch(async () =>
+    {
+        using var file = new TestSupport.TemporaryScript("original");
+        var settings = new TestSupport.MemorySettingsProvider();
+        var model = TestSupport.CreateMain(settings: settings);
+        await model.New.Execute();
+        var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
+        editor.FileName = file.Path;
+        editor.Script = "saved";
+
+        await model.Save.Execute();
+
+        Assert.Equal([file.Path], settings.Value.RecentFiles);
+        Assert.Equal("saved", File.ReadAllText(file.Path));
+        return true;
+    }, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public void EngineStatus_BothMissing_ReportsQuietLine()
+    {
+        var model = TestSupport.CreateMain();
+
+        Assert.Equal("VapourSynth and AviSynth not detected", model.EngineStatus);
+        Assert.True(model.HasEngineStatus);
+    }
+
+    [Fact]
+    public void EngineStatus_BothFound_IsHidden()
+    {
+        var detection = new TestSupport.MemoryFrameworkDetection
+        {
+            VapourSynth = new FrameworkInstall(true),
+            AviSynth = new FrameworkInstall(true)
+        };
+        var model = TestSupport.CreateMain(frameworks: detection);
+
+        Assert.Null(model.EngineStatus);
+        Assert.False(model.HasEngineStatus);
+    }
+
+    [Fact]
+    public void EngineStatus_OnlyAviSynthMissing_ReportsAviSynth()
+    {
+        var detection = new TestSupport.MemoryFrameworkDetection
+        {
+            VapourSynth = new FrameworkInstall(true),
+            AviSynth = new FrameworkInstall(false)
+        };
+        var model = TestSupport.CreateMain(frameworks: detection);
+
+        Assert.Equal("AviSynth not detected", model.EngineStatus);
     }
 }

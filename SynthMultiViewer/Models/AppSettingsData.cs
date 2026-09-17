@@ -64,4 +64,9 @@ public class AppSettingsData
     /// Gets or sets whether the script editor offers catalog-driven assistance.
     /// </summary>
     public bool EnhanceEditorWithAutoComplete { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets recently opened script paths, newest first.
+    /// </summary>
+    public List<string> RecentFiles { get; set; } = [];
 }

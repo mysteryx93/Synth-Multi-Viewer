@@ -23,6 +23,8 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     private readonly IEnvironmentService _environmentService;
     private readonly IDefaultScriptService _defaultScripts;
     private readonly ISettingsProvider<AppSettingsData> _settings;
+    private readonly IFrameworkDetectionService _frameworks;
+    private const int RecentFileLimit = 8;
     private double _scrollHorizontalOffset;
     private double _scrollVerticalOffset;
     private TimeSpan _playerPosition;
@@ -39,17 +41,28 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         IDialogService dialogService,
         IEnvironmentService environmentService,
         IDefaultScriptService defaultScripts,
-        ISettingsProvider<AppSettingsData> settings)
+        ISettingsProvider<AppSettingsData> settings,
+        IFrameworkDetectionService frameworks)
     {
         _dialogService = dialogService;
         _environmentService = environmentService;
         _defaultScripts = defaultScripts;
         _settings = settings;
+        _frameworks = frameworks;
         DisplayName = "Synth Multi-Viewer";
         CanClose = false;
 
         _settings.Saving += (_, _) => OnSettingsChanged();
         _settings.Changed += (_, _) => OnSettingsChanged();
+        ScriptList.CollectionChanged += (_, _) =>
+        {
+            this.RaisePropertyChanged(nameof(IsStartVisible));
+            if (ScriptList.Count == 0)
+            {
+                RefreshRecents();
+            }
+        };
+        RefreshRecents();
         this.WhenAnyValue(x => x.IsMultiThreaded)
             .Subscribe(_ => this.RaisePropertyChanged(nameof(Threads)));
 
@@ -84,6 +97,49 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     /// Gets the open tabs in strip order.
     /// </summary>
     public ObservableCollection<IScriptViewModel> ScriptList { get; } = [];
+
+    /// <summary>
+    /// Gets whether the empty-canvas start surface is shown.
+    /// </summary>
+    public bool IsStartVisible => ScriptList.Count == 0;
+
+    /// <summary>
+    /// Gets recently opened scripts for the start surface.
+    /// </summary>
+    public ObservableCollection<RecentFileItem> Recents { get; } = [];
+
+    /// <summary>
+    /// Gets whether the start surface has recent files to show.
+    /// </summary>
+    public bool HasRecents => Recents.Count > 0;
+
+    /// <summary>
+    /// Gets a quiet engine-detection line, or <see langword="null"/> when both engines were found.
+    /// </summary>
+    public string? EngineStatus
+    {
+        get
+        {
+            var vs = !_frameworks.VapourSynth.Found;
+            var avs = !_frameworks.AviSynth.Found;
+            if (!vs && !avs)
+            {
+                return null;
+            }
+
+            if (vs && avs)
+            {
+                return "VapourSynth and AviSynth not detected";
+            }
+
+            return vs ? "VapourSynth not detected" : "AviSynth not detected";
+        }
+    }
+
+    /// <summary>
+    /// Gets whether the start surface should show engine-detection status.
+    /// </summary>
+    public bool HasEngineStatus => EngineStatus != null;
 
     /// <summary>
     /// Gets the minimum zoom factor.
@@ -173,7 +229,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     }
 
     /// <summary>
-    /// Loads command-line scripts once, or opens a new editor.
+    /// Loads command-line scripts once; an empty workspace shows the start surface.
     /// </summary>
     public RxCommandVoid Load => field ??= ReactiveCommand.CreateFromTask(LoadedAsync);
     /// <summary>
@@ -197,6 +253,11 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     /// Prompts for a script file and opens it in an editor.
     /// </summary>
     public RxCommandVoid Open => field ??= ReactiveCommand.CreateFromTask(OpenImplAsync);
+    /// <summary>
+    /// Opens a recent script from the start surface.
+    /// </summary>
+    public ReactiveCommand<string, RxVoid> OpenRecent =>
+        field ??= ReactiveCommand.CreateFromTask<string>(OpenRecentAsync);
     /// <summary>
     /// Saves the selected editor, prompting for a path if needed.
     /// </summary>
@@ -403,6 +464,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
 
         await File.WriteAllTextAsync(item.FileName, item.Script);
         item.MarkSaved();
+        RememberFile(item.FileName);
     }
 
     private async Task SaveAsEditorAsync(IEditorViewModel item)
@@ -430,6 +492,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         item.DisplayName = Path.GetFileName(item.FileName);
         item.Kind = ScriptKindLookup.FromPath(item.FileName) ?? item.Kind;
         item.MarkSaved();
+        RememberFile(item.FileName);
     }
 
     private void RunImpl()
@@ -718,7 +781,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     }
 
     /// <summary>
-    /// Opens command-line scripts once, creating an editor if none are opened.
+    /// Opens command-line scripts once. An empty workspace keeps the start surface.
     /// </summary>
     public async Task LoadedAsync()
     {
@@ -729,11 +792,86 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         {
             await ReadScriptFileAsync(arg);
         }
+    }
 
-        if (!ScriptList.Any())
+    private async Task OpenRecentAsync(string path)
+    {
+        if (!path.HasText())
         {
-            NewImpl();
+            return;
         }
+
+        await ReadScriptFileAsync(path);
+    }
+
+    private static StringComparer PathComparer =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    private void RememberFile(string path)
+    {
+        if (!path.HasText())
+        {
+            return;
+        }
+
+        var files = _settings.Value.RecentFiles;
+        files.RemoveAll(x => PathComparer.Equals(x, path));
+        files.Insert(0, path);
+        while (files.Count > RecentFileLimit)
+        {
+            files.RemoveAt(files.Count - 1);
+        }
+
+        _settings.Save();
+        if (IsStartVisible)
+        {
+            RefreshRecents();
+        }
+    }
+
+    private bool ForgetFile(string path)
+    {
+        var removed = _settings.Value.RecentFiles.RemoveAll(x => PathComparer.Equals(x, path));
+        if (removed == 0)
+        {
+            return false;
+        }
+
+        _settings.Save();
+        return true;
+    }
+
+    private void RefreshRecents()
+    {
+        var files = _settings.Value.RecentFiles;
+        var changed = false;
+        for (var i = files.Count - 1; i >= 0; i--)
+        {
+            if (!File.Exists(files[i]))
+            {
+                files.RemoveAt(i);
+                changed = true;
+            }
+        }
+
+        while (files.Count > RecentFileLimit)
+        {
+            files.RemoveAt(files.Count - 1);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            _settings.Save();
+        }
+
+        Recents.Clear();
+        foreach (var path in files)
+        {
+            Recents.Add(new RecentFileItem(path));
+        }
+
+        this.RaisePropertyChanged(nameof(HasRecents));
     }
 
     /// <summary>
@@ -772,10 +910,16 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
             editor.Script = content;
             editor.MarkSaved();
             AddTab(editor, Path.GetFileName(file));
+            RememberFile(file);
             return true;
         }
         catch (Exception ex)
         {
+            if (ForgetFile(file))
+            {
+                RefreshRecents();
+            }
+
             await _dialogService.ShowMessageBoxAsync(this, ex.Message, "Error loading file");
             return false;
         }
@@ -793,6 +937,8 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     private void OnSettingsChanged()
     {
         this.RaisePropertyChanged(nameof(Threads));
+        this.RaisePropertyChanged(nameof(EngineStatus));
+        this.RaisePropertyChanged(nameof(HasEngineStatus));
         foreach (var tab in ScriptList)
         {
             tab.ApplyTabColor(_settings.Value);

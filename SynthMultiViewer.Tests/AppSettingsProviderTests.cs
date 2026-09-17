@@ -86,6 +86,19 @@ public class AppSettingsProviderTests
     }
 
     [Fact]
+    public void Save_RoundTrip_PersistsRecentFiles()
+    {
+        using var file = new TemporaryConfig();
+        var provider = CreateProvider(file.Path);
+        provider.Value.RecentFiles = ["/tmp/a.vpy", "/tmp/b.avs"];
+
+        provider.Save();
+        var loaded = CreateProvider(file.Path).Load();
+
+        Assert.Equal(["/tmp/a.vpy", "/tmp/b.avs"], loaded.RecentFiles);
+    }
+
+    [Fact]
     public void Load_CorruptFile_ReturnsDefaultSettings()
     {
         using var file = new TemporaryConfig();

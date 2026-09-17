@@ -36,7 +36,8 @@ public class DefaultScriptServiceTests
     {
         var defaults = new TestSupport.MemoryDefaultScripts();
         var model = new MainViewModel(
-            TestSupport.CreateDialogs(), new TestSupport.TestEnvironment(), defaults, new TestSupport.MemorySettingsProvider());
+            TestSupport.CreateDialogs(), new TestSupport.TestEnvironment(), defaults,
+            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryFrameworkDetection());
 
         await model.New.Execute();
 
@@ -50,7 +51,8 @@ public class DefaultScriptServiceTests
     {
         var defaults = new TestSupport.MemoryDefaultScripts();
         var model = new MainViewModel(
-            TestSupport.CreateDialogs(), new TestSupport.TestEnvironment(), defaults, new TestSupport.MemorySettingsProvider());
+            TestSupport.CreateDialogs(), new TestSupport.TestEnvironment(), defaults,
+            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryFrameworkDetection());
 
         await model.NewAviSynth.Execute();
 
