@@ -35,6 +35,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         AviSynthPluginFolders = settingsProvider.Value.AviSynthPluginFolders;
         AviSynthReplacePlugins = settingsProvider.Value.AviSynthReplacePlugins;
         EnhanceEditorWithAutoComplete = settingsProvider.Value.EnhanceEditorWithAutoComplete;
+        CheckForUpdates = settingsProvider.Value.CheckForUpdates;
         ApplyDetection(_frameworks.VapourSynth, _frameworks.AviSynth);
     }
 
@@ -51,6 +52,25 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
     /// Gets the list of themes for display.
     /// </summary>
     public IReadOnlyList<AppTheme> ThemeList { get; } = [AppTheme.Light, AppTheme.Dark];
+
+    /// <summary>
+    /// Gets or sets when to automatically check for updates.
+    /// </summary>
+    [Reactive]
+    public partial UpdateInterval CheckForUpdates { get; set; }
+
+    /// <summary>
+    /// Gets the list of update intervals for display.
+    /// </summary>
+    public IReadOnlyList<UpdateInterval> CheckForUpdateList { get; } =
+    [
+        UpdateInterval.Daily,
+        UpdateInterval.Biweekly,
+        UpdateInterval.Weekly,
+        UpdateInterval.Bimonthly,
+        UpdateInterval.Monthly,
+        UpdateInterval.Never
+    ];
 
     /// <summary>
     /// Gets or sets an optional VapourSynth library file or directory.
@@ -304,6 +324,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         _settingsProvider.Value.AviSynthPluginFolders = AviSynthPluginFolders.Trim();
         _settingsProvider.Value.AviSynthReplacePlugins = AviSynthReplacePlugins;
         _settingsProvider.Value.EnhanceEditorWithAutoComplete = EnhanceEditorWithAutoComplete;
+        _settingsProvider.Value.CheckForUpdates = CheckForUpdates;
         _appTheme.RequestedTheme = Theme.ToString();
         _frameworks.Apply(_settingsProvider.Value);
         ApplyDetection(_frameworks.VapourSynth, _frameworks.AviSynth);
@@ -321,6 +342,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         AviSynthPluginFolders = "";
         AviSynthReplacePlugins = false;
         EnhanceEditorWithAutoComplete = true;
+        CheckForUpdates = UpdateInterval.Biweekly;
     }
 
     private void ApplyDetection(FrameworkInstall vapourSynth, FrameworkInstall aviSynth)

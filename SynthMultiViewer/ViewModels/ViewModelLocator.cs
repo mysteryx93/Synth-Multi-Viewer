@@ -31,6 +31,8 @@ public static class ViewModelLocator
         SplatRegistrations.RegisterLazySingleton<IFrameworkDetectionService, FrameworkDetectionService>();
         container.Register(() => new HttpClient { Timeout = TimeSpan.FromSeconds(10) });
         SplatRegistrations.RegisterLazySingleton<IAppVersionClient, AppVersionClient>();
+        SplatRegistrations.RegisterLazySingleton<IProcessService, ProcessService>();
+        SplatRegistrations.RegisterLazySingleton<IAppUpdateService, AppUpdateService>();
         SplatRegistrations.Register<MainViewModel>();
         SplatRegistrations.Register<HelpViewModel>();
         SplatRegistrations.Register<InputViewModel>();

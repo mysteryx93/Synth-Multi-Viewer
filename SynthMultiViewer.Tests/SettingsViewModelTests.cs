@@ -82,8 +82,35 @@ public class SettingsViewModelTests
         Assert.False(model.AviSynthReplacePlugins);
         Assert.True(model.EnhanceEditorWithAutoComplete);
         Assert.Equal(Environment.ProcessorCount, model.VapourSynthThreads);
+        Assert.Equal(UpdateInterval.Biweekly, model.CheckForUpdates);
         Assert.Equal(AppTheme.Dark, settings.Value.Theme);
         Assert.Equal(0, settings.SaveCount);
+    }
+
+    [Fact]
+    public void Constructor_StoredInterval_UsesSettingsValue()
+    {
+        var settings = new TestSupport.MemorySettingsProvider
+        {
+            Value = { CheckForUpdates = UpdateInterval.Never }
+        };
+
+        var model = TestSupport.CreateSettings(settings);
+
+        Assert.Equal(UpdateInterval.Never, model.CheckForUpdates);
+    }
+
+    [Fact]
+    public void Ok_CheckForUpdatesChanged_SavesInterval()
+    {
+        var settings = new TestSupport.MemorySettingsProvider();
+        var model = TestSupport.CreateSettings(settings);
+        model.CheckForUpdates = UpdateInterval.Daily;
+
+        ((ICommand)model.Ok).Execute(null);
+
+        Assert.Equal(UpdateInterval.Daily, settings.Value.CheckForUpdates);
+        Assert.Equal(1, settings.SaveCount);
     }
 
     [Fact]

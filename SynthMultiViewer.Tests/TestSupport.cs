@@ -31,9 +31,10 @@ internal static class TestSupport
 
     public static MainViewModel CreateMain(
         IEnvironmentService? environment = null, ISettingsProvider<AppSettingsData>? settings = null,
-        IDialogManager? manager = null) =>
+        IDialogManager? manager = null, IAppUpdateService? updates = null) =>
         new(CreateDialogs(settings: settings, manager: manager), environment ?? new TestEnvironment(),
-            new MemoryDefaultScripts(), settings ?? new MemorySettingsProvider());
+            new MemoryDefaultScripts(), settings ?? new MemorySettingsProvider(),
+            updates ?? new MemoryAppUpdateService());
 
     public static async Task OpenViewerAsync(MainViewModel model)
     {
@@ -147,15 +148,39 @@ internal static class TestSupport
     public sealed class MemoryAppVersionClient : IAppVersionClient
     {
         public AppVersionInfo? Result { get; set; }
+        public int QueryCount { get; private set; }
 
-        public Task<AppVersionInfo?> QueryVersionAsync() => Task.FromResult(Result);
+        public Task<AppVersionInfo?> QueryVersionAsync()
+        {
+            QueryCount++;
+            return Task.FromResult(Result);
+        }
+    }
+
+    public sealed class MemoryAppUpdateService : IAppUpdateService
+    {
+        public int CheckCount { get; private set; }
+
+        public Task CheckForUpdatesAsync(INotifyPropertyChanged owner)
+        {
+            CheckCount++;
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class MemoryProcessService : IProcessService
+    {
+        public string? LastUrl { get; private set; }
+
+        public void OpenBrowserUrl(string url) => LastUrl = url;
     }
 
     public sealed class TestEnvironment(IReadOnlyList<string>? arguments = null) : IEnvironmentService
     {
         public IReadOnlyList<string> CommandLineArguments { get; } = arguments ?? ["viewer"];
-        public Version AppVersion => new(1, 2, 3);
+        public Version AppVersion { get; set; } = new(1, 2, 3);
         public string ApplicationDataPath { get; } = Path.Combine(Path.GetTempPath(), "SynthMultiViewerTests");
+        public DateTime Now { get; set; } = new(2026, 1, 15);
     }
 
     public sealed class MemorySettingsProvider : ISettingsProvider<AppSettingsData>

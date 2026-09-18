@@ -17,4 +17,7 @@ public class EnvironmentService : IEnvironmentService
     /// <inheritdoc />
     public string ApplicationDataPath =>
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+    /// <inheritdoc />
+    public DateTime Now => DateTime.Now;
 }

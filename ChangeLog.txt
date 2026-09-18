@@ -7,6 +7,8 @@ v1.4
 - Redesigned scrollbars
 - Redesigned icons
 - Add start page when no document is open
+- Reviewed keyboard shortcuts and improved Help documentation
+- Check for updates
 
 v1.3
 - Enhanced text editor with auto-complete and plugin parameters information, for both VapourSynth and AviSynth

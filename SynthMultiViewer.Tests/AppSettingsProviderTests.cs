@@ -99,6 +99,34 @@ public class AppSettingsProviderTests
     }
 
     [Fact]
+    public void Save_RoundTrip_PersistsCheckForUpdates()
+    {
+        using var file = new TemporaryConfig();
+        var provider = CreateProvider(file.Path);
+        var lastCheck = new DateTime(2026, 1, 10, 8, 30, 0);
+        provider.Value.CheckForUpdates = UpdateInterval.Monthly;
+        provider.Value.LastCheckForUpdate = lastCheck;
+
+        provider.Save();
+        var loaded = CreateProvider(file.Path).Load();
+
+        Assert.Equal(UpdateInterval.Monthly, loaded.CheckForUpdates);
+        Assert.Equal(lastCheck, loaded.LastCheckForUpdate);
+    }
+
+    [Fact]
+    public void Load_MissingFile_ReturnsWeeklyUpdates()
+    {
+        using var file = new TemporaryConfig();
+        var provider = CreateProvider(file.Path);
+
+        var settings = provider.Load();
+
+        Assert.Equal(UpdateInterval.Weekly, settings.CheckForUpdates);
+        Assert.Null(settings.LastCheckForUpdate);
+    }
+
+    [Fact]
     public void Load_CorruptFile_ReturnsDefaultSettings()
     {
         using var file = new TemporaryConfig();

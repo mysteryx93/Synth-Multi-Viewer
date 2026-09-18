@@ -69,4 +69,14 @@ public class AppSettingsData
     /// Gets or sets recently opened script paths, newest first.
     /// </summary>
     public List<string> RecentFiles { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets when to automatically check for updates.
+    /// </summary>
+    public UpdateInterval CheckForUpdates { get; set; } = UpdateInterval.Weekly;
+
+    /// <summary>
+    /// Gets or sets the date of the last automatic check for updates.
+    /// </summary>
+    public DateTime? LastCheckForUpdate { get; set; }
 }

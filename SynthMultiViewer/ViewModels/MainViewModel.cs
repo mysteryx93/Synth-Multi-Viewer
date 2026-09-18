@@ -23,6 +23,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     private readonly IEnvironmentService _environmentService;
     private readonly IDefaultScriptService _defaultScripts;
     private readonly ISettingsProvider<AppSettingsData> _settings;
+    private readonly IAppUpdateService _appUpdate;
     private const int RecentFileLimit = 8;
     private double _scrollHorizontalOffset;
     private double _scrollVerticalOffset;
@@ -40,12 +41,14 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         IDialogService dialogService,
         IEnvironmentService environmentService,
         IDefaultScriptService defaultScripts,
-        ISettingsProvider<AppSettingsData> settings)
+        ISettingsProvider<AppSettingsData> settings,
+        IAppUpdateService appUpdate)
     {
         _dialogService = dialogService;
         _environmentService = environmentService;
         _defaultScripts = defaultScripts;
         _settings = settings;
+        _appUpdate = appUpdate;
         DisplayName = "Synth Multi-Viewer";
         CanClose = false;
 
@@ -761,6 +764,8 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         {
             await ReadScriptFileAsync(arg);
         }
+
+        await _appUpdate.CheckForUpdatesAsync(this);
     }
 
     private async Task OpenRecentAsync(string path)

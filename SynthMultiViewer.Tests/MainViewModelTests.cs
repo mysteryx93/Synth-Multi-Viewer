@@ -48,6 +48,29 @@ public class MainViewModelTests
         Assert.True(editor.IsActive);
     }
 
+    [Fact]
+    public async Task Load_FirstRun_ChecksForUpdates()
+    {
+        var updates = new TestSupport.MemoryAppUpdateService();
+        var model = TestSupport.CreateMain(updates: updates);
+
+        await model.Load.Execute();
+
+        Assert.Equal(1, updates.CheckCount);
+    }
+
+    [Fact]
+    public async Task Load_ExecutedTwice_ChecksForUpdatesOnce()
+    {
+        var updates = new TestSupport.MemoryAppUpdateService();
+        var model = TestSupport.CreateMain(updates: updates);
+
+        await model.Load.Execute();
+        await model.Load.Execute();
+
+        Assert.Equal(1, updates.CheckCount);
+    }
+
     [AvaloniaTheory]
     [InlineData(-1)]
     [InlineData("-1")]

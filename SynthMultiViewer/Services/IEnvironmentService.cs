@@ -17,4 +17,8 @@ public interface IEnvironmentService
     /// Gets the per-user application data folder.
     /// </summary>
     string ApplicationDataPath { get; }
+    /// <summary>
+    /// Gets the current local date and time.
+    /// </summary>
+    DateTime Now { get; }
 }

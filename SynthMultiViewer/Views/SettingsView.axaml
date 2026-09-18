@@ -22,6 +22,11 @@
                 <TextBlock Text="Theme" VerticalAlignment="Center" Width="72" />
                 <ComboBox Width="140" ItemsSource="{Binding ThemeList}" SelectedItem="{Binding Theme}" />
             </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <TextBlock Text="Check for Updates" VerticalAlignment="Center" />
+                <ComboBox Margin="12,0,0,0" Width="120" ItemsSource="{Binding CheckForUpdateList}"
+                          SelectedItem="{Binding CheckForUpdates}" />
+            </StackPanel>
             <CheckBox Content="Enhance editor with auto-complete"
                       IsChecked="{Binding EnhanceEditorWithAutoComplete}" />
             <StackPanel Orientation="Horizontal" Spacing="8">

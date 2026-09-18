@@ -9,5 +9,6 @@ namespace HanumanInstitute.SynthMultiViewer.Services;
 [JsonSourceGenerationOptions(WriteIndented = true, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(AppSettingsData))]
 [JsonSerializable(typeof(AppTheme))]
+[JsonSerializable(typeof(UpdateInterval))]
 [JsonSerializable(typeof(AppVersionInfo))]
 internal partial class AppJsonContext : JsonSerializerContext;
