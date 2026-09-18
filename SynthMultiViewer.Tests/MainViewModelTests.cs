@@ -12,7 +12,6 @@ using Avalonia.VisualTree;
 using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.MvvmDialogs.FrameworkDialogs;
 using HanumanInstitute.SynthMultiViewer.Models;
-using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
 using ReactiveUI.Builder;
@@ -681,7 +680,7 @@ public class MainViewModelTests
     public async Task Close_InputDialogConfirmedOrCancelled_ReturnsDialogResult(bool accept)
     {
         var ownerModel = TestSupport.CreateMain();
-        var owner = new Avalonia.Controls.Window { DataContext = ownerModel };
+        var owner = new Window { DataContext = ownerModel };
         using var window = TestSupport.Show(owner);
         var dialogs = new HanumanInstitute.MvvmDialogs.Avalonia.DialogService(new TestSupport.OwnerDialogManager(owner));
         var input = new InputViewModel { Value = "12", Validate = text => int.TryParse(text, out _) };
@@ -691,17 +690,17 @@ public class MainViewModelTests
         ((ICommand)(accept ? input.Ok : input.Close)).Execute(null);
         var actual = await result.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(accept ? true : (bool?)null, actual);
+        Assert.Equal(accept ? true : null, actual);
     }
 
     [AvaloniaFact(Timeout = 10000)]
     public async Task Close_HelpDialogClosed_CompletesDialog()
     {
         var ownerModel = TestSupport.CreateMain();
-        var owner = new Avalonia.Controls.Window { DataContext = ownerModel };
+        var owner = new Window { DataContext = ownerModel };
         using var window = TestSupport.Show(owner);
         var dialogs = new HanumanInstitute.MvvmDialogs.Avalonia.DialogService(new TestSupport.OwnerDialogManager(owner));
-        var help = new HelpViewModel(new TestSupport.TestEnvironment());
+        var help = TestSupport.CreateHelp();
         var result = dialogs.ShowDialogAsync(ownerModel, help);
 
         ((ICommand)help.Close).Execute(null);
@@ -713,7 +712,7 @@ public class MainViewModelTests
     [AvaloniaFact]
     public void HelpView_Shown_UsesStandardWindowChrome()
     {
-        var help = new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) };
+        var help = new HelpView { DataContext = TestSupport.CreateHelp() };
         var settings = new SettingsView
         {
             DataContext = TestSupport.CreateSettings()
@@ -731,7 +730,7 @@ public class MainViewModelTests
     [AvaloniaFact]
     public void HelpView_AuthorName_LinksToHanumanInstitute()
     {
-        var help = new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) };
+        var help = new HelpView { DataContext = TestSupport.CreateHelp() };
 
         using var shown = TestSupport.Show(help);
         var links = help.GetVisualDescendants().OfType<HyperlinkButton>().ToList();
@@ -743,14 +742,40 @@ public class MainViewModelTests
     [AvaloniaFact]
     public void HelpView_GitHub_LinksToRepository()
     {
-        var help = new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) };
+        var help = new HelpView { DataContext = TestSupport.CreateHelp() };
 
         using var shown = TestSupport.Show(help);
         var link = Assert.Single(help.GetVisualDescendants().OfType<HyperlinkButton>(),
             x => Equals(x.Content, "GitHub"));
 
-        Assert.Equal(new Uri("https://github.com/mysteryx93/Synth-Multi-Viewer"), link.NavigateUri);
+        Assert.Equal(new Uri("https://github.com/mysteryx93/SynthMultiViewer/"), link.NavigateUri);
         Assert.Equal(Dock.Right, DockPanel.GetDock(link));
+    }
+
+    [AvaloniaFact]
+    public async Task HelpView_CheckForUpdates_LinksToReleases()
+    {
+        var versions = new TestSupport.MemoryAppVersionClient
+        {
+            Result = new(new(9, 0, 0))
+        };
+        var model = TestSupport.CreateHelp(versions: versions);
+        await model.CheckForUpdates.Execute();
+        var help = new HelpView { DataContext = model };
+
+        using var shown = TestSupport.Show(help);
+        var version = Assert.Single(help.GetVisualDescendants().OfType<TextBlock>(),
+            block => block.Text?.StartsWith("Synth Multi-Viewer v", StringComparison.Ordinal) == true);
+        var link = Assert.Single(help.GetVisualDescendants().OfType<HyperlinkButton>(),
+            x => Equals(x.Content, "v9.0.0 is available!"));
+        var versionOrigin = version.TranslatePoint(default, help)!.Value;
+        var linkOrigin = link.TranslatePoint(default, help)!.Value;
+
+        Assert.Equal(new Uri("https://github.com/mysteryx93/SynthMultiViewer/releases"), link.NavigateUri);
+        Assert.True(linkOrigin.X > versionOrigin.X + version.Bounds.Width);
+        Assert.InRange(linkOrigin.Y + link.Bounds.Height / 2,
+            versionOrigin.Y + version.Bounds.Height / 2 - 8,
+            versionOrigin.Y + version.Bounds.Height / 2 + 8);
     }
 
     [AvaloniaFact]
@@ -1082,7 +1107,7 @@ public class MainViewModelTests
     [Fact]
     public Task HelpView_Shortcuts_SelectTabByStripOrder() => UiSession.Dispatch(() =>
     {
-        var help = new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) };
+        var help = new HelpView { DataContext = TestSupport.CreateHelp() };
 
         using var shown = TestSupport.Show(help);
         Dispatcher.UIThread.RunJobs();

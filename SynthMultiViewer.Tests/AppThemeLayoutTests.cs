@@ -20,7 +20,7 @@ public class AppThemeLayoutTests
         Window[] dialogs =
         [
             new InputView { DataContext = new InputViewModel { Text = "Go to frame", Value = "100" } },
-            new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) },
+            new HelpView { DataContext = TestSupport.CreateHelp() },
             new SettingsView { DataContext = TestSupport.CreateViewModel(typeof(SettingsViewModel)) },
             new TabColorView { DataContext = new TabColorViewModel() }
         ];
@@ -50,7 +50,7 @@ public class AppThemeLayoutTests
         [
             new MainView { DataContext = TestSupport.CreateMain() },
             new InputView { DataContext = new InputViewModel { Text = "Go to frame", Value = "100" } },
-            new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) },
+            new HelpView { DataContext = TestSupport.CreateHelp() },
             new SettingsView { DataContext = TestSupport.CreateViewModel(typeof(SettingsViewModel)) },
             new TabColorView { DataContext = new TabColorViewModel() }
         ];

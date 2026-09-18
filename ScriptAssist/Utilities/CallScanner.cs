@@ -89,10 +89,16 @@ internal static class CallScanner
                 var current = (source ?? code)[frame.ArgumentStart..caret];
                 var used = CanonicalNames(frame.UsedNames, resolved, language);
                 var keyword = KeywordName(current);
-                var parameter = ActivePhysical(resolved.Overloads, keyword, frame.Positional,
-                    resolved.ImplicitReceiver, used, language);
+                var slots = new int[resolved.Overloads.Count];
+                for (var i = 0; i < slots.Length; i++)
+                {
+                    slots[i] = ActivePhysical(resolved.Overloads, keyword, frame.Positional,
+                        resolved.ImplicitReceiver, used, language, resolved.Overloads[i]);
+                }
+
+                var parameter = slots.Length == 0 ? frame.Positional : slots[0];
                 return new CallWalk(new CallScan(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested,
-                    current, used, frame.Positional, keyword), unclosed);
+                    current, used, frame.Positional, keyword) { OverloadSlots = slots }, unclosed);
             }
 
             if (callee[^1].Name.Length > 0)
@@ -164,7 +170,7 @@ internal static class CallScanner
     }
 
     internal static int ActivePhysical(IReadOnlyList<Symbol> overloads, string? keyword, int positional,
-        bool implicitClip, IReadOnlySet<string>? used, ILanguage? language, Symbol? overload = null)
+        bool implicitClip, IReadOnlySet<string>? used, ILanguage language, Symbol? overload = null)
     {
         var skip = implicitClip ? 1 : 0;
         if (overload != null)
@@ -188,40 +194,12 @@ internal static class CallScanner
     }
 
     private static int MapOverload(Symbol overload, string? keyword, int positional, int skip,
-        IReadOnlySet<string>? used, ILanguage? language)
-    {
-        var nameOf = language != null ? language.ParameterName : NameOf(overload);
-        var comparison = language?.Comparison ?? ComparisonOf(overload);
-        return ParameterNames.MapActive(overload.Parameters!, keyword, positional, skip, used, nameOf, comparison,
-            NativeAlias(overload));
-    }
+        IReadOnlySet<string>? used, ILanguage language) =>
+        ParameterNames.MapActive(overload.Parameters!, keyword, positional, skip, used, language.ParameterName,
+            language.Comparison, NativeAlias(overload));
 
     internal static bool NativeAlias(Symbol overload) =>
         overload.Name.StartsWith("core.", StringComparison.Ordinal);
-
-    private static Func<string, string?> NameOf(Symbol overload) =>
-        AviSynth(overload) ? ParameterNames.OfAviSynth : ParameterNames.OfPython;
-
-    private static StringComparison ComparisonOf(Symbol overload) =>
-        AviSynth(overload) ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-    private static bool AviSynth(Symbol overload)
-    {
-        if (overload.Parameters == null)
-        {
-            return false;
-        }
-
-        foreach (var parameter in overload.Parameters)
-        {
-            if (parameter.Contains('[', StringComparison.Ordinal) || parameter.Contains('"', StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     private static string? KeywordName(string argument)
     {
@@ -346,6 +324,8 @@ internal sealed record CallScan(
     int PositionalConsumed,
     string? Keyword)
 {
+    internal int[]? OverloadSlots { get; init; }
+
     /// <summary>
     /// Gets the consumer-facing insight.
     /// </summary>
@@ -353,6 +333,7 @@ internal sealed record CallScan(
     {
         Keyword = Keyword,
         Positional = PositionalConsumed,
-        UsedNames = UsedNames
+        UsedNames = UsedNames,
+        OverloadSlots = OverloadSlots
     };
 }

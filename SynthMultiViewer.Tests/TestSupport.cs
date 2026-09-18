@@ -54,6 +54,10 @@ internal static class TestSupport
         manager ?? new DialogManager(viewLocator: new ViewLocator()),
         viewModelFactory: type => CreateViewModel(type, settings, theme));
 
+    public static HelpViewModel CreateHelp(
+        IEnvironmentService? environment = null, IAppVersionClient? versions = null) =>
+        new(environment ?? new TestEnvironment(), versions ?? new MemoryAppVersionClient());
+
     public static SettingsViewModel CreateSettings(
         ISettingsProvider<AppSettingsData>? settings = null,
         IAppTheme? theme = null,
@@ -75,7 +79,7 @@ internal static class TestSupport
 
         if (type == typeof(HelpViewModel))
         {
-            return new HelpViewModel(new TestEnvironment());
+            return CreateHelp();
         }
 
         return Activator.CreateInstance(type)!;
@@ -138,6 +142,13 @@ internal static class TestSupport
     {
         public override IView? FindViewByViewModel(INotifyPropertyChanged model) =>
             ReferenceEquals(owner.DataContext, model) ? owner.AsWrapper() : base.FindViewByViewModel(model);
+    }
+
+    public sealed class MemoryAppVersionClient : IAppVersionClient
+    {
+        public AppVersionInfo? Result { get; set; }
+
+        public Task<AppVersionInfo?> QueryVersionAsync() => Task.FromResult(Result);
     }
 
     public sealed class TestEnvironment(IReadOnlyList<string>? arguments = null) : IEnvironmentService

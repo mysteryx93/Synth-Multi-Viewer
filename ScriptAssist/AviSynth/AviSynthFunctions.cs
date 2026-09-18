@@ -74,7 +74,7 @@ public static class AviSynthFunctions
     /// </summary>
     public static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
         HashSet<string> visited, LexerOptions lexer, CancellationToken token) =>
-        AddImports(text, documentPath, read, buffer, visited, lexer, token, null);
+        AddImports(text, documentPath, read, buffer, visited, lexer, token, new IncludeCache());
 
     internal static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
         HashSet<string> visited, LexerOptions lexer, CancellationToken token, IncludeCache? includes) =>
@@ -101,7 +101,7 @@ public static class AviSynthFunctions
     {
         token.ThrowIfCancellationRequested();
         if (includes.TryPath(specifier, fromPath, out var path) &&
-            (path == null || includes.TryEntry(path, out _)))
+            (path == null || EntryComplete(path, includes, token)))
         {
             if (path != null)
             {
@@ -126,7 +126,7 @@ public static class AviSynthFunctions
     private static void EnsureCached(string path, string text, string fromPath, IncludeReader read,
         HashSet<string> ensuring, LexerOptions lexer, CancellationToken token, IncludeSession includes)
     {
-        if (includes.TryEntry(path, out _) || !ensuring.Add(path))
+        if (EntryComplete(path, includes, token) || !ensuring.Add(path))
         {
             return;
         }
@@ -138,7 +138,7 @@ public static class AviSynthFunctions
         {
             token.ThrowIfCancellationRequested();
             if (includes.TryPath(specifier, fromPath, out var depPath) &&
-                (depPath == null || includes.TryEntry(depPath, out _)))
+                (depPath == null || EntryComplete(depPath, includes, token)))
             {
                 if (depPath != null)
                 {
@@ -161,6 +161,53 @@ public static class AviSynthFunctions
         }
 
         includes.SetEntry(path, new IncludeEntry(own, deps));
+    }
+
+    private static bool EntryComplete(string path, IncludeSession includes, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (includes.Complete.Contains(path))
+        {
+            return true;
+        }
+
+        var walking = new HashSet<string>(StringComparer.Ordinal);
+        if (!WalkComplete(path, includes, walking, token))
+        {
+            return false;
+        }
+
+        foreach (var item in walking)
+        {
+            includes.Complete.Add(item);
+        }
+
+        return true;
+    }
+
+    private static bool WalkComplete(string path, IncludeSession includes, HashSet<string> walking,
+        CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (includes.Complete.Contains(path) || !walking.Add(path))
+        {
+            return true;
+        }
+
+        if (!includes.TryEntry(path, out var entry))
+        {
+            return false;
+        }
+
+        foreach (var dep in entry.Dependencies)
+        {
+            if (!WalkComplete(dep, includes, walking, token))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void Expand(string path, List<Symbol> buffer, HashSet<string> visited, IncludeSession includes)

@@ -45,4 +45,9 @@ public sealed class BindingScope
     /// Gets function symbols imported or declared only inside this scope.
     /// </summary>
     public IReadOnlyList<Symbol> Symbols { get; init; } = [];
+
+    /// <summary>
+    /// Gets the enclosing function, or null at module level.
+    /// </summary>
+    internal BindingScope? Enclosing { get; set; }
 }

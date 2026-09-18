@@ -98,7 +98,7 @@ public class KeyBindingTests
 
         TestSupport.Press(view, Key.S, RawInputModifiers.Control | RawInputModifiers.Shift);
         Dispatcher.UIThread.RunJobs();
-        Assert.IsType<HanumanInstitute.MvvmDialogs.FrameworkDialogs.SaveFileDialogSettings>(dialogs.LastFramework);
+        Assert.IsType<MvvmDialogs.FrameworkDialogs.SaveFileDialogSettings>(dialogs.LastFramework);
 
         var savePath = Path.Combine(Path.GetTempPath(), "keybind-save.vpy");
         dialogs.QueueSave(savePath);

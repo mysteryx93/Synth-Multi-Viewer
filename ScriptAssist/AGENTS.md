@@ -100,6 +100,6 @@ dotnet build ScriptAssist.Tests/ScriptAssist.Tests.csproj
 dotnet ScriptAssist.Tests/bin/Debug/net10.0/ScriptAssist.Tests.dll
 ```
 
-- Prefer `LanguageService.Analyze` tests for language rules. Run Avalonia editor tests in `SynthMultiViewer.Tests/EditorCompletionTests` with `-parallelMode none`; the headless dispatcher is not thread-safe.
+- Prefer `LanguageService.Analyze` tests for language rules. Run Avalonia editor tests in `SynthMultiViewer.Tests/EditorCompletionTests` with `-parallel none`; the headless dispatcher is not thread-safe.
 - Test inside and after function scopes, header silence, and `vs` annotation hover. Include comments, multiline/incomplete input, and realistic native signatures.
 - Prefer representative installed/sibling scripts: xClean trailing `\`, FrameRateConverter leading `\` and `[** *]`/triple quotes, Shader, and havsfunc. Small `IncludeReader` lambdas suffice for import graphs.

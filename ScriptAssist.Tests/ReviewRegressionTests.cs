@@ -2230,6 +2230,227 @@ public class ReviewRegressionTests
         Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Old");
     }
 
+    [Fact]
+    public void AviSynthLoadImportsReturnsImportedFunctions()
+    {
+        var lexer = new AviSynthLanguage().Lexer;
+        IncludeReader read = (specifier, _) => specifier is "helper.avsi" or "/h.avsi"
+            ? new IncludeFile("/h.avsi", "function Helper(clip c) { }\n")
+            : null;
+        var symbols = AviSynthFunctions.LoadImports("Import(\"helper.avsi\")", null, read, lexer);
+        Assert.Contains(symbols, x => x.Name.Equals("Helper", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ParameterAssignmentKeepsAnnotationAndShadowsCore()
+    {
+        var assigned = """
+            def process(source: vs.VideoNode):
+                target = source
+                target.
+            """;
+        var reply = VsService().Analyze(assigned, assigned.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+
+        var frame = """
+            def process(frame: vs.VideoFrame):
+                copy = frame
+                copy.
+            """;
+        var copied = VsService().Analyze(frame, frame.Length, Vs);
+        Assert.Contains(copied.Items, x => x.InsertionText == "copy");
+        Assert.DoesNotContain(copied.Items, x => x.InsertionText == "std");
+
+        var shadowed = """
+            def process(core: vs.VideoNode):
+                core.
+            """;
+        var local = VsService().Analyze(shadowed, shadowed.Length, Vs);
+        Assert.Contains(local.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(local.Items, x => x.InsertionText == "num_threads");
+    }
+
+    [Fact]
+    public void OptionalAndQuotedKeywordArgumentsKeepInsight()
+    {
+        var optional = """
+            def f(width: int, height: Optional[int] = None):
+                return width
+            f(1, height=
+            """;
+        var height = VsService().Analyze(optional, optional.Length, Vs).Insight;
+        Assert.NotNull(height);
+        Assert.Contains("height: Optional[int]", OverloadProvider.ActiveParameterText(height),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("No more parameters", OverloadProvider.ActiveParameterText(height),
+            StringComparison.Ordinal);
+
+        var quoted = """
+            def g(mode: "int | None" = None):
+                return mode
+            g(mode=
+            """;
+        var mode = VsService().Analyze(quoted, quoted.Length, Vs).Insight;
+        Assert.NotNull(mode);
+        Assert.Contains("mode:", OverloadProvider.ActiveParameterText(mode), StringComparison.Ordinal);
+        Assert.DoesNotContain("No more parameters", OverloadProvider.ActiveParameterText(mode),
+            StringComparison.Ordinal);
+
+        var planes = new Symbol("core.std.ShufflePlanes",
+            ["clip:vnode", "planes:int[]", "colorfamily:int"], ReturnType: "clip:vnode;");
+        var call = "core.std.ShufflePlanes(clip, planes=";
+        var insight = VsService().Analyze(call, call.Length, [planes]).Insight;
+        Assert.NotNull(insight);
+        Assert.Contains("planes:int[]", OverloadProvider.ActiveParameterText(insight), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PositionalOnlyKeywordHoverBelongsToKwargs()
+    {
+        var text = """
+            def f(source: int, /, **kwargs):
+                return source
+            f(1, source=2)
+            """;
+        var hover = VsService().Analyze(text, text.IndexOf("source=", StringComparison.Ordinal) + 1, Vs).Hover;
+        Assert.True(hover == null || !hover.Text.Contains("int", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AviSynthCancelledCycleReloadsMissingDependency()
+    {
+        var cts = new CancellationTokenSource();
+        IncludeReader read = (specifier, _) =>
+        {
+            if (specifier is "c.avs" or "/c.avs")
+            {
+                cts.Cancel();
+            }
+
+            return specifier switch
+            {
+                "a.avs" or "/a.avs" => new IncludeFile("/a.avs",
+                    "Import(\"b.avs\")\nImport(\"c.avs\")\nfunction FromA(clip c) { return c }"),
+                "b.avs" or "/b.avs" => new IncludeFile("/b.avs",
+                    "Import(\"a.avs\")\nfunction FromB(clip c) { return c }"),
+                "c.avs" or "/c.avs" => new IncludeFile("/c.avs", "function FromC(clip c) { return c }"),
+                _ => null
+            };
+        };
+        var service = new LanguageService(new AviSynthLanguage(read), new CatalogCache(() => []));
+        var first = "Import(\"a.avs\")\n";
+        try
+        {
+            service.Analyze(first, first.Length, [], cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        var onlyB = "Import(\"b.avs\")\nlast.";
+        var reply = service.Analyze(onlyB, onlyB.Length, []);
+        Assert.Contains(reply.Items, x => x.InsertionText == "FromA");
+        Assert.Contains(reply.Items, x => x.InsertionText == "FromB");
+    }
+
+    [Fact]
+    public void HeaderDefaultsAndReturnsUseEnclosingScope()
+    {
+        var defaults = """
+            source = core.std.BlankClip()
+            def process(source: int, other=source):
+                other.
+            """;
+        var reply = VsService().Analyze(defaults, defaults.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+
+        var ret = """
+            from vapoursynth import VideoNode as Node
+            def process(Node: int) -> Node:
+                return None
+            clip = process()
+            clip.
+            """;
+        var members = VsService().Analyze(ret, ret.Length, Vs);
+        Assert.Contains(members.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void ParameterSharingFunctionNameKeepsInference()
+    {
+        var text = """
+            def clip(clip: vs.VideoNode):
+                target = clip
+                target.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void UnknownKeywordDoesNotHighlightRepeatingParameter()
+    {
+        var every = new Symbol("core.std.SelectEvery",
+            ["clip:vnode", "cycle:int", "offsets:int[]"], ReturnType: "clip:vnode;");
+        var text = "core.std.SelectEvery(clip, mystery=";
+        var insight = VsService().Analyze(text, text.Length, [every]).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("No more parameters", OverloadProvider.ActiveParameterText(insight));
+        Assert.Equal(insight.ActiveParameter, insight.GetActiveParameter(0));
+    }
+
+    [Fact]
+    public void VapourSynthCancelledCycleReloadsMissingDependency()
+    {
+        var cts = new CancellationTokenSource();
+        IncludeReader read = (specifier, _) =>
+        {
+            if (specifier is "c" or "/c.py")
+            {
+                cts.Cancel();
+            }
+
+            return specifier switch
+            {
+                "a" or "/a.py" => new IncludeFile("/a.py",
+                    "import b\nimport c\ndef A():\n    return 1\n"),
+                "b" or "/b.py" => new IncludeFile("/b.py", "import a\n"),
+                "c" or "/c.py" => new IncludeFile("/c.py", "def C():\n    return 1\n"),
+                _ => null
+            };
+        };
+        var service = VsService(read);
+        var first = "import a\n";
+        try
+        {
+            service.Analyze(first, first.Length, Vs, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        var onlyB = "import b\nb.a.A(";
+        var insight = service.Analyze(onlyB, onlyB.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("A", insight.Overloads[0].Name);
+    }
+
+    [Fact]
+    public void CyclicImportSeesDeclarationsAlreadyEncountered()
+    {
+        IncludeReader read = (specifier, _) => specifier switch
+        {
+            "a" or "/a.py" => new IncludeFile("/a.py", "def First():\n    return 1\nimport b\n"),
+            "b" or "/b.py" => new IncludeFile("/b.py", "from a import First\n"),
+            _ => null
+        };
+        var service = VsService(read);
+        var throughA = "import a\nimport b\nb.";
+        Assert.Contains(service.Analyze(throughA, throughA.Length, Vs).Items, x => x.InsertionText == "First");
+        var throughB = "import b\nb.";
+        Assert.Contains(service.Analyze(throughB, throughB.Length, Vs).Items, x => x.InsertionText == "First");
+    }
+
     private sealed class CountingLanguage(ILanguage inner) : ILanguage
     {
         public int Binds;

@@ -111,6 +111,7 @@
     <Style Selector="Button, ToggleButton">
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="CornerRadius" Value="3" />
     </Style>
     <Style Selector="HyperlinkButton">
         <Setter Property="Padding" Value="0" />
@@ -144,6 +145,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="0" />
     </Style>
     <Style Selector="StackPanel.toolbar > Button:pointerover /template/ ContentPresenter#PART_ContentPresenter,
                      StackPanel.toolbar > ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">

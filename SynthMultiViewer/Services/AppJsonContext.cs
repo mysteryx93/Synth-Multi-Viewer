@@ -4,9 +4,10 @@ using HanumanInstitute.SynthMultiViewer.Models;
 namespace HanumanInstitute.SynthMultiViewer.Services;
 
 /// <summary>
-/// Source-generated JSON metadata for settings files.
+/// Source-generated JSON metadata for settings files and the app-version API.
 /// </summary>
 [JsonSourceGenerationOptions(WriteIndented = true, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(AppSettingsData))]
 [JsonSerializable(typeof(AppTheme))]
+[JsonSerializable(typeof(AppVersionInfo))]
 internal partial class AppJsonContext : JsonSerializerContext;

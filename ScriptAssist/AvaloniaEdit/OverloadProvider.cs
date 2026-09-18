@@ -46,7 +46,8 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
             selected = FirstMatchingOverload(insight);
         }
 
-        var overload = insight.Overloads[selected.Clamp(0, Math.Max(0, insight.Overloads.Count - 1))];
+        selected = selected.Clamp(0, Math.Max(0, insight.Overloads.Count - 1));
+        var overload = insight.Overloads[selected];
         var parameters = overload.Parameters;
         if (parameters == null)
         {
@@ -58,13 +59,13 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
             return "No parameters";
         }
 
-        var index = PhysicalSlot(insight, overload);
+        var index = insight.GetActiveParameter(selected);
         if (index >= 0 && index < parameters.Length && !ParameterNames.IsSeparator(parameters[index]))
         {
             return "Parameter " + SlotNumber(parameters, index) + ": " + parameters[index];
         }
 
-        if (Repeats(parameters[^1]))
+        if (insight.Keyword == null && Repeats(parameters[^1]))
         {
             return "Parameter " + parameters.Length + ": " + parameters[^1];
         }
@@ -82,25 +83,15 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
                 return i;
             }
 
-            var index = PhysicalSlot(insight, insight.Overloads[i]);
-            if (index >= 0 && index < parameters.Length || (parameters.Length > 0 && Repeats(parameters[^1])))
+            var index = insight.GetActiveParameter(i);
+            if (index >= 0 && index < parameters.Length ||
+                insight.Keyword == null && parameters.Length > 0 && Repeats(parameters[^1]))
             {
                 return i;
             }
         }
 
         return 0;
-    }
-
-    private static int PhysicalSlot(CallInsight insight, Symbol overload)
-    {
-        if (insight.Keyword == null && insight.UsedNames == null)
-        {
-            return insight.ActiveParameter;
-        }
-
-        return CallScanner.ActivePhysical(insight.Overloads, insight.Keyword, insight.Positional,
-            insight.ImplicitClip, insight.UsedNames, null, overload);
     }
 
     private static int SlotNumber(string[] parameters, int physical)

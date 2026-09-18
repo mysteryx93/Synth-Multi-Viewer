@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
-using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -19,8 +18,8 @@ public class EditorBindingTests
     private static HeadlessUnitTestSession UiSession =>
         HeadlessUnitTestSession.GetOrStartForAssembly(typeof(TestApplication).Assembly);
 
-    [AvaloniaFact]
-    public void ScriptText_DocumentEdited_UpdatesViewModel()
+    [Fact]
+    public Task ScriptText_DocumentEdited_UpdatesViewModel() => UiSession.Dispatch(() =>
     {
         var model = new EditorViewModel { Script = "original" };
         var view = new EditorView { DataContext = model };
@@ -30,10 +29,11 @@ public class EditorBindingTests
         editor.Document.Insert(editor.Document.TextLength, " edit");
 
         Assert.Equal("original edit", model.Script);
-    }
+        return true;
+    }, TestContext.Current.CancellationToken);
 
-    [AvaloniaFact]
-    public void ScriptText_EditUndone_RestoresViewModelText()
+    [Fact]
+    public Task ScriptText_EditUndone_RestoresViewModelText() => UiSession.Dispatch(() =>
     {
         var model = new EditorViewModel { Script = "original" };
         var view = new EditorView { DataContext = model };
@@ -45,10 +45,11 @@ public class EditorBindingTests
 
         Assert.Equal("original", editor.Text);
         Assert.Equal("original", model.Script);
-    }
+        return true;
+    }, TestContext.Current.CancellationToken);
 
-    [AvaloniaFact]
-    public void ScriptText_DataContextReplaced_StopsUpdatingPreviousModel()
+    [Fact]
+    public Task ScriptText_DataContextReplaced_StopsUpdatingPreviousModel() => UiSession.Dispatch(() =>
     {
         var first = new EditorViewModel { Script = "first" };
         var second = new EditorViewModel { Script = "second" };
@@ -63,10 +64,11 @@ public class EditorBindingTests
         Assert.Equal("second edit", editor.Text);
         Assert.Equal("second edit", second.Script);
         Assert.Equal("detached", first.Script);
-    }
+        return true;
+    }, TestContext.Current.CancellationToken);
 
-    [AvaloniaFact]
-    public void ScriptText_ViewModelChanges_UpdatesDocument()
+    [Fact]
+    public Task ScriptText_ViewModelChanges_UpdatesDocument() => UiSession.Dispatch(() =>
     {
         var model = new EditorViewModel { Script = "original" };
         var view = new EditorView { DataContext = model };
@@ -76,10 +78,11 @@ public class EditorBindingTests
         model.Script = "replacement";
 
         Assert.Equal("replacement", editor.Text);
-    }
+        return true;
+    }, TestContext.Current.CancellationToken);
 
-    [AvaloniaFact]
-    public void HighlightSource_KindAviSynth_LoadsAviSynthDefinition()
+    [Fact]
+    public Task HighlightSource_KindAviSynth_LoadsAviSynthDefinition() => UiSession.Dispatch(() =>
     {
         var model = new EditorViewModel { Kind = ScriptKind.AviSynth, Script = "BlankClip()" };
         var view = new EditorView { DataContext = model };
@@ -89,10 +92,11 @@ public class EditorBindingTests
         Assert.Equal("AviSynth.xshd", SyntaxHighlight.GetSource(editor));
         Assert.NotNull(editor.SyntaxHighlighting);
         Assert.Equal("AviSynth", editor.SyntaxHighlighting.Name);
-    }
+        return true;
+    }, TestContext.Current.CancellationToken);
 
-    [AvaloniaFact]
-    public void HighlightSource_KindVapourSynth_LoadsPythonDefinition()
+    [Fact]
+    public Task HighlightSource_KindVapourSynth_LoadsPythonDefinition() => UiSession.Dispatch(() =>
     {
         var model = new EditorViewModel { Kind = ScriptKind.VapourSynth, Script = "clip = core.std.BlankClip()" };
         var view = new EditorView { DataContext = model };
@@ -102,7 +106,8 @@ public class EditorBindingTests
         Assert.Equal("Python.xshd", SyntaxHighlight.GetSource(editor));
         Assert.NotNull(editor.SyntaxHighlighting);
         Assert.Equal("Python", editor.SyntaxHighlighting.Name);
-    }
+        return true;
+    }, TestContext.Current.CancellationToken);
 
     [Fact]
     public Task HorizontalScrollbar_PageChange_MatchesViewportWidth() => UiSession.Dispatch(() =>

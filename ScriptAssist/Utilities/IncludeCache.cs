@@ -146,10 +146,16 @@ internal readonly struct IncludeSession
     {
         Cache = cache;
         Version = cache?.Version ?? 0;
+        Complete = new HashSet<string>(StringComparer.Ordinal);
     }
 
     public IncludeCache? Cache { get; }
     public int Version { get; }
+
+    /// <summary>
+    /// Paths whose cached graphs were already verified complete during this bind.
+    /// </summary>
+    public HashSet<string> Complete { get; }
 
     public bool TryPath(string specifier, string? fromPath, out string? path)
     {

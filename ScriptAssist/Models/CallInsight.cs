@@ -17,4 +17,22 @@ public sealed record CallInsight(IReadOnlyList<Symbol> Overloads, int ActivePara
     internal int Positional { get; init; }
 
     internal IReadOnlySet<string>? UsedNames { get; init; }
+
+    /// <summary>
+    /// Language-mapped physical slot for each overload, aligned with <see cref="Overloads"/>.
+    /// </summary>
+    internal int[]? OverloadSlots { get; init; }
+
+    /// <summary>
+    /// Physical parameter index for <paramref name="overloadIndex"/>, using language-aware mapping.
+    /// </summary>
+    public int GetActiveParameter(int overloadIndex)
+    {
+        if (OverloadSlots != null && (uint)overloadIndex < (uint)OverloadSlots.Length)
+        {
+            return OverloadSlots[overloadIndex];
+        }
+
+        return ActiveParameter;
+    }
 }

@@ -5,6 +5,19 @@ namespace HanumanInstitute.ScriptAssist;
 /// </summary>
 internal static class NamedArgumentHover
 {
+    [ThreadStatic]
+    private static HoverContext? t_context;
+
+    /// <summary>
+    /// Reuses the request's call scan, continuation map, and cancellation token.
+    /// </summary>
+    internal static void Bind(HoverContext context) => t_context = context;
+
+    /// <summary>
+    /// Clears the request-scoped hover context.
+    /// </summary>
+    internal static void Unbind() => t_context = null;
+
     /// <summary>
     /// Returns true when the identifier is a keyword argument. <paramref name="parameter"/> is the
     /// matching catalog string; a match-less <c>name=</c> still consumes the token.
@@ -25,10 +38,15 @@ internal static class NamedArgumentHover
             return false;
         }
 
-        var insight = CallScanner.Find(code, language, bindings, catalog, CancellationToken.None, caret: path.End);
+        var context = t_context;
+        var insight = context != null
+            ? context.Scan
+            : CallScanner.Find(code, language, bindings, catalog, default, caret: path.End);
         if (insight == null)
         {
-            return CallScanner.InnermostUnclosed(code, caret: path.End) == '(';
+            return context != null
+                ? context.Unclosed == '('
+                : CallScanner.InnermostUnclosed(code, default, language, path.End) == '(';
         }
 
         foreach (var overload in insight.Overloads)
@@ -38,18 +56,26 @@ internal static class NamedArgumentHover
                 continue;
             }
 
-            foreach (var candidate in overload.Parameters)
+            var slot = ParameterNames.MapNamed(overload.Parameters, name, language.ParameterName, comparison,
+                CallScanner.NativeAlias(overload));
+            if ((uint)slot < (uint)overload.Parameters.Length)
             {
-                var parameterName = language.ParameterName(candidate);
-                if (parameterName != null &&
-                    ParameterNames.ArgumentEquals(parameterName, name, comparison, CallScanner.NativeAlias(overload)))
-                {
-                    parameter = candidate;
-                    return true;
-                }
+                parameter = overload.Parameters[slot];
+                return true;
             }
         }
 
         return true;
     }
+}
+
+/// <summary>
+/// Call information already computed for the current analysis request.
+/// </summary>
+internal sealed class HoverContext(CallScan? scan, char? unclosed, bool[]? joins, CancellationToken token)
+{
+    public CallScan? Scan { get; } = scan;
+    public char? Unclosed { get; } = unclosed;
+    public bool[]? Joins { get; } = joins;
+    public CancellationToken Token { get; } = token;
 }

@@ -775,14 +775,14 @@ public class LanguageServiceTests
     [InlineData("c[items]a", "clip,array [items]")]
     [InlineData("", "")]
     public void ParseAviSynthParameters(string format, string expected) =>
-        Assert.Equal(expected, string.Join(",", AviSynth.AviSynthParameters.Parse(format)!));
+        Assert.Equal(expected, string.Join(",", AviSynthParameters.Parse(format)!));
 
     [Fact]
     public void UnknownParametersStayUnknown()
     {
-        Assert.Null(AviSynth.AviSynthParameters.Parse(null));
-        Assert.Null(AviSynth.AviSynthParameters.Parse("c[broken"));
-        Assert.Null(AviSynth.AviSynthParameters.Parse("z"));
+        Assert.Null(AviSynthParameters.Parse(null));
+        Assert.Null(AviSynthParameters.Parse("c[broken"));
+        Assert.Null(AviSynthParameters.Parse("z"));
     }
 
     [Fact]

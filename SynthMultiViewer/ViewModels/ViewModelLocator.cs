@@ -1,3 +1,4 @@
+using System.Net.Http;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.MvvmDialogs;
@@ -29,6 +30,8 @@ public static class ViewModelLocator
         SplatRegistrations.RegisterLazySingleton<IDefaultScriptService, DefaultScriptService>();
         SplatRegistrations.RegisterLazySingleton<IScriptLanguageFactory, ScriptAssistService>();
         SplatRegistrations.RegisterLazySingleton<IFrameworkDetectionService, FrameworkDetectionService>();
+        container.Register(() => new HttpClient { Timeout = TimeSpan.FromSeconds(10) });
+        SplatRegistrations.RegisterLazySingleton<IAppVersionClient, AppVersionClient>();
         SplatRegistrations.Register<MainViewModel>();
         SplatRegistrations.Register<HelpViewModel>();
         SplatRegistrations.Register<InputViewModel>();

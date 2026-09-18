@@ -438,7 +438,7 @@ public class BehaviorTests
     {
         var paths = new List<string>();
         using var command = ReactiveCommand.Create<IEnumerable<string>>(files => paths.AddRange(files));
-        var view = new Window { Width = 200, Height = 200, Background = Avalonia.Media.Brushes.White };
+        var view = new Window { Width = 200, Height = 200, Background = Brushes.White };
         DragDrop.SetAllowDrop(view, true);
         FileDropBehavior.SetCommand(view, command);
         using var window = TestSupport.Show(view);

@@ -99,7 +99,16 @@ public sealed class LanguageService : ILanguageService
             AddParameterNames(items, path, scan, snapshot.Masked.Code);
         }
 
-        var hover = _language.Hover(snapshot.Masked.Code, path, bindings, snapshot.Catalog);
+        NamedArgumentHover.Bind(new HoverContext(scan, unclosed, snapshot.Joins, token));
+        HoverInfo? hover;
+        try
+        {
+            hover = _language.Hover(snapshot.Masked.Code, path, bindings, snapshot.Catalog);
+        }
+        finally
+        {
+            NamedArgumentHover.Unbind();
+        }
         var comparison = _language.Comparison;
         var comparer = comparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         return new(items.DistinctBy(x => x.InsertionText, comparer).OrderByDescending(x => x.Priority)

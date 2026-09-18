@@ -29,8 +29,6 @@ Windows, Linux and MacOS
 - Video properties window (clip format before display conversion, plus frame properties)
 - Code highlight for VapourSynth and AviSynth
 
-TODO: Encode feature
-
 ### MacOS Installation
 
 Download the ZIP that matches the Mac: `MacOS_arm64` on Apple Silicon, `MacOS_x64` on Intel.
@@ -62,3 +60,11 @@ This is a very powerful editor. AI was **definitely** used to write this module.
 ### Author
 
 [Etienne Charland](https://www.hanumaninstitute.com) — Soul Architect | Reality Engineering | Coherence programming
+
+### TODO
+
+- Encode
+- Pipette — YUV/RGB under the cursor
+- Masks
+- Plane view — Y / U / V (or RGB) as a display mode
+- vS Output view
