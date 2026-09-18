@@ -35,7 +35,7 @@
         <KeyBinding Gesture="F1" Command="{Binding Help}" />
         <KeyBinding Gesture="F2" Command="{Binding Rename}" />
         <KeyBinding Gesture="Ctrl+T" Command="{Binding ChangeTabColor}" />
-        <KeyBinding Gesture="F3" Command="{Binding Settings}" />
+        <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding Settings}" />
         <KeyBinding Gesture="F5" Command="{Binding Run}" />
         <KeyBinding Gesture="Ctrl+F6" Command="{Binding UpdateAll}" />
         <KeyBinding Gesture="F8" Command="{Binding ToggleMultiThreaded}" />
@@ -105,16 +105,16 @@
                                  UpdateSourceTrigger=Explicit}" />
                 <Separator IsVisible="{Binding IsViewerSelected}" />
                 <Button ToolTip.Tip="New VapourSynth script (Ctrl+N)" Command="{Binding New}">
-                    <Image Source="/Assets/Icons/New.png" Classes="enabled" />
+                    <Image Source="/Assets/Icons/NewVs.png" Classes="enabled" />
                 </Button>
                 <Button ToolTip.Tip="New AviSynth script (Ctrl+M)" Command="{Binding NewAviSynth}">
-                    <Image Source="/Assets/Icons/New.png" Classes="enabled" />
+                    <Image Source="/Assets/Icons/NewAvs.png" Classes="enabled" />
                 </Button>
                 <Button ToolTip.Tip="Open file... (Ctrl+O)" Command="{Binding Open}">
                     <Image Source="/Assets/Icons/Open.png" Classes="enabled" />
                 </Button>
                 <Separator />
-                <Button ToolTip.Tip="Settings (F3)" Command="{Binding Settings}">
+                <Button ToolTip.Tip="Settings (Ctrl+,)" Command="{Binding Settings}">
                     <Image Source="/Assets/Icons/Settings.png" Classes="enabled" />
                 </Button>
                 <Button ToolTip.Tip="Help (F1)" Command="{Binding Help}">
@@ -169,25 +169,32 @@
             <ScrollViewer x:Name="StartCanvas" IsVisible="{Binding IsStartVisible}"
                           HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <StackPanel Classes="start-canvas">
-                    <StackPanel Classes="start-actions">
-                        <Button x:Name="StartNewVapourSynth" Content="New VapourSynth" Command="{Binding New}" />
-                        <Button x:Name="StartNewAviSynth" Content="New AviSynth" Command="{Binding NewAviSynth}" />
-                        <Button x:Name="StartOpen" Content="Open" Command="{Binding Open}" />
-                    </StackPanel>
+                    <TextBlock Text="VapourSynth/AviSynth Editor and Viewer" Classes="start-title" />
                     <TextBlock Text="Drop a script here" Classes="start-hint" />
-                    <ItemsControl x:Name="StartRecents" ItemsSource="{Binding Recents}"
-                                  IsVisible="{Binding HasRecents}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:RecentFileItem">
-                                <Button Classes="start-recent"
-                                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).OpenRecent}"
-                                        CommandParameter="{Binding Path}" ToolTip.Tip="{Binding Path}"
-                                        Content="{Binding Name}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Text="{Binding EngineStatus}" IsVisible="{Binding HasEngineStatus}"
-                               Classes="start-status" />
+                    <StackPanel Classes="start-column">
+                        <StackPanel x:Name="StartActions" Classes="start-actions">
+                            <Button x:Name="StartNewVapourSynth" Content="New VapourSynth Script" Command="{Binding New}" />
+                            <Button x:Name="StartNewAviSynth" Content="New AviSynth Script" Command="{Binding NewAviSynth}" />
+                            <Button x:Name="StartOpen" Content="Open Existing" Command="{Binding Open}" />
+                        </StackPanel>
+                        <StackPanel x:Name="StartRecentsPanel" Classes="start-recents"
+                                    IsVisible="{Binding HasRecents}"
+                                    Width="{Binding #StartActions.Bounds.Width}">
+                            <TextBlock Text="Recent:" Classes="start-recents-heading" />
+                            <ItemsControl x:Name="StartRecents" ItemsSource="{Binding Recents}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RecentFileItem">
+                                        <Button Classes="start-recent"
+                                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).OpenRecent}"
+                                                CommandParameter="{Binding Path}" ToolTip.Tip="{Binding Path}">
+                                            <TextBlock Text="{Binding Name}" TextWrapping="NoWrap"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
         </Grid>

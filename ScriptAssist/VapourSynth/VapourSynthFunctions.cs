@@ -30,11 +30,14 @@ public static class VapourSynthFunctions
         var clean = BufferLexer.Mask(text, lexer, token: token).Code;
         var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token).Code;
         var buffer = new List<VapourSynthFunctionSpan>();
-        foreach (Match match in VapourSynthPatterns.TopLevelDef().Matches(clean))
+        var matches = VapourSynthPatterns.TopLevelDef().Matches(clean);
+        for (var i = 0; i < matches.Count; i++)
         {
             token.ThrowIfCancellationRequested();
+            var match = matches[i];
             var open = match.Index + match.Length - 1;
-            var close = FunctionHeaders.MatchingClose(clean, open);
+            var limit = i + 1 < matches.Count ? matches[i + 1].Index : clean.Length;
+            var close = FunctionHeaders.MatchingClose(clean, open, limit, token);
             if (close < 0)
             {
                 continue;
@@ -50,7 +53,7 @@ public static class VapourSynthFunctions
         return buffer;
     }
 
-    internal static string? ReturnId(string text, int parenClose)
+    internal static string? ReturnId(string text, int parenClose, DocumentBindings? bindings = null)
     {
         var i = parenClose + 1;
         while (i < text.Length && text[i] is ' ' or '\t')
@@ -70,8 +73,7 @@ public static class VapourSynthFunctions
             i++;
         }
 
-        var mapped = VapourSynthTypes.FromAnnotation(text[start..i].Trim());
-        return mapped.IsUnknown ? null : mapped.Id;
+        return VapourSynthBinder.ResolveAnnotationId(text[start..i].Trim(), bindings);
     }
 }
 

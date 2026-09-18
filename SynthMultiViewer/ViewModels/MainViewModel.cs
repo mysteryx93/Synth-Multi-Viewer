@@ -23,7 +23,6 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     private readonly IEnvironmentService _environmentService;
     private readonly IDefaultScriptService _defaultScripts;
     private readonly ISettingsProvider<AppSettingsData> _settings;
-    private readonly IFrameworkDetectionService _frameworks;
     private const int RecentFileLimit = 8;
     private double _scrollHorizontalOffset;
     private double _scrollVerticalOffset;
@@ -41,14 +40,12 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         IDialogService dialogService,
         IEnvironmentService environmentService,
         IDefaultScriptService defaultScripts,
-        ISettingsProvider<AppSettingsData> settings,
-        IFrameworkDetectionService frameworks)
+        ISettingsProvider<AppSettingsData> settings)
     {
         _dialogService = dialogService;
         _environmentService = environmentService;
         _defaultScripts = defaultScripts;
         _settings = settings;
-        _frameworks = frameworks;
         DisplayName = "Synth Multi-Viewer";
         CanClose = false;
 
@@ -112,34 +109,6 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     /// Gets whether the start surface has recent files to show.
     /// </summary>
     public bool HasRecents => Recents.Count > 0;
-
-    /// <summary>
-    /// Gets a quiet engine-detection line, or <see langword="null"/> when both engines were found.
-    /// </summary>
-    public string? EngineStatus
-    {
-        get
-        {
-            var vs = !_frameworks.VapourSynth.Found;
-            var avs = !_frameworks.AviSynth.Found;
-            if (!vs && !avs)
-            {
-                return null;
-            }
-
-            if (vs && avs)
-            {
-                return "VapourSynth and AviSynth not detected";
-            }
-
-            return vs ? "VapourSynth not detected" : "AviSynth not detected";
-        }
-    }
-
-    /// <summary>
-    /// Gets whether the start surface should show engine-detection status.
-    /// </summary>
-    public bool HasEngineStatus => EngineStatus != null;
 
     /// <summary>
     /// Gets the minimum zoom factor.
@@ -937,8 +906,6 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     private void OnSettingsChanged()
     {
         this.RaisePropertyChanged(nameof(Threads));
-        this.RaisePropertyChanged(nameof(EngineStatus));
-        this.RaisePropertyChanged(nameof(HasEngineStatus));
         foreach (var tab in ScriptList)
         {
             tab.ApplyTabColor(_settings.Value);

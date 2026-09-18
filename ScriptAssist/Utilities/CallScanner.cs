@@ -9,13 +9,28 @@ internal static class CallScanner
     /// Walks <paramref name="code"/> and returns insight when the language resolves the callee.
     /// </summary>
     public static CallScan? Find(string code, ILanguage language, DocumentBindings bindings,
-        IReadOnlyList<Symbol> catalog, CancellationToken token, string? source = null)
+        IReadOnlyList<Symbol> catalog, CancellationToken token, string? source = null, int caret = -1,
+        bool[]? joins = null) =>
+        Walk(code, language, bindings, catalog, token, source, caret, joins).Scan;
+
+    /// <summary>
+    /// Walks delimiters once and returns both the resolved call and the innermost unclosed delimiter.
+    /// </summary>
+    public static CallWalk Walk(string code, ILanguage language, DocumentBindings bindings,
+        IReadOnlyList<Symbol> catalog, CancellationToken token, string? source = null, int caret = -1,
+        bool[]? joins = null)
     {
+        if (caret < 0 || caret > code.Length)
+        {
+            caret = code.Length;
+        }
+
         var comparer = language.Comparison == StringComparison.OrdinalIgnoreCase
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal;
+        joins ??= StatementScanner.Joins(code, language, token);
         var stack = new Stack<CallFrame>();
-        for (var i = 0; i < code.Length; i++)
+        for (var i = 0; i < caret; i++)
         {
             if ((i & 4095) == 0)
             {
@@ -51,6 +66,7 @@ internal static class CallScanner
             }
         }
 
+        var unclosed = stack.Count == 0 ? (char?)null : stack.Peek().Delimiter;
         var nested = false;
         foreach (var frame in stack)
         {
@@ -60,7 +76,7 @@ internal static class CallScanner
                 continue;
             }
 
-            var callee = ExpressionReader.Callee(code, frame.Offset, language, token);
+            var callee = ExpressionReader.Callee(code, frame.Offset, language, token, joins);
             if (callee.Count == 0)
             {
                 nested = true;
@@ -70,32 +86,39 @@ internal static class CallScanner
             var resolved = language.ResolveCall(callee, bindings, catalog);
             if (resolved is { Overloads.Count: > 0 })
             {
-                var current = (source ?? code)[frame.ArgumentStart..];
+                var current = (source ?? code)[frame.ArgumentStart..caret];
                 var used = CanonicalNames(frame.UsedNames, resolved, language);
-                var parameter = ActivePhysical(resolved, current, frame.Positional, language);
-                return new CallScan(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested,
-                    current, used, frame.Positional);
+                var keyword = KeywordName(current);
+                var parameter = ActivePhysical(resolved.Overloads, keyword, frame.Positional,
+                    resolved.ImplicitReceiver, used, language);
+                return new CallWalk(new CallScan(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested,
+                    current, used, frame.Positional, keyword), unclosed);
             }
 
             if (callee[^1].Name.Length > 0)
             {
-                return null;
+                return new CallWalk(null, unclosed);
             }
 
             nested = true;
         }
 
-        return null;
+        return new CallWalk(null, unclosed);
     }
 
     /// <summary>
-    /// Gets the innermost unclosed <c>(</c>, <c>[</c>, or <c>{</c>, or null when all are balanced.
+    /// Gets the innermost unclosed delimiter after walking <paramref name="code"/> to <paramref name="caret"/>.
     /// </summary>
     public static char? InnermostUnclosed(string code, CancellationToken token = default,
-        ILanguage? language = null)
+        ILanguage? language = null, int caret = -1)
     {
+        if (caret < 0 || caret > code.Length)
+        {
+            caret = code.Length;
+        }
+
         var stack = new Stack<char>();
-        for (var i = 0; i < code.Length; i++)
+        for (var i = 0; i < caret; i++)
         {
             if ((i & 4095) == 0)
             {
@@ -140,27 +163,64 @@ internal static class CallScanner
         }
     }
 
-    private static int ActivePhysical(CallResolution resolved, string argument, int positional, ILanguage language)
+    internal static int ActivePhysical(IReadOnlyList<Symbol> overloads, string? keyword, int positional,
+        bool implicitClip, IReadOnlySet<string>? used, ILanguage? language, Symbol? overload = null)
     {
-        var keyword = KeywordName(argument);
-        var skip = resolved.ImplicitReceiver ? 1 : 0;
-        foreach (var overload in resolved.Overloads)
+        var skip = implicitClip ? 1 : 0;
+        if (overload != null)
         {
-            if (overload.Parameters == null)
+            return overload.Parameters == null
+                ? positional + skip
+                : MapOverload(overload, keyword, positional, skip, used, language);
+        }
+
+        foreach (var candidate in overloads)
+        {
+            if (candidate.Parameters == null)
             {
                 continue;
             }
 
-            if (keyword != null)
-            {
-                return ParameterNames.MapNamed(overload.Parameters, keyword, language.ParameterName,
-                    language.Comparison);
-            }
-
-            return ParameterNames.MapPositional(overload.Parameters, positional + skip);
+            return MapOverload(candidate, keyword, positional, skip, used, language);
         }
 
         return positional + skip;
+    }
+
+    private static int MapOverload(Symbol overload, string? keyword, int positional, int skip,
+        IReadOnlySet<string>? used, ILanguage? language)
+    {
+        var nameOf = language != null ? language.ParameterName : NameOf(overload);
+        var comparison = language?.Comparison ?? ComparisonOf(overload);
+        return ParameterNames.MapActive(overload.Parameters!, keyword, positional, skip, used, nameOf, comparison,
+            NativeAlias(overload));
+    }
+
+    internal static bool NativeAlias(Symbol overload) =>
+        overload.Name.StartsWith("core.", StringComparison.Ordinal);
+
+    private static Func<string, string?> NameOf(Symbol overload) =>
+        AviSynth(overload) ? ParameterNames.OfAviSynth : ParameterNames.OfPython;
+
+    private static StringComparison ComparisonOf(Symbol overload) =>
+        AviSynth(overload) ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    private static bool AviSynth(Symbol overload)
+    {
+        if (overload.Parameters == null)
+        {
+            return false;
+        }
+
+        foreach (var parameter in overload.Parameters)
+        {
+            if (parameter.Contains('[', StringComparison.Ordinal) || parameter.Contains('"', StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string? KeywordName(string argument)
@@ -194,7 +254,8 @@ internal static class CallScanner
                 foreach (var parameter in overload.Parameters)
                 {
                     var name = language.ParameterName(parameter);
-                    if (name == null || !ParameterNames.ArgumentEquals(name, written, language.Comparison))
+                    if (name == null ||
+                        !ParameterNames.ArgumentEquals(name, written, language.Comparison, NativeAlias(overload)))
                     {
                         continue;
                     }
@@ -268,6 +329,11 @@ internal static class CallScanner
 }
 
 /// <summary>
+/// Delimiter walk plus an optional resolved call.
+/// </summary>
+internal readonly record struct CallWalk(CallScan? Scan, char? Unclosed);
+
+/// <summary>
 /// Resolved call plus internal argument-scan context.
 /// </summary>
 internal sealed record CallScan(
@@ -277,10 +343,16 @@ internal sealed record CallScan(
     bool InNestedDelimiter,
     string CurrentArgument,
     IReadOnlySet<string> UsedNames,
-    int PositionalConsumed)
+    int PositionalConsumed,
+    string? Keyword)
 {
     /// <summary>
     /// Gets the consumer-facing insight.
     /// </summary>
-    public CallInsight Insight => new(Overloads, ActiveParameter, ImplicitClip);
+    public CallInsight Insight => new(Overloads, ActiveParameter, ImplicitClip)
+    {
+        Keyword = Keyword,
+        Positional = PositionalConsumed,
+        UsedNames = UsedNames
+    };
 }

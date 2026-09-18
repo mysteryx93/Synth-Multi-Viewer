@@ -3,7 +3,7 @@ namespace HanumanInstitute.ScriptAssist.VapourSynth;
 /// <summary>
 /// Catalog-driven VapourSynth profile: bound plugins, vs/core/VideoNode members, same-file types.
 /// </summary>
-public sealed class VapourSynthLanguage : ILanguage
+public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage
 {
     private readonly IncludeReader? _read;
     /// <summary>
@@ -54,9 +54,14 @@ public sealed class VapourSynthLanguage : ILanguage
     ];
 
     /// <inheritdoc />
+    internal IncludeCache Includes { get; } = new();
+
+    void IRefreshableLanguage.Invalidate() => Includes.Clear();
+
+    /// <inheritdoc />
     public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
         string? documentPath = null) =>
-        VapourSynthBinder.Bind(text, catalog, Lexer, token, documentPath, _read);
+        VapourSynthBinder.Bind(text, catalog, Lexer, token, documentPath, _read, Includes);
 
     /// <inheritdoc />
     public double CompletionPriority(Symbol symbol, TypeRef receiver) =>

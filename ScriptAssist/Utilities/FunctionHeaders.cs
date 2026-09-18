@@ -7,13 +7,20 @@ internal static class FunctionHeaders
 {
     /// <summary>
     /// Returns the index of the <c>)</c> matching <paramref name="open"/>, or -1.
+    /// Search stops before <paramref name="limit"/> when it is non-negative.
     /// </summary>
-    public static int MatchingClose(string text, int open)
+    public static int MatchingClose(string text, int open, int limit = -1, CancellationToken token = default)
     {
         var depth = 1;
         var quote = '\0';
-        for (var i = open + 1; i < text.Length; i++)
+        var end = limit < 0 || limit > text.Length ? text.Length : limit;
+        for (var i = open + 1; i < end; i++)
         {
+            if ((i & 4095) == 0)
+            {
+                token.ThrowIfCancellationRequested();
+            }
+
             var c = text[i];
             if (quote != '\0')
             {

@@ -36,9 +36,9 @@ public static class AviSynthFunctions
             token.ThrowIfCancellationRequested();
             var match = matches[i];
             var open = match.Index + match.Length - 1;
-            var close = FunctionHeaders.MatchingClose(clean, open);
             var limit = i + 1 < matches.Count ? matches[i + 1].Index : clean.Length;
-            if (close < 0 || close >= limit)
+            var close = FunctionHeaders.MatchingClose(clean, open, limit, token);
+            if (close < 0)
             {
                 close = -1;
             }
@@ -68,17 +68,117 @@ public static class AviSynthFunctions
         return buffer;
     }
 
+
     /// <summary>
     /// Follows <c>Import</c> specifiers with <paramref name="read"/> and appends parsed functions.
     /// </summary>
     public static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
-        HashSet<string> visited, LexerOptions lexer, CancellationToken token)
+        HashSet<string> visited, LexerOptions lexer, CancellationToken token) =>
+        AddImports(text, documentPath, read, buffer, visited, lexer, token, null);
+
+    internal static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
+        HashSet<string> visited, LexerOptions lexer, CancellationToken token, IncludeCache? includes) =>
+        AddImports(text, documentPath, read, buffer, visited, lexer, token, new IncludeSession(includes));
+
+    private static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
+        HashSet<string> visited, LexerOptions lexer, CancellationToken token, IncludeSession includes)
     {
         if (read == null)
         {
             return;
         }
 
+        var ensuring = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var specifier in ImportSpecifiers(text, lexer, token))
+        {
+            LoadSpecifier(specifier, documentPath, read, buffer, visited, ensuring, lexer, token, includes);
+        }
+    }
+
+    private static void LoadSpecifier(string specifier, string? fromPath, IncludeReader read, List<Symbol> buffer,
+        HashSet<string> visited, HashSet<string> ensuring, LexerOptions lexer, CancellationToken token,
+        IncludeSession includes)
+    {
+        token.ThrowIfCancellationRequested();
+        if (includes.TryPath(specifier, fromPath, out var path) &&
+            (path == null || includes.TryEntry(path, out _)))
+        {
+            if (path != null)
+            {
+                Expand(path, buffer, visited, includes);
+            }
+
+            return;
+        }
+
+        var file = read(specifier, fromPath);
+        if (file == null)
+        {
+            includes.SetPath(specifier, fromPath, null);
+            return;
+        }
+
+        EnsureCached(file.Value.Path, file.Value.Text, file.Value.Path, read, ensuring, lexer, token, includes);
+        includes.SetPath(specifier, fromPath, file.Value.Path);
+        Expand(file.Value.Path, buffer, visited, includes);
+    }
+
+    private static void EnsureCached(string path, string text, string fromPath, IncludeReader read,
+        HashSet<string> ensuring, LexerOptions lexer, CancellationToken token, IncludeSession includes)
+    {
+        if (includes.TryEntry(path, out _) || !ensuring.Add(path))
+        {
+            return;
+        }
+
+        token.ThrowIfCancellationRequested();
+        var own = Parse(text, lexer, token);
+        var deps = new List<string>();
+        foreach (var specifier in ImportSpecifiers(text, lexer, token))
+        {
+            token.ThrowIfCancellationRequested();
+            if (includes.TryPath(specifier, fromPath, out var depPath) &&
+                (depPath == null || includes.TryEntry(depPath, out _)))
+            {
+                if (depPath != null)
+                {
+                    deps.Add(depPath);
+                }
+
+                continue;
+            }
+
+            var file = read(specifier, fromPath);
+            if (file == null)
+            {
+                includes.SetPath(specifier, fromPath, null);
+                continue;
+            }
+
+            EnsureCached(file.Value.Path, file.Value.Text, file.Value.Path, read, ensuring, lexer, token, includes);
+            includes.SetPath(specifier, fromPath, file.Value.Path);
+            deps.Add(file.Value.Path);
+        }
+
+        includes.SetEntry(path, new IncludeEntry(own, deps));
+    }
+
+    private static void Expand(string path, List<Symbol> buffer, HashSet<string> visited, IncludeSession includes)
+    {
+        if (!visited.Add(path) || !includes.TryEntry(path, out var entry))
+        {
+            return;
+        }
+
+        buffer.AddRange(entry.Members);
+        foreach (var dep in entry.Dependencies)
+        {
+            Expand(dep, buffer, visited, includes);
+        }
+    }
+
+    private static IEnumerable<string> ImportSpecifiers(string text, LexerOptions lexer, CancellationToken token)
+    {
         var quoted = AviSynthPatterns.Clean(text, lexer, maskStrings: false, token: token);
         var clean = AviSynthPatterns.Clean(text, lexer, token: token);
         foreach (Match match in AviSynthPatterns.Import().Matches(quoted))
@@ -89,17 +189,9 @@ public static class AviSynthFunctions
                 continue;
             }
 
-            var specifier = match.Groups[1].Success && match.Groups[1].Length > 0
+            yield return match.Groups[1].Success && match.Groups[1].Length > 0
                 ? match.Groups[1].Value
                 : match.Groups[2].Value.Replace("\"\"", "\"", StringComparison.Ordinal);
-            var file = read(specifier, documentPath);
-            if (file == null || !visited.Add(file.Value.Path))
-            {
-                continue;
-            }
-
-            buffer.AddRange(Parse(file.Value.Text, lexer, token));
-            AddImports(file.Value.Text, file.Value.Path, read, buffer, visited, lexer, token);
         }
     }
 
@@ -110,11 +202,11 @@ public static class AviSynthFunctions
     {
         var result = new List<Symbol>(native.Count + parsed.Count);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var parsedLookup = parsed.ToLookup(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase);
         foreach (var group in native.GroupBy(symbol => symbol.Name, StringComparer.OrdinalIgnoreCase))
         {
             seen.Add(group.Key);
-            var parsedGroup = parsed.Where(symbol => symbol.Name.Equals(group.Key, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            var parsedGroup = parsedLookup[group.Key].ToList();
             var nativeGroup = group.ToList();
             result.AddRange(EnrichGroup(nativeGroup, parsedGroup));
         }

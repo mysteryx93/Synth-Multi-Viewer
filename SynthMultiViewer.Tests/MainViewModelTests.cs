@@ -957,7 +957,7 @@ public class MainViewModelTests
         Assert.Equal(viewer, TipVisible(view, "Square Pixels (F9)"));
         Assert.Equal(viewer, TipVisible(view, "Load frame in all tabs (Ctrl+F6)"));
         Assert.Equal(viewer, view.FindControl<ComboBox>("ZoomCombo")!.IsVisible);
-        Assert.True(TipVisible(view, "Settings (F3)"));
+        Assert.True(TipVisible(view, "Settings (Ctrl+,)"));
         Assert.True(TipVisible(view, "Help (F1)"));
         var toolbar = view.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Classes.Contains("toolbar"));
         foreach (var image in toolbar.GetVisualDescendants().OfType<Image>())
@@ -1079,28 +1079,73 @@ public class MainViewModelTests
             BrushColor(model.SelectedItem.TabBackground));
     }
 
-    [AvaloniaFact]
-    public void HelpView_Shortcuts_SelectTabByStripOrder()
+    [Fact]
+    public Task HelpView_Shortcuts_SelectTabByStripOrder() => UiSession.Dispatch(() =>
     {
         var help = new HelpView { DataContext = new HelpViewModel(new TestSupport.TestEnvironment()) };
 
         using var shown = TestSupport.Show(help);
+        Dispatcher.UIThread.RunJobs();
         var text = string.Concat(help.GetVisualDescendants().OfType<TextBlock>()
             .SelectMany(block => block.Inlines ?? [])
             .OfType<Avalonia.Controls.Documents.Run>()
             .Select(run => run.Text));
 
         Assert.Contains("Ctrl+1-9: Select tab", text, StringComparison.Ordinal);
-        Assert.Contains("Alt+Left: Move tab left", text, StringComparison.Ordinal);
-        Assert.Contains("Alt+Right: Move tab right", text, StringComparison.Ordinal);
-        Assert.Contains("Drag tab: Reorder", text, StringComparison.Ordinal);
-        Assert.Contains("Ctrl+T: Change tab color", text, StringComparison.Ordinal);
-        Assert.Contains("Ctrl+I: Toggle video properties", text, StringComparison.Ordinal);
+        Assert.Contains("Alt+Left / Alt+Right: Move tab", text, StringComparison.Ordinal);
+        Assert.Contains("Drag: Reorder", text, StringComparison.Ordinal);
+        Assert.Contains("F2 / Click: Rename", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+T: Tab color", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+Tab: Next", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+Shift+Tab: Previous", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ctrl+Tab / Ctrl+Shift+Tab", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+I: Video properties", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+O: Open", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+S: Save", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+G: Go to frame", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+,: Settings", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+F: Find", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+H: Replace", text, StringComparison.Ordinal);
+        Assert.Contains("F3: Find next", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("F3: Settings", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+D: Delete line", text, StringComparison.Ordinal);
+        Assert.Contains("Tab / Shift+Tab: Indent / unindent", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Indent selection", text, StringComparison.Ordinal);
+        Assert.Contains("Scroll / +/-: Zoom in / out", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Alt+Enter", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Alt+Shift+arrows", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Wheel click on tab", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Alt+1-9", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Select editor tab", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Select viewer tab", text, StringComparison.Ordinal);
-    }
+
+        Assert.Equal(SizeToContent.WidthAndHeight, help.SizeToContent);
+        foreach (var visual in help.GetVisualDescendants().OfType<Visual>())
+        {
+            var origin = visual.TranslatePoint(default, help);
+            if (origin is null) { continue; }
+
+            Assert.True(origin.Value.X + visual.Bounds.Width <= help.Bounds.Width + 1);
+        }
+
+        var columns = Assert.Single(help.GetVisualDescendants().OfType<Grid>(),
+            grid => grid.Name == "ShortcutColumns");
+        Assert.Equal(4, columns.ColumnDefinitions.Count);
+        Assert.All(columns.ColumnDefinitions, column => Assert.True(column.Width.IsAuto));
+        Assert.Contains(columns.GetVisualDescendants().OfType<TextBlock>(),
+            block => block.Text == "Editor");
+        Assert.Contains(columns.GetVisualDescendants().OfType<TextBlock>(),
+            block => block.Text == "Search");
+        Assert.Contains(columns.GetVisualDescendants().OfType<TextBlock>(),
+            block => block.Text == "Edit");
+        foreach (var list in help.GetVisualDescendants().OfType<TextBlock>().Where(block => block.Classes.Contains("help-list")))
+        {
+            Assert.Equal(TextWrapping.NoWrap, list.TextWrapping);
+            var lines = 1 + (list.Inlines?.OfType<Avalonia.Controls.Documents.LineBreak>().Count() ?? 0);
+            Assert.True(list.Bounds.Height <= lines * 20 + 1);
+        }
+        return true;
+    }, TestContext.Current.CancellationToken);
 
     private static Color BrushColor(IBrush brush) => Assert.IsType<SolidColorBrush>(brush).Color;
 
@@ -1326,40 +1371,4 @@ public class MainViewModelTests
         Assert.Equal("saved", File.ReadAllText(file.Path));
         return true;
     }, TestContext.Current.CancellationToken);
-
-    [Fact]
-    public void EngineStatus_BothMissing_ReportsQuietLine()
-    {
-        var model = TestSupport.CreateMain();
-
-        Assert.Equal("VapourSynth and AviSynth not detected", model.EngineStatus);
-        Assert.True(model.HasEngineStatus);
-    }
-
-    [Fact]
-    public void EngineStatus_BothFound_IsHidden()
-    {
-        var detection = new TestSupport.MemoryFrameworkDetection
-        {
-            VapourSynth = new FrameworkInstall(true),
-            AviSynth = new FrameworkInstall(true)
-        };
-        var model = TestSupport.CreateMain(frameworks: detection);
-
-        Assert.Null(model.EngineStatus);
-        Assert.False(model.HasEngineStatus);
-    }
-
-    [Fact]
-    public void EngineStatus_OnlyAviSynthMissing_ReportsAviSynth()
-    {
-        var detection = new TestSupport.MemoryFrameworkDetection
-        {
-            VapourSynth = new FrameworkInstall(true),
-            AviSynth = new FrameworkInstall(false)
-        };
-        var model = TestSupport.CreateMain(frameworks: detection);
-
-        Assert.Equal("AviSynth not detected", model.EngineStatus);
-    }
 }

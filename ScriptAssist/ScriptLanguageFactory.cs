@@ -89,17 +89,24 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
         catalogKey.CheckNotNull();
         if (!_profiles.TryGetValue(language, out var profile)) { return; }
 
+        var previous = profile.Catalog is CatalogCache cache ? cache.Key : null;
         if (!IsEnabled)
         {
             profile.Catalog.SetKey(catalogKey);
-            return;
+        }
+        else
+        {
+            profile.Catalog.Refresh(catalogKey);
         }
 
-        profile.Catalog.Refresh(catalogKey);
+        if (previous != catalogKey)
+        {
+            profile.Service.Invalidate();
+        }
     }
 
     /// <inheritdoc />
-    public void Refresh()
+    public virtual void Refresh()
     {
         if (!IsEnabled) { return; }
 

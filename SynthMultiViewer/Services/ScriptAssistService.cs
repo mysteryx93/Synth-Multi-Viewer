@@ -19,4 +19,11 @@ public sealed class ScriptAssistService : ScriptLanguageFactory
     {
         IsEnabled = settings.Value.EnhanceEditorWithAutoComplete;
     }
+
+    /// <inheritdoc />
+    public override void Refresh()
+    {
+        ScriptIncludeIO.Invalidate();
+        base.Refresh();
+    }
 }

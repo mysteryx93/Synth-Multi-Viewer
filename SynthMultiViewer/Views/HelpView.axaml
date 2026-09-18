@@ -4,8 +4,7 @@
         x:Class="HanumanInstitute.SynthMultiViewer.Views.HelpView"
         x:DataType="vm:HelpViewModel"
         Title="About Synth Multi-Viewer"
-        Width="430"
-        SizeToContent="Height"
+        SizeToContent="WidthAndHeight"
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
@@ -28,43 +27,81 @@
                                  FontSize="14" Padding="0" VerticalAlignment="Center" />
                 <TextBlock FontSize="14" Text=" — Coherence programming" VerticalAlignment="Center" />
             </StackPanel>
-            <TextBlock Margin="0,12,0,0" TextWrapping="Wrap">
-                <Run FontWeight="Bold" Text="Mouse actions:" /><LineBreak />
-                <Run Text="Left click (hold): Pan and scroll" /><LineBreak />
-                <Run Text="Scroll up: Zoom in" /><LineBreak />
-                <Run Text="Scroll down: Zoom out" /><LineBreak />
-                <Run Text="Right click: Reset zoom" /><LineBreak />
-                <Run Text="Wheel click: Toggle full-screen" /><LineBreak />
-                <Run Text="Click tab name: Rename" /><LineBreak />
-                <Run Text="Drag tab: Reorder" /><LineBreak /><LineBreak />
-                <Run FontWeight="Bold" Text="Keyboard shortcuts:" /><LineBreak />
-                <Run Text="F2: Rename tab" /><LineBreak />
-                <Run Text="Ctrl+T: Change tab color" /><LineBreak />
-                <Run Text="F3: Settings" /><LineBreak />
-                <Run Text="Space: Play/Pause" /><LineBreak />
-                <Run Text="Left: Seek 1 frame back" /><LineBreak />
-                <Run Text="Right: Seek 1 frame forward" /><LineBreak />
-                <Run Text="Ctrl+Left: Seek 10 frames back" /><LineBreak />
-                <Run Text="Ctrl+Right: Seek 10 frames forward" /><LineBreak />
-                <Run Text="Ctrl+C: Copy frame to clipboard" /><LineBreak />
-                <Run Text="Ctrl+I: Toggle video properties" /><LineBreak />
-                <Run Text="+: Zoom in" /><LineBreak />
-                <Run Text="-: Zoom out" /><LineBreak />
-                <Run Text="Ctrl+Tab: Next tab" /><LineBreak />
-                <Run Text="Ctrl+Shift+Tab: Previous tab" /><LineBreak />
-                <Run Text="Ctrl+1-9: Select tab" /><LineBreak />
-                <Run Text="Alt+Left: Move tab left" /><LineBreak />
-                <Run Text="Alt+Right: Move tab right" /><LineBreak />
-                <Run Text="Ctrl+N: New VapourSynth script" /><LineBreak />
-                <Run Text="Ctrl+M: New AviSynth script" /><LineBreak />
-                <Run Text="Ctrl+Space: Editor completion" /><LineBreak />
-                <Run Text="Ctrl+Shift+Space: Parameter info" /><LineBreak />
-                <Run Text="Ctrl+Shift+R: Refresh filter catalogs" /><LineBreak />
-                <Run Text="Esc: Dismiss editor completion and signatures" /><LineBreak />
-                <Run Text="F5: Run script" /><LineBreak />
-                <Run Text="Alt+Enter: Toggle full-screen" /><LineBreak />
-                <Run Text="Ctrl+F4: Close current tab" />
-            </TextBlock>
+            <Grid x:Name="ShortcutColumns" Classes="help-shortcuts" ColumnDefinitions="Auto,Auto,Auto,Auto">
+                <StackPanel Grid.Column="0" Classes="help-column">
+                    <TextBlock Classes="help-heading" Text="File" />
+                    <TextBlock Classes="help-list">
+                        <Run Text="F1: Help" /><LineBreak />
+                        <Run Text="Ctrl+,: Settings" /><LineBreak />
+                        <Run Text="Ctrl+N: New VapourSynth" /><LineBreak />
+                        <Run Text="Ctrl+M: New AviSynth" /><LineBreak />
+                        <Run Text="Ctrl+O: Open" /><LineBreak />
+                        <Run Text="Ctrl+S: Save" /><LineBreak />
+                        <Run Text="Ctrl+Shift+S: Save as" /><LineBreak />
+                        <Run Text="F5: Run" /><LineBreak />
+                        <Run Text="Ctrl+F4: Close tab" />
+                    </TextBlock>
+                    <TextBlock Classes="help-heading" Text="Tabs" />
+                    <TextBlock Classes="help-list">
+                        <Run Text="F2 / Click: Rename" /><LineBreak />
+                        <Run Text="Ctrl+T: Tab color" /><LineBreak />
+                        <Run Text="Ctrl+Tab: Next" /><LineBreak />
+                        <Run Text="Ctrl+Shift+Tab: Previous" /><LineBreak />
+                        <Run Text="Ctrl+1-9: Select tab" /><LineBreak />
+                        <Run Text="Alt+Left / Alt+Right: Move tab" /><LineBreak />
+                        <Run Text="Drag: Reorder" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Classes="help-column">
+                    <TextBlock Classes="help-heading" Text="Viewer" />
+                    <TextBlock Classes="help-list">
+                        <Run Text="Left-drag: Pan" /><LineBreak />
+                        <Run Text="Scroll / +/-: Zoom in / out" /><LineBreak />
+                        <Run Text="Right click: Reset zoom" /><LineBreak />
+                        <Run Text="Space: Play/Pause" /><LineBreak />
+                        <Run Text="Left / Right: Seek 1 frame" /><LineBreak />
+                        <Run Text="Ctrl+Left / Ctrl+Right: Seek 10 frames" /><LineBreak />
+                        <Run Text="Ctrl+G: Go to frame" /><LineBreak />
+                        <Run Text="Ctrl+C: Copy frame" /><LineBreak />
+                        <Run Text="Ctrl+I: Video properties" /><LineBreak />
+                        <Run Text="Ctrl+F6: Load frame in all tabs" /><LineBreak />
+                        <Run Text="F8: Multi-threading" /><LineBreak />
+                        <Run Text="F9: Square pixels" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Classes="help-column">
+                    <TextBlock Classes="help-heading" Text="Editor" />
+                    <TextBlock Classes="help-list">
+                        <Run Text="Ctrl+Space: Completion" /><LineBreak />
+                        <Run Text="Ctrl+Shift+Space: Parameter info" /><LineBreak />
+                        <Run Text="Ctrl+Shift+R: Refresh catalogs" /><LineBreak />
+                        <Run Text="Esc: Dismiss popups" />
+                    </TextBlock>
+                    <TextBlock Classes="help-heading" Text="Search" />
+                    <TextBlock Classes="help-list">
+                        <Run Text="Ctrl+F: Find" /><LineBreak />
+                        <Run Text="Ctrl+H: Replace" /><LineBreak />
+                        <Run Text="F3: Find next" /><LineBreak />
+                        <Run Text="Shift+F3: Find previous" /><LineBreak />
+                        <Run Text="Alt+R: Replace next" /><LineBreak />
+                        <Run Text="Alt+A: Replace all" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Grid.Column="3" Classes="help-column">
+                    <TextBlock Classes="help-heading" Text="Edit" />
+                    <TextBlock Classes="help-list">
+                        <Run Text="Ctrl+Z / Ctrl+Y: Undo / Redo" /><LineBreak />
+                        <Run Text="Ctrl+X / Ctrl+C / Ctrl+V: Cut / Copy / Paste" /><LineBreak />
+                        <Run Text="Ctrl+A: Select all" /><LineBreak />
+                        <Run Text="Ctrl+D: Delete line" /><LineBreak />
+                        <Run Text="Tab / Shift+Tab: Indent / unindent" /><LineBreak />
+                        <Run Text="Ctrl+Backspace / Ctrl+Delete: Delete word" /><LineBreak />
+                        <Run Text="Home / End: Line start / end" /><LineBreak />
+                        <Run Text="Ctrl+Home / Ctrl+End: Document start / end" /><LineBreak />
+                        <Run Text="Ctrl+Left / Ctrl+Right: Word left / right" />
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
         </StackPanel>
     </DockPanel>
 </Window>

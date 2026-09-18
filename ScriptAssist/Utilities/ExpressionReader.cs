@@ -17,7 +17,7 @@ internal static class ExpressionReader
     /// Reads the path at <paramref name="caret"/> for completion replacement.
     /// </summary>
     public static CaretPath Read(string code, int caret, ILanguage? language = null,
-        CancellationToken token = default)
+        CancellationToken token = default, bool[]? joins = null)
     {
         caret = caret.Clamp(0, code.Length);
         var start = caret;
@@ -33,7 +33,7 @@ internal static class ExpressionReader
         }
 
         var typed = start <= caret && caret <= code.Length ? code[start..caret] : "";
-        var joins = StatementScanner.Joins(code, language, token);
+        joins ??= StatementScanner.Joins(code, language, token);
         return new CaretPath
         {
             Start = start,
@@ -130,12 +130,13 @@ internal static class ExpressionReader
     /// Reads the callee to the left of an opening parenthesis.
     /// </summary>
     public static IReadOnlyList<PathSegment> Callee(string code, int openParen, ILanguage? language = null,
-        CancellationToken token = default)
+        CancellationToken token = default, bool[]? joins = null)
     {
         var end = openParen.Clamp(0, code.Length);
-        while (end > 0 && char.IsWhiteSpace(code[end - 1]))
+        joins ??= StatementScanner.Joins(code, language, token);
+        if (!SkipJoin(code, ref end, joins, 0))
         {
-            end--;
+            return [];
         }
 
         var start = end;
@@ -150,7 +151,6 @@ internal static class ExpressionReader
         }
 
         var name = code[start..end];
-        var joins = StatementScanner.Joins(code, language, token);
         var prefix = WalkLeft(code, start, joins, 0, language, token, out _);
         var segments = new List<PathSegment>(prefix.Count + 1);
         segments.AddRange(prefix);

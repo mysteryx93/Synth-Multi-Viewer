@@ -67,7 +67,7 @@ internal static class AviSynthTypeWalker
     }
 
     private static Symbol? Find(IReadOnlyList<Symbol> catalog, string name) =>
-        catalog.FirstOrDefault(symbol => symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        AviSynthCatalogIndex.Build(catalog).Find(name);
 
     private static TypeRef Index(TypeRef current) =>
         current == AviSynthTypes.Clip ? AviSynthTypes.Clip : TypeRef.Unknown;

@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace HanumanInstitute.ScriptAssist.VapourSynth;
 
 /// <summary>
@@ -5,9 +7,7 @@ namespace HanumanInstitute.ScriptAssist.VapourSynth;
 /// </summary>
 internal sealed class VapourSynthCatalogIndex
 {
-    private static readonly Lock CacheGate = new();
-    private static IReadOnlyList<Symbol>? CachedCatalog;
-    private static VapourSynthCatalogIndex? CachedIndex;
+    private static readonly ConditionalWeakTable<IReadOnlyList<Symbol>, VapourSynthCatalogIndex> Indexes = new();
 
     private readonly Dictionary<string, List<Symbol>> _functions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, List<Symbol>> _boundVideo = new(StringComparer.Ordinal);
@@ -23,19 +23,13 @@ internal sealed class VapourSynthCatalogIndex
     /// <summary>
     /// Builds an index of <c>core.namespace.function</c> symbols.
     /// </summary>
-    public static VapourSynthCatalogIndex Build(IReadOnlyList<Symbol> catalog)
-    {
-        var snapshot = catalog as Symbol[] ?? catalog.ToArray();
-        lock (CacheGate)
-        {
-            if (ReferenceEquals(CachedCatalog, snapshot) && CachedIndex != null)
-            {
-                return CachedIndex;
-            }
-        }
+    public static VapourSynthCatalogIndex Build(IReadOnlyList<Symbol> catalog) =>
+        Indexes.GetValue(catalog, static symbols => Create(symbols));
 
+    private static VapourSynthCatalogIndex Create(IReadOnlyList<Symbol> catalog)
+    {
         var index = new VapourSynthCatalogIndex();
-        foreach (var symbol in snapshot)
+        foreach (var symbol in catalog)
         {
             if (!TrySplit(symbol.Name, out var ns, out _))
             {
@@ -59,12 +53,6 @@ internal sealed class VapourSynthCatalogIndex
             {
                 AddBound(index._boundAudio, index._boundAudioNamespaces, ns, symbol);
             }
-        }
-
-        lock (CacheGate)
-        {
-            CachedCatalog = snapshot;
-            CachedIndex = index;
         }
 
         return index;

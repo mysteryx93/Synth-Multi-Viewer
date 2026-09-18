@@ -169,9 +169,15 @@ public static class ViewerKeys
     {
         if (e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.Alt) { return false; }
 
-        var player = control.GetVisualDescendants().OfType<AvaloniaPlayer>()
-            .FirstOrDefault(x => x.IsEffectivelyVisible);
-        return Execute(player?.ToggleFullScreenCommand, null);
+        foreach (var player in control.GetVisualDescendants().OfType<AvaloniaPlayer>())
+        {
+            if (player.IsEffectivelyVisible && Execute(player.ToggleFullScreenCommand, null))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool Execute(ICommand? command, object? parameter)

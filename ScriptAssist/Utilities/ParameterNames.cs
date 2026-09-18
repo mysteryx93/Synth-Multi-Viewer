@@ -27,6 +27,35 @@ internal static class ParameterNames
     }
 
     /// <summary>
+    /// Returns a bindable local name, including <c>*sources</c> and <c>**options</c>.
+    /// </summary>
+    public static string? LocalName(string parameter)
+    {
+        var text = StripDefault(parameter.Trim());
+        if (text.Length == 0 || IsSeparator(text))
+        {
+            return null;
+        }
+
+        if (text.StartsWith("**", StringComparison.Ordinal))
+        {
+            text = text[2..].Trim();
+        }
+        else if (text.StartsWith("*", StringComparison.Ordinal))
+        {
+            text = text[1..].Trim();
+        }
+
+        var colon = IndexOfTopLevel(text, ':');
+        if (colon > 0)
+        {
+            text = text[..colon].Trim();
+        }
+
+        return Identifier(text);
+    }
+
+    /// <summary>
     /// Returns the type key from a Python or native VapourSynth parameter, without the name.
     /// </summary>
     public static string? PythonType(string parameter)
@@ -91,16 +120,18 @@ internal static class ParameterNames
 
     /// <summary>
     /// Gets whether <paramref name="written"/> names <paramref name="parameterName"/>, including a
-    /// native VapourSynth trailing <c>_</c> alias when the catalog name has none.
+    /// native VapourSynth trailing <c>_</c> alias when the catalog name has none and
+    /// <paramref name="nativeAlias"/> is set.
     /// </summary>
-    public static bool ArgumentEquals(string parameterName, string written, StringComparison comparison)
+    public static bool ArgumentEquals(string parameterName, string written, StringComparison comparison,
+        bool nativeAlias = false)
     {
         if (parameterName.Equals(written, comparison))
         {
             return true;
         }
 
-        return !parameterName.EndsWith('_') && written.Length == parameterName.Length + 1 &&
+        return nativeAlias && !parameterName.EndsWith('_') && written.Length == parameterName.Length + 1 &&
             written.EndsWith('_') &&
             parameterName.AsSpan().Equals(written.AsSpan(0, parameterName.Length), comparison);
     }
@@ -108,7 +139,9 @@ internal static class ParameterNames
     /// <summary>
     /// Maps a positional argument index onto a physical parameter slot, absorbing <c>*args</c>.
     /// </summary>
-    public static int MapPositional(string[] parameters, int positional)
+    public static int MapPositional(string[] parameters, int positional, IReadOnlySet<string>? used = null,
+        Func<string, string?>? nameOf = null, StringComparison comparison = StringComparison.Ordinal,
+        bool nativeAlias = false)
     {
         var seen = 0;
         var varargs = -1;
@@ -132,6 +165,11 @@ internal static class ParameterNames
                 continue;
             }
 
+            if (used != null && nameOf != null && Named(parameters[i], used, nameOf, comparison, nativeAlias))
+            {
+                continue;
+            }
+
             if (seen == positional)
             {
                 return i;
@@ -147,27 +185,87 @@ internal static class ParameterNames
     /// Maps a keyword argument onto a physical parameter slot, falling back to <c>**kwargs</c>.
     /// </summary>
     public static int MapNamed(string[] parameters, string written, Func<string, string?> nameOf,
-        StringComparison comparison)
+        StringComparison comparison, bool nativeAlias = false)
     {
         var kwargs = -1;
+        var slash = -1;
         var keywordOnly = false;
         for (var i = 0; i < parameters.Length; i++)
         {
+            if (parameters[i].Trim() == "/")
+            {
+                slash = i;
+            }
+
             var kind = Classify(parameters[i], ref keywordOnly);
             if (kind == ParameterKind.Kwargs)
             {
                 kwargs = i;
+            }
+        }
+
+        keywordOnly = false;
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            var kind = Classify(parameters[i], ref keywordOnly);
+            if (kind is ParameterKind.Separator or ParameterKind.Varargs or ParameterKind.Kwargs)
+            {
+                continue;
+            }
+
+            if (slash >= 0 && i < slash)
+            {
                 continue;
             }
 
             var name = nameOf(parameters[i]);
-            if (name != null && ArgumentEquals(name, written, comparison))
+            if (name != null && ArgumentEquals(name, written, comparison, nativeAlias))
             {
                 return i;
             }
         }
 
         return kwargs >= 0 ? kwargs : parameters.Length;
+    }
+
+    /// <summary>
+    /// Maps the current argument onto a physical slot of <paramref name="parameters"/>.
+    /// </summary>
+    public static int MapActive(string[] parameters, string? keyword, int positional, int implicitSkip,
+        IReadOnlySet<string>? used, Func<string, string?> nameOf, StringComparison comparison,
+        bool nativeAlias)
+    {
+        if (keyword != null)
+        {
+            return MapNamed(parameters, keyword, nameOf, comparison, nativeAlias);
+        }
+
+        return MapPositional(parameters, positional + implicitSkip, used, nameOf, comparison, nativeAlias);
+    }
+
+    private static bool Named(string parameter, IReadOnlySet<string> used, Func<string, string?> nameOf,
+        StringComparison comparison, bool nativeAlias)
+    {
+        var name = nameOf(parameter);
+        if (name == null)
+        {
+            return false;
+        }
+
+        if (used.Contains(name))
+        {
+            return true;
+        }
+
+        foreach (var written in used)
+        {
+            if (ArgumentEquals(name, written, comparison, nativeAlias))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

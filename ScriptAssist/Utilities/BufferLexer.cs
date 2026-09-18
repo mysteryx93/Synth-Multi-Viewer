@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Text.RegularExpressions;
 
 namespace HanumanInstitute.ScriptAssist;
@@ -28,14 +29,17 @@ internal static partial class BufferLexer
         var triple = false;
         var line = false;
         var block = new Stack<char>();
+        var literal = new BitArray(text.Length + 1);
 
-        for (var i = 0; i < text.Length; i++)
+        var i = 0;
+        for (; i < text.Length; i++)
         {
             if ((i & 4095) == 0)
             {
                 token.ThrowIfCancellationRequested();
             }
 
+            Mark(i);
             var c = text[i];
             var next = i + 1 < text.Length ? text[i + 1] : '\0';
             if (line)
@@ -56,12 +60,14 @@ internal static partial class BufferLexer
                 Hide(i);
                 if (IsBlockClose(block.Peek(), c, next))
                 {
-                    Hide(++i);
+                    Consume();
+                    Hide(i);
                     block.Pop();
                 }
                 else if (TryOpenBlock(c, next, options, out var nested))
                 {
-                    Hide(++i);
+                    Consume();
+                    Hide(i);
                     block.Push(nested);
                 }
                 continue;
@@ -78,7 +84,8 @@ internal static partial class BufferLexer
                 HideString(i);
                 if (options.StringEscapes && c == '\\' && next != '\0')
                 {
-                    HideString(++i);
+                    Consume();
+                    HideString(i);
                     continue;
                 }
 
@@ -88,14 +95,17 @@ internal static partial class BufferLexer
                     {
                         if (next == quote && i + 2 < text.Length && text[i + 2] == quote)
                         {
-                            HideString(++i);
-                            HideString(++i);
+                            Consume();
+                            HideString(i);
+                            Consume();
+                            HideString(i);
                             quote = '\0';
                         }
                     }
                     else if (options.DoubledQuotes && next == quote)
                     {
-                        HideString(++i);
+                        Consume();
+                        HideString(i);
                     }
                     else
                     {
@@ -108,23 +118,29 @@ internal static partial class BufferLexer
             if (options.HashLineComments && c == '#')
             {
                 line = true;
+                Mark(i);
                 Hide(i);
             }
             else if (TryOpenBlock(c, next, options, out var marker))
             {
                 block.Push(marker);
+                Mark(i);
                 Hide(i);
-                Hide(++i);
+                Consume();
+                Hide(i);
             }
             else if (c == '"' || (options.SingleQuotes && c == '\''))
             {
                 quote = c;
                 triple = options.TripleQuotes && next == c && i + 2 < text.Length && text[i + 2] == c;
+                Mark(i);
                 HideString(i);
                 if (triple)
                 {
-                    HideString(++i);
-                    HideString(++i);
+                    Consume();
+                    HideString(i);
+                    Consume();
+                    HideString(i);
                 }
             }
             else if (options.PythonLineContinuations && c == '\\' && TryPythonContinuation(text, i, out var last))
@@ -138,7 +154,22 @@ internal static partial class BufferLexer
             }
         }
 
-        return new LexedBuffer(new string(code), quote != '\0' || line || block.Count > 0);
+        literal[text.Length] = quote != '\0' || line || block.Count > 0;
+        return new LexedBuffer(new string(code), literal[text.Length]) { LiteralAt = literal };
+
+        void Consume()
+        {
+            i++;
+            Mark(i);
+        }
+
+        void Mark(int index)
+        {
+            if ((uint)index < (uint)literal.Length)
+            {
+                literal[index] = quote != '\0' || line || block.Count > 0;
+            }
+        }
 
         void HideString(int index)
         {

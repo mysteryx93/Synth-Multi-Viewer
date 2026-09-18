@@ -46,7 +46,8 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
             selected = FirstMatchingOverload(insight);
         }
 
-        var parameters = insight.Overloads[selected.Clamp(0, Math.Max(0, insight.Overloads.Count - 1))].Parameters;
+        var overload = insight.Overloads[selected.Clamp(0, Math.Max(0, insight.Overloads.Count - 1))];
+        var parameters = overload.Parameters;
         if (parameters == null)
         {
             return "Parameters unknown";
@@ -57,7 +58,7 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
             return "No parameters";
         }
 
-        var index = insight.ActiveParameter;
+        var index = PhysicalSlot(insight, overload);
         if (index >= 0 && index < parameters.Length && !ParameterNames.IsSeparator(parameters[index]))
         {
             return "Parameter " + SlotNumber(parameters, index) + ": " + parameters[index];
@@ -81,7 +82,7 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
                 return i;
             }
 
-            var index = insight.ActiveParameter;
+            var index = PhysicalSlot(insight, insight.Overloads[i]);
             if (index >= 0 && index < parameters.Length || (parameters.Length > 0 && Repeats(parameters[^1])))
             {
                 return i;
@@ -89,6 +90,17 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
         }
 
         return 0;
+    }
+
+    private static int PhysicalSlot(CallInsight insight, Symbol overload)
+    {
+        if (insight.Keyword == null && insight.UsedNames == null)
+        {
+            return insight.ActiveParameter;
+        }
+
+        return CallScanner.ActivePhysical(insight.Overloads, insight.Keyword, insight.Positional,
+            insight.ImplicitClip, insight.UsedNames, null, overload);
     }
 
     private static int SlotNumber(string[] parameters, int physical)

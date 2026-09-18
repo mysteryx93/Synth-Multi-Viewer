@@ -1,3 +1,5 @@
+using AvaloniaEdit.Document;
+
 namespace HanumanInstitute.SynthMultiViewer.ViewModels;
 
 /// <summary>
@@ -43,17 +45,33 @@ public partial class EditorViewModel : ScriptViewModel, IEditorViewModel
     [Reactive]
     public partial string? FileName { get; set; }
 
-    /// <inheritdoc />
-    [Reactive]
-    public partial string Script { get; set; } = string.Empty;
-
-    private string _savedScript = string.Empty;
-
-    /// <inheritdoc />
-    public bool IsDirty => Script != _savedScript;
+    /// <summary>
+    /// Gets the live editor document. Text is materialized from this on save, run, and analysis.
+    /// </summary>
+    public TextDocument Document { get; } = new();
 
     /// <inheritdoc />
-    public void MarkSaved() => _savedScript = Script ?? string.Empty;
+    public string Script
+    {
+        get => Document.Text;
+        set
+        {
+            var text = value ?? string.Empty;
+            if (Document.Text == text)
+            {
+                return;
+            }
+
+            Document.Text = text;
+            this.RaisePropertyChanged(nameof(Script));
+        }
+    }
+
+    /// <inheritdoc />
+    public bool IsDirty => !Document.UndoStack.IsOriginalFile;
+
+    /// <inheritdoc />
+    public void MarkSaved() => Document.UndoStack.MarkAsOriginalFile();
 
     /// <summary>
     /// Gets the syntax highlighting asset for the current script kind.

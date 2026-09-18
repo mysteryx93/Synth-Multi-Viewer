@@ -9,7 +9,8 @@ using AvaloniaEdit;
 namespace HanumanInstitute.SynthMultiViewer.Controls;
 
 /// <summary>
-/// An AvaloniaEdit editor whose text supports two-way bindings.
+/// An AvaloniaEdit editor. Bind <see cref="TextEditor.Document"/>; do not two-way bind
+/// <see cref="ScriptText"/>, which would recopy the whole buffer on every keystroke.
 /// </summary>
 public partial class BindableTextEditor : TextEditor
 {
@@ -23,11 +24,10 @@ public partial class BindableTextEditor : TextEditor
             defaultBindingMode: BindingMode.TwoWay);
 
     /// <summary>
-    /// Creates an editor that publishes document edits to its text binding.
+    /// Creates an editor that keeps <see cref="TextEditor.Document"/> as the live buffer.
     /// </summary>
     public BindableTextEditor()
     {
-        TextChanged += (_, _) => SetCurrentValue(ScriptTextProperty, Text);
         InitializeCompletion();
     }
 

@@ -2,6 +2,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using AvaloniaEdit;
 using AvaloniaEdit.CodeCompletion;
+using AvaloniaEdit.Document;
 
 namespace HanumanInstitute.ScriptAssist.AvaloniaEdit;
 
@@ -21,6 +22,11 @@ public sealed class EditorAssist : IDisposable
     private long _hoverGeneration;
     private bool _listRequest;
     private bool _attached;
+    private TextDocument? _document;
+    private readonly Lock _textGate = new();
+    private TextDocument? _textDocument;
+    private object? _textVersion;
+    private string? _text;
 
     /// <summary>
     /// Creates assistance for <paramref name="editor"/>. Call <see cref="Attach"/> to subscribe.
@@ -86,6 +92,8 @@ public sealed class EditorAssist : IDisposable
         _editor.TextArea.TextView.PointerHover += OnPointerHover;
         _editor.TextArea.TextView.PointerHoverStopped += OnPointerHoverStopped;
         _editor.TextArea.TextView.VisualLinesChanged += OnVisualLinesChanged;
+        _editor.PropertyChanged += OnEditorPropertyChanged;
+        BindDocument();
         _attached = true;
     }
 
@@ -103,6 +111,8 @@ public sealed class EditorAssist : IDisposable
         _editor.TextArea.TextView.PointerHover -= OnPointerHover;
         _editor.TextArea.TextView.PointerHoverStopped -= OnPointerHoverStopped;
         _editor.TextArea.TextView.VisualLinesChanged -= OnVisualLinesChanged;
+        _editor.PropertyChanged -= OnEditorPropertyChanged;
+        BindDocument(null);
         _attached = false;
         Dismiss();
     }
@@ -166,14 +176,15 @@ public sealed class EditorAssist : IDisposable
             var version = document.Version;
             var caret = _editor.CaretOffset;
             var context = _editor.DataContext;
-            var text = _editor.Text;
+            var snapshot = document.CreateSnapshot();
             var path = _options.ResolveDocumentPath?.Invoke();
             if (!_editor.IsKeyboardFocusWithin || !_editor.IsEffectivelyVisible)
             {
                 return;
             }
 
-            var reply = await service.GetAsync(text, caret, request.Token, path);
+            var text = await MaterializeAsync(document, snapshot, version, request.Token);
+            var reply = await QueryAsync(service, text, caret, request.Token, path, showCompletion);
             if (generation != _generation || request.IsCancellationRequested ||
                 !ReferenceEquals(document, _editor.Document) || !ReferenceEquals(version, _editor.Document.Version) ||
                 caret != _editor.CaretOffset || !ReferenceEquals(context, _editor.DataContext) ||
@@ -346,11 +357,12 @@ public sealed class EditorAssist : IDisposable
         var generation = _hoverGeneration;
         var document = _editor.Document;
         var version = document.Version;
-        var text = _editor.Text;
+        var snapshot = document.CreateSnapshot();
         var path = _options.ResolveDocumentPath?.Invoke();
         try
         {
-            var reply = await service.GetAsync(text, offset, request.Token, path);
+            var text = await MaterializeAsync(document, snapshot, version, request.Token);
+            var reply = await QueryAsync(service, text, offset, request.Token, path, false);
             if (generation != _hoverGeneration || request.IsCancellationRequested ||
                 !ReferenceEquals(document, _editor.Document) || !ReferenceEquals(version, _editor.Document.Version) ||
                 (pointer != null && offset != HoverPresenter.OffsetFromPointer(_editor, pointer)) ||
@@ -399,6 +411,97 @@ public sealed class EditorAssist : IDisposable
     {
         _hoverGeneration++;
         _hover.Hide();
+    }
+
+    private void OnEditorPropertyChanged(object? sender, Avalonia.AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == TextEditor.DocumentProperty)
+        {
+            BindDocument();
+            CancelAnalysis();
+        }
+    }
+
+    private void BindDocument(TextDocument? document)
+    {
+        if (_document != null)
+        {
+            _document.Changed -= OnDocumentChanged;
+        }
+
+        _document = document;
+        if (_document != null)
+        {
+            _document.Changed += OnDocumentChanged;
+        }
+    }
+
+    private void BindDocument() => BindDocument(_editor.Document);
+
+    private void OnDocumentChanged(object? sender, DocumentChangeEventArgs e)
+    {
+        var pending = _request != null || _completion.Window != null || _insight.Window != null;
+        var showCompletion = _listRequest || _completion.Window != null;
+        CancelAnalysis();
+        if (pending)
+        {
+            _ = RequestAsync(showCompletion);
+        }
+    }
+
+    private void CancelAnalysis()
+    {
+        _generation++;
+        _hoverGeneration++;
+        CancelRequest();
+        _hoverRequest?.Cancel();
+        _hover.Hide();
+    }
+
+    private Task<string> MaterializeAsync(TextDocument document, ITextSource snapshot, object version,
+        CancellationToken token)
+    {
+        lock (_textGate)
+        {
+            if (ReferenceEquals(_textDocument, document) && ReferenceEquals(_textVersion, version) &&
+                _text != null)
+            {
+                return Task.FromResult(_text);
+            }
+        }
+
+        return Task.Run(() =>
+        {
+            lock (_textGate)
+            {
+                if (ReferenceEquals(_textDocument, document) && ReferenceEquals(_textVersion, version) &&
+                    _text != null)
+                {
+                    return _text;
+                }
+            }
+
+            var text = snapshot.Text;
+            lock (_textGate)
+            {
+                _textDocument = document;
+                _textVersion = version;
+                _text = text;
+            }
+
+            return text;
+        }, token);
+    }
+
+    private static Task<Reply> QueryAsync(ILanguageService service, string text, int caret,
+        CancellationToken token, string? path, bool completions)
+    {
+        if (service is LanguageService language)
+        {
+            return language.GetAsync(text, caret, token, path, completions);
+        }
+
+        return service.GetAsync(text, caret, token, path);
     }
 
     private void CancelRequest()

@@ -11,7 +11,8 @@ internal static class AviSynthBinder
     /// Script-level last-assignment-wins. Function parameters and inner assignments stay in their scope.
     /// </summary>
     public static DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, LexerOptions lexer,
-        CancellationToken token, string? documentPath = null, IncludeReader? read = null)
+        CancellationToken token, string? documentPath = null, IncludeReader? read = null,
+        IncludeCache? includes = null)
     {
         var joined = AviSynthPatterns.Clean(text, lexer, token: token);
         var names = new Dictionary<string, TypeRef>(StringComparer.OrdinalIgnoreCase)
@@ -26,8 +27,10 @@ internal static class AviSynthBinder
         }
 
         AviSynthFunctions.AddImports(text, documentPath, read, buffer, new HashSet<string>(StringComparer.Ordinal),
-            lexer, token);
+            lexer, token, includes);
         var scopes = FunctionScopes(joined, spans);
+        Dictionary<string, TypeRef>? visible = null;
+        BindingScope? visibleScope = null;
         var n = 0;
         foreach (Match match in AviSynthPatterns.NameAssign().Matches(joined))
         {
@@ -37,15 +40,21 @@ internal static class AviSynthBinder
             }
 
             var name = match.Groups[2].Value;
-            var type = Infer(match.Groups[3].Value.Trim(), Visible(names, scopes, match.Index), catalog);
-            var scope = match.Groups[1].Success ? null : Innermost(scopes, match.Index);
-            if (scope == null)
+            var inner = Innermost(scopes, match.Index);
+            var lookup = Visible(names, scopes, match.Index, inner, ref visible, ref visibleScope);
+            var type = Infer(match.Groups[3].Value.Trim(), lookup, catalog);
+            if (match.Groups[1].Success || inner == null)
             {
                 names[name] = type;
             }
             else
             {
-                ((Dictionary<string, TypeRef>)scope.Names)[name] = type;
+                ((Dictionary<string, TypeRef>)inner.Names)[name] = type;
+            }
+
+            if (visible != null)
+            {
+                visible[name] = type;
             }
         }
 
@@ -169,23 +178,36 @@ internal static class AviSynthBinder
     }
 
     private static Dictionary<string, TypeRef> Visible(Dictionary<string, TypeRef> global,
-        IReadOnlyList<BindingScope> scopes, int offset)
+        IReadOnlyList<BindingScope> scopes, int offset, BindingScope? inner,
+        ref Dictionary<string, TypeRef>? visible, ref BindingScope? visibleScope)
     {
-        var names = new Dictionary<string, TypeRef>(global, global.Comparer);
-        foreach (var scope in scopes)
+        if (inner == null)
         {
-            if (offset < scope.Start || offset > scope.End)
-            {
-                continue;
-            }
-
-            foreach (var pair in scope.Names)
-            {
-                names[pair.Key] = pair.Value;
-            }
+            visible = null;
+            visibleScope = null;
+            return global;
         }
 
-        return names;
+        if (!ReferenceEquals(visibleScope, inner) || visible == null)
+        {
+            visible = new Dictionary<string, TypeRef>(global, global.Comparer);
+            foreach (var scope in scopes)
+            {
+                if (offset < scope.Start || offset > scope.End)
+                {
+                    continue;
+                }
+
+                foreach (var pair in scope.Names)
+                {
+                    visible[pair.Key] = pair.Value;
+                }
+            }
+
+            visibleScope = inner;
+        }
+
+        return visible;
     }
 
     private static BindingScope? Innermost(IReadOnlyList<BindingScope> scopes, int offset)

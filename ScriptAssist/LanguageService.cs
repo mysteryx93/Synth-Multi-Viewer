@@ -8,14 +8,13 @@ public sealed class LanguageService : ILanguageService
     private readonly ILanguage _language;
     private readonly ISymbolCatalog _catalog;
     private readonly Lock _cacheGate = new();
-    private string? _cachedText;
-    private string? _cachedPath;
-    private IReadOnlyList<Symbol>? _cachedCatalog;
-    private DocumentSnapshot? _cachedSnapshot;
+    private readonly List<CachedSnapshot> _snapshots = [];
     private int _generation;
+    private const int SnapshotLimit = 8;
+    private const long SnapshotByteLimit = 16 * 1024 * 1024;
 
     /// <summary>
-    /// Optional enablement gate. When it returns false, <see cref="GetAsync"/> skips catalog enumeration.
+    /// Optional enablement gate. When it returns false, catalog requests are skipped.
     /// </summary>
     internal Func<bool>? AllowRequests { get; set; }
 
@@ -43,36 +42,63 @@ public sealed class LanguageService : ILanguageService
     }
 
     /// <summary>
+    /// Analyzes a snapshot, optionally skipping completion items.
+    /// </summary>
+    internal Task<Reply> GetAsync(string text, int caret, CancellationToken cancellationToken,
+        string? documentPath, bool completions)
+    {
+        if (AllowRequests?.Invoke() == false)
+        {
+            return Task.FromResult(new Reply([], null));
+        }
+
+        return GetCoreAsync(text, caret, cancellationToken, documentPath, completions);
+    }
+
+    private async Task<Reply> GetCoreAsync(string text, int caret, CancellationToken cancellationToken,
+        string? documentPath, bool completions)
+    {
+        var native = await _catalog.GetAsync(cancellationToken).ConfigureAwait(false);
+        return await Task.Run(
+                () => Analyze(text, caret, native, cancellationToken, documentPath, completions), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Computes completions, nested call insight, and hover from an immutable snapshot.
     /// </summary>
     internal Reply Analyze(string text, int caret, IReadOnlyList<Symbol> native, CancellationToken token = default,
-        string? documentPath = null)
+        string? documentPath = null, bool completions = true)
     {
         if (caret < 0 || caret > text.Length) { return new([], null); }
 
         var snapshot = Snapshot(text, native, token, documentPath);
-        var rawPrefix = caret == text.Length ? text : text[..caret];
-        var prefix = caret == text.Length ? snapshot.Masked
-            : BufferLexer.Mask(rawPrefix, _language.Lexer, token: token);
-        if (prefix.InLiteral)
+        if (snapshot.Masked.IsLiteral(caret))
         {
             return new([], null);
         }
 
         token.ThrowIfCancellationRequested();
         var bindings = snapshot.Bindings.At(caret);
-        var path = ExpressionReader.Read(snapshot.Masked.Code, caret, _language, token);
+        var path = ExpressionReader.Read(snapshot.Masked.Code, caret, _language, token, snapshot.Joins);
         var receiver = _language.TypeOf(path.Segments, bindings, snapshot.Catalog);
-        var classified = BufferLexer.Mask(rawPrefix, _language.Lexer, maskStrings: false, token: token).Code;
-        var scan = bindings.InFunctionHeader(caret)
-            ? null
-            : CallScanner.Find(prefix.Code, _language, bindings, snapshot.Catalog, token, classified);
+        var walk = bindings.InFunctionHeader(caret)
+            ? default
+            : CallScanner.Walk(snapshot.Masked.Code, _language, bindings, snapshot.Catalog, token,
+                snapshot.Quoted.Code, caret, snapshot.Joins);
+        var scan = walk.Scan;
         var insight = scan?.Insight;
-        var items = CallScanner.InnermostUnclosed(prefix.Code, token, _language) == '[' &&
-            path.Segments.Count == 0
+        var unclosed = bindings.InFunctionHeader(caret)
+            ? CallScanner.InnermostUnclosed(snapshot.Masked.Code, token, _language, caret)
+            : walk.Unclosed;
+        var items = !completions || unclosed == '[' && path.Segments.Count == 0
             ? new List<CompletionItem>()
             : Complete(path, receiver, snapshot, bindings, token);
-        AddParameterNames(items, path, scan, snapshot.Masked.Code);
+        if (completions)
+        {
+            AddParameterNames(items, path, scan, snapshot.Masked.Code);
+        }
+
         var hover = _language.Hover(snapshot.Masked.Code, path, bindings, snapshot.Catalog);
         var comparison = _language.Comparison;
         var comparer = comparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -124,10 +150,12 @@ public sealed class LanguageService : ILanguageService
         lock (_cacheGate)
         {
             _generation++;
-            _cachedText = null;
-            _cachedPath = null;
-            _cachedCatalog = null;
-            _cachedSnapshot = null;
+            _snapshots.Clear();
+        }
+
+        if (_language is IRefreshableLanguage refreshable)
+        {
+            refreshable.Invalidate();
         }
     }
 
@@ -211,16 +239,27 @@ public sealed class LanguageService : ILanguageService
         int generation;
         lock (_cacheGate)
         {
-            if (_cachedSnapshot != null && _cachedText == text && _cachedPath == documentPath &&
-                ReferenceEquals(_cachedCatalog, native))
+            for (var i = 0; i < _snapshots.Count; i++)
             {
-                return _cachedSnapshot;
+                var item = _snapshots[i];
+                if (item.Text == text && item.Path == documentPath && ReferenceEquals(item.Catalog, native))
+                {
+                    if (i > 0)
+                    {
+                        _snapshots.RemoveAt(i);
+                        _snapshots.Insert(0, item);
+                    }
+
+                    return item.Snapshot;
+                }
             }
 
             generation = _generation;
         }
 
         var masked = BufferLexer.Mask(text, _language.Lexer, token: token);
+        var quoted = BufferLexer.Mask(text, _language.Lexer, maskStrings: false, token: token);
+        var joins = StatementScanner.Joins(masked.Code, _language, token);
         var bindings = _language.Bind(text, native, token, documentPath);
         var catalog = native;
         if (bindings.BufferSymbols.Count > 0)
@@ -239,10 +278,10 @@ public sealed class LanguageService : ILanguageService
             }
 
             combined.AddRange(bindings.BufferSymbols);
-            catalog = combined;
+            catalog = combined.ToArray();
         }
 
-        var snapshot = new DocumentSnapshot(masked, bindings, catalog);
+        var snapshot = new DocumentSnapshot(masked, quoted, joins, bindings, catalog);
         lock (_cacheGate)
         {
             if (_generation != generation)
@@ -250,17 +289,47 @@ public sealed class LanguageService : ILanguageService
                 return snapshot;
             }
 
-            _cachedText = text;
-            _cachedPath = documentPath;
-            _cachedCatalog = native;
-            _cachedSnapshot = snapshot;
+            if (documentPath != null)
+            {
+                _snapshots.RemoveAll(item => item.Path == documentPath &&
+                    ReferenceEquals(item.Catalog, native));
+            }
+            else
+            {
+                _snapshots.RemoveAll(item => item.Text == text && item.Path == null &&
+                    ReferenceEquals(item.Catalog, native));
+            }
+
+            _snapshots.Insert(0, new CachedSnapshot(text, documentPath, native, snapshot));
+            var bytes = 0L;
+            foreach (var item in _snapshots)
+            {
+                bytes += Size(item);
+            }
+
+            while (_snapshots.Count > SnapshotLimit || bytes > SnapshotByteLimit && _snapshots.Count > 1)
+            {
+                bytes -= Size(_snapshots[^1]);
+                _snapshots.RemoveAt(_snapshots.Count - 1);
+            }
         }
 
         return snapshot;
     }
 
+    private static long Size(CachedSnapshot item) =>
+        (long)item.Text.Length * sizeof(char) * 3 + item.Snapshot.Joins.Length;
+
+    private sealed record CachedSnapshot(
+        string Text,
+        string? Path,
+        IReadOnlyList<Symbol> Catalog,
+        DocumentSnapshot Snapshot);
+
     private sealed record DocumentSnapshot(
         LexedBuffer Masked,
+        LexedBuffer Quoted,
+        bool[] Joins,
         DocumentBindings Bindings,
         IReadOnlyList<Symbol> Catalog);
 }

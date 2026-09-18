@@ -9,6 +9,20 @@ public sealed class CatalogCache(Func<IReadOnlyList<Symbol>> enumerate) : ISymbo
     private Task<IReadOnlyList<Symbol>>? _task;
     private string? _key;
 
+    /// <summary>
+    /// Gets the configuration key last passed to <see cref="SetKey"/> or <see cref="Refresh"/>.
+    /// </summary>
+    internal string? Key
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _key;
+            }
+        }
+    }
+
     /// <inheritdoc />
     public void Refresh(string key, bool force = false)
     {

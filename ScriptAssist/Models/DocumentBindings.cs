@@ -32,7 +32,7 @@ public sealed class DocumentBindings
     /// </summary>
     public DocumentBindings At(int caret)
     {
-        if (Scopes.Count == 0)
+        if (Scopes.Count == 0 || !Contains(caret))
         {
             return this;
         }
@@ -47,7 +47,46 @@ public sealed class DocumentBindings
             functions[symbol.Name] = symbol;
         }
 
+        Overlay(caret, merged, functions);
+        return new DocumentBindings
+        {
+            Names = merged,
+            BufferSymbols = [..functions.Values],
+            ScriptModules = ScriptModules,
+            Scopes = Scopes
+        };
+    }
+
+    /// <summary>
+    /// Gets whether any function scope contains <paramref name="caret"/>.
+    /// </summary>
+    internal bool Contains(int caret)
+    {
         foreach (var scope in Scopes)
+        {
+            if (caret >= scope.Start && caret <= scope.End)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Overlays containing scope names onto <paramref name="names"/> in source order.
+    /// </summary>
+    internal void Overlay(int caret, Dictionary<string, TypeRef> names, Dictionary<string, Symbol>? functions = null) =>
+        Overlay(Scopes, caret, names, functions);
+
+    /// <summary>
+    /// Overlays containing scope names onto <paramref name="names"/> in source order.
+    /// A function symbol with parameters removes a same-named value binding.
+    /// </summary>
+    internal static void Overlay(IReadOnlyList<BindingScope> scopes, int caret, Dictionary<string, TypeRef> names,
+        Dictionary<string, Symbol>? functions = null)
+    {
+        foreach (var scope in scopes)
         {
             if (caret < scope.Start || caret > scope.End)
             {
@@ -56,8 +95,13 @@ public sealed class DocumentBindings
 
             foreach (var pair in scope.Names)
             {
-                merged[pair.Key] = pair.Value;
-                functions.Remove(pair.Key);
+                names[pair.Key] = pair.Value;
+                functions?.Remove(pair.Key);
+            }
+
+            if (functions == null)
+            {
+                continue;
             }
 
             foreach (var symbol in scope.Symbols)
@@ -65,18 +109,10 @@ public sealed class DocumentBindings
                 functions[symbol.Name] = symbol;
                 if (symbol.Parameters != null)
                 {
-                    merged.Remove(symbol.Name);
+                    names.Remove(symbol.Name);
                 }
             }
         }
-
-        return new DocumentBindings
-        {
-            Names = merged,
-            BufferSymbols = [..functions.Values],
-            ScriptModules = ScriptModules,
-            Scopes = Scopes
-        };
     }
 
     /// <summary>

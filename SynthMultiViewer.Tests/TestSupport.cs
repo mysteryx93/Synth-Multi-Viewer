@@ -31,10 +31,9 @@ internal static class TestSupport
 
     public static MainViewModel CreateMain(
         IEnvironmentService? environment = null, ISettingsProvider<AppSettingsData>? settings = null,
-        IDialogManager? manager = null, IFrameworkDetectionService? frameworks = null) =>
+        IDialogManager? manager = null) =>
         new(CreateDialogs(settings: settings, manager: manager), environment ?? new TestEnvironment(),
-            new MemoryDefaultScripts(), settings ?? new MemorySettingsProvider(),
-            frameworks ?? new MemoryFrameworkDetection());
+            new MemoryDefaultScripts(), settings ?? new MemorySettingsProvider());
 
     public static async Task OpenViewerAsync(MainViewModel model)
     {

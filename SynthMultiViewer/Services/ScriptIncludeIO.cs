@@ -8,6 +8,10 @@ namespace HanumanInstitute.SynthMultiViewer.Services;
 /// </summary>
 internal static class ScriptIncludeIO
 {
+    private static readonly Lock VsRootsGate = new();
+    private static string[]? _vsRoots;
+    private static string? _vsLibrary;
+
     /// <summary>
     /// Follows an AviSynth <c>Import</c> specifier.
     /// </summary>
@@ -20,11 +24,37 @@ internal static class ScriptIncludeIO
     public static IncludeFile? VapourSynth(string specifier, string? fromPath)
     {
         VsHelper.TryFindLibrary(out var libraryPath);
-        var roots = VsHelper.GetPluginDirectories(libraryPath)
-            .Concat(VsPathResolver.GetPythonModuleDirectories(libraryPath))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        return ScriptFiles.PythonModule(specifier, fromPath, roots, TryRead);
+        return ScriptFiles.PythonModule(specifier, fromPath, VsRoots(libraryPath), TryRead);
+    }
+
+    /// <summary>
+    /// Drops cached search roots so the next lookup rediscovers plugin and site-package directories.
+    /// </summary>
+    public static void Invalidate()
+    {
+        lock (VsRootsGate)
+        {
+            _vsRoots = null;
+            _vsLibrary = null;
+        }
+    }
+
+    private static string[] VsRoots(string? libraryPath)
+    {
+        lock (VsRootsGate)
+        {
+            if (_vsRoots != null && _vsLibrary == libraryPath)
+            {
+                return _vsRoots;
+            }
+
+            _vsLibrary = libraryPath;
+            _vsRoots = VsHelper.GetPluginDirectories(libraryPath)
+                .Concat(VsPathResolver.GetPythonModuleDirectories(libraryPath))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            return _vsRoots;
+        }
     }
 
     private static string? TryRead(string path)

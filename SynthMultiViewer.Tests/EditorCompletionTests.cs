@@ -243,10 +243,10 @@ public class EditorCompletionTests
         using var shown = TestSupport.Show(new Window { Content = editor });
         editor.TextArea.Focus();
         editor.CaretOffset = editor.Text.Length;
-        var request = editor.RequestCompletionAsync(showCompletion: false, delay: TimeSpan.FromMilliseconds(80));
+        _ = editor.RequestCompletionAsync(showCompletion: false, delay: TimeSpan.FromMilliseconds(80));
         editor.Document.Insert(editor.CaretOffset, " ");
         editor.CaretOffset = editor.Text.Length;
-        await request;
+        await Task.Delay(160, TestContext.Current.CancellationToken);
         Assert.Equal(1, editor.DisplayedReply!.Insight!.ActiveParameter);
         editor.DismissCompletion();
         return true;
@@ -402,14 +402,42 @@ public class EditorCompletionTests
         LanguageService = new LanguageService(new VapourSynthLanguage(), new CatalogCache(() => Vs))
     };
 
+    [Fact]
+    public Task DocumentChangeCancelsPendingAnalysis() => UiSession.Dispatch(async () =>
+    {
+        var service = new DelayedService();
+        var editor = new BindableTextEditor { Text = "core.std.Crop(", LanguageService = service };
+        using var shown = TestSupport.Show(new Window { Content = editor, Width = 640, Height = 300 });
+        editor.TextArea.Focus();
+        editor.CaretOffset = editor.Document.TextLength;
+        var request = editor.RequestCompletionAsync(true, TimeSpan.Zero);
+        await service.Started.Task;
+        editor.Document.Remove(editor.Document.TextLength - 1, 1);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(service.Token.IsCancellationRequested);
+        service.Reply.TrySetCanceled();
+        try
+        {
+            await request;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        editor.DismissCompletion();
+        return true;
+    }, TestContext.Current.CancellationToken);
+
     private sealed class DelayedService : ILanguageService
     {
         public TaskCompletionSource<bool> Started { get; } = new();
         public TaskCompletionSource<Reply> Reply { get; } = new();
+        public CancellationToken Token { get; private set; }
 
         public Task<Reply> GetAsync(string text, int caret, CancellationToken cancellationToken,
             string? documentPath = null)
         {
+            Token = cancellationToken;
             Started.TrySetResult(true);
             return Reply.Task;
         }

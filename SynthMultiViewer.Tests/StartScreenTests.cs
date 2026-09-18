@@ -1,9 +1,9 @@
 using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
 using ReactiveUI.Builder;
@@ -30,11 +30,21 @@ public class StartScreenTests
         var start = view.FindControl<ScrollViewer>("StartCanvas")!;
         Assert.True(start.IsVisible);
         Assert.Equal(model.New, view.FindControl<Button>("StartNewVapourSynth")!.Command);
+        Assert.Equal("New VapourSynth Script", view.FindControl<Button>("StartNewVapourSynth")!.Content);
         Assert.Equal(model.NewAviSynth, view.FindControl<Button>("StartNewAviSynth")!.Command);
+        Assert.Equal("New AviSynth Script", view.FindControl<Button>("StartNewAviSynth")!.Content);
         Assert.Equal(model.Open, view.FindControl<Button>("StartOpen")!.Command);
-        Assert.Contains("Drop a script here", start.GetVisualDescendants().OfType<TextBlock>().Select(x => x.Text));
-        Assert.Contains("VapourSynth and AviSynth not detected",
-            start.GetVisualDescendants().OfType<TextBlock>().Select(x => x.Text));
+        Assert.Equal("Open Existing", view.FindControl<Button>("StartOpen")!.Content);
+        var vs = view.FindControl<Button>("StartNewVapourSynth")!;
+        var avs = view.FindControl<Button>("StartNewAviSynth")!;
+        var open = view.FindControl<Button>("StartOpen")!;
+        Assert.True(vs.Bounds.Width > 0);
+        Assert.Equal(vs.Bounds.Width, avs.Bounds.Width);
+        Assert.Equal(vs.Bounds.Width, open.Bounds.Width);
+        var texts = start.GetVisualDescendants().OfType<TextBlock>().Select(x => x.Text).ToList();
+        Assert.Contains("VapourSynth/AviSynth Editor and Viewer", texts);
+        Assert.Contains("Drop a script here", texts);
+        Assert.DoesNotContain(texts, x => x?.Contains("not detected") == true);
 
         var toolbar = view.GetVisualDescendants().OfType<StackPanel>().First(x => x.Classes.Contains("toolbar"));
         Assert.Contains(toolbar.Children.OfType<Button>(), x => x.Command == model.New);
@@ -75,34 +85,56 @@ public class StartScreenTests
         Assert.True(await model.ReadScriptFileAsync(file.Path));
         Dispatcher.UIThread.RunJobs();
         var recents = view.FindControl<ItemsControl>("StartRecents")!;
-        Assert.False(recents.IsVisible);
+        var panel = view.FindControl<StackPanel>("StartRecentsPanel")!;
+        Assert.False(panel.IsVisible);
 
         await model.SelectedItem!.Close.Execute();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.True(recents.IsVisible);
+        Assert.True(panel.IsVisible);
+        Assert.Contains("Recent:", view.FindControl<ScrollViewer>("StartCanvas")!.GetVisualDescendants()
+            .OfType<TextBlock>().Where(x => x.IsVisible).Select(x => x.Text));
         var recent = recents.GetVisualDescendants().OfType<Button>().Single(x => x.Classes.Contains("start-recent"));
-        Assert.Equal(Path.GetFileName(file.Path), recent.Content);
+        Assert.Equal(Path.GetFileName(file.Path), Assert.IsType<TextBlock>(recent.Content).Text);
         Assert.Equal(file.Path, recent.CommandParameter);
+        var actions = view.FindControl<StackPanel>("StartActions")!;
+        Assert.Equal(actions.Bounds.Width, panel.Bounds.Width);
         return true;
     }, TestContext.Current.CancellationToken);
 
     [Fact]
-    public Task EngineStatus_WhenFound_IsHidden() => UiSession.Dispatch(() =>
+    public Task LongRecentName_DoesNotWidenActions() => UiSession.Dispatch(async () =>
     {
-        var detection = new TestSupport.MemoryFrameworkDetection
+        var dir = Directory.CreateTempSubdirectory();
+        try
         {
-            VapourSynth = new FrameworkInstall(true),
-            AviSynth = new FrameworkInstall(true)
-        };
-        var model = TestSupport.CreateMain(frameworks: detection);
-        var view = new MainView { DataContext = model, Width = 640, Height = 400 };
-        using var window = TestSupport.Show(view);
-        Dispatcher.UIThread.RunJobs();
+            var path = Path.Combine(dir.FullName, new string('a', 80) + ".vpy");
+            await File.WriteAllTextAsync(path, "clip");
+            var settings = new TestSupport.MemorySettingsProvider();
+            var model = TestSupport.CreateMain(settings: settings);
+            var view = new MainView { DataContext = model, Width = 640, Height = 400 };
+            using var window = TestSupport.Show(view);
 
-        Assert.DoesNotContain("not detected",
-            view.FindControl<ScrollViewer>("StartCanvas")!.GetVisualDescendants()
-                .OfType<TextBlock>().Select(x => x.Text));
-        return true;
+            Assert.True(await model.ReadScriptFileAsync(path));
+            await model.SelectedItem!.Close.Execute();
+            Dispatcher.UIThread.RunJobs();
+
+            var actions = view.FindControl<StackPanel>("StartActions")!;
+            var panel = view.FindControl<StackPanel>("StartRecentsPanel")!;
+            var recent = view.FindControl<ItemsControl>("StartRecents")!
+                .GetVisualDescendants().OfType<Button>().Single(x => x.Classes.Contains("start-recent"));
+            var label = Assert.Single(recent.GetVisualDescendants().OfType<TextBlock>());
+
+            Assert.Equal(actions.Bounds.Width, panel.Bounds.Width);
+            Assert.True(recent.Bounds.Width <= actions.Bounds.Width + 0.5);
+            Assert.Equal(TextTrimming.CharacterEllipsis, label.TextTrimming);
+            Assert.Equal(path, recent.CommandParameter);
+            return true;
+        }
+        finally
+        {
+            dir.Delete(true);
+        }
     }, TestContext.Current.CancellationToken);
+
 }

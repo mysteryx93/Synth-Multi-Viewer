@@ -25,11 +25,10 @@ internal static class NamedArgumentHover
             return false;
         }
 
-        var prefix = code[..path.End];
-        var insight = CallScanner.Find(prefix, language, bindings, catalog, CancellationToken.None);
+        var insight = CallScanner.Find(code, language, bindings, catalog, CancellationToken.None, caret: path.End);
         if (insight == null)
         {
-            return CallScanner.InnermostUnclosed(prefix) == '(';
+            return CallScanner.InnermostUnclosed(code, caret: path.End) == '(';
         }
 
         foreach (var overload in insight.Overloads)
@@ -42,7 +41,8 @@ internal static class NamedArgumentHover
             foreach (var candidate in overload.Parameters)
             {
                 var parameterName = language.ParameterName(candidate);
-                if (parameterName != null && ParameterNames.ArgumentEquals(parameterName, name, comparison))
+                if (parameterName != null &&
+                    ParameterNames.ArgumentEquals(parameterName, name, comparison, CallScanner.NativeAlias(overload)))
                 {
                     parameter = candidate;
                     return true;

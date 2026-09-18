@@ -5,7 +5,8 @@ v1.4
 - Horizontal scrollbar page-right now behaves as expected
 - Ask save confirmation when closing document
 - Redesigned scrollbars
-- Empty start canvas instead of a default untitled tab
+- Redesigned icons
+- Add start page when no document is open
 
 v1.3
 - Enhanced text editor with auto-complete and plugin parameters information, for both VapourSynth and AviSynth

@@ -3,7 +3,7 @@ namespace HanumanInstitute.ScriptAssist.AviSynth;
 /// <summary>
 /// Catalog-driven AviSynth profile: <c>last</c>, implicit first clip, and internals.
 /// </summary>
-public sealed class AviSynthLanguage : ILanguage
+public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage
 {
     private readonly IncludeReader? _read;
     /// <summary>
@@ -47,9 +47,14 @@ public sealed class AviSynthLanguage : ILanguage
     ];
 
     /// <inheritdoc />
+    internal IncludeCache Includes { get; } = new();
+
+    void IRefreshableLanguage.Invalidate() => Includes.Clear();
+
+    /// <inheritdoc />
     public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
         string? documentPath = null) =>
-        AviSynthBinder.Bind(text, catalog, Lexer, token, documentPath, _read);
+        AviSynthBinder.Bind(text, catalog, Lexer, token, documentPath, _read, Includes);
 
     /// <inheritdoc />
     public double CompletionPriority(Symbol symbol, TypeRef receiver) =>

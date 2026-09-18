@@ -31,7 +31,9 @@ Consumer setup and API examples: [README.md](README.md). These notes describe im
 
 `GetAsync` awaits the catalog, then analyzes off-thread. A snapshot masks the document, binds names/scopes/imports, and merges buffer symbols over native symbols by name. Requests overlay scopes at the caret, read the expression, and produce completion, insight, and hover. Inside comments/strings, assistance is suppressed; function headers suppress call insight.
 
-The snapshot key is **text + document path + catalog reference**, not editor version. Binding performs additional scans; do not assume total analysis is linear. There is no incremental parser or file-size cap. Honor cancellation in potentially long scans.
+The snapshot key is **text + document path + catalog reference**, not editor version. `LanguageService` retains a small LRU of snapshots (multiple documents, evicting older revisions of the same path) with a retained-byte cap. Binding performs additional scans; do not assume total analysis is linear. There is no incremental parser. Honor cancellation in potentially long scans.
+
+Imported files, failed resolutions, and parsed exports persist on the language until `Invalidate` / factory `Refresh` / `Configure` with a new catalog key. Do not assume includes are rebound on every document edit.
 
 - Preserve UTF-16 offsets when masking comments/strings or joining lines; retain newlines when masking.
 - `TypeRef.Root` means an empty completion path, never a stored value type. Empty assignment expressions and tuples must not become Root.
@@ -86,7 +88,7 @@ Reference host: `ScriptAssistService` supplies `ScriptCatalogs` and `ScriptInclu
 
 - VS bindings scan logical statements (brackets, `;`, `\` continuations) so assignments keep original RHS spans. Column-0 `def` symbols, return annotations, and annotation-only names use the existing type table. Imports follow source order and function scope; module identity is the resolved path.
 - Parameter names are language-specific (`OfPython` / `OfAviSynth`). Bound node completion filters video vs audio first arguments. `UnionByName` keeps native overload groups. Argument completion reuses the resolved call frame and skips `*`/`/` separators.
-- `ILanguageService.Invalidate` increments a generation and drops snapshots independently of catalog identity; in-flight analysis must not publish a stale snapshot. Factory `Refresh` invalidates every profile. `Create` returns null while disabled.
+- `ILanguageService.Invalidate` increments a generation and drops snapshots independently of catalog identity; in-flight analysis must not publish a stale snapshot. Factory `Refresh` invalidates every profile. `Configure` with a new catalog key also invalidates include state, including keys stored while disabled. `Create` returns null while disabled.
 - Expression reading walks consecutive `()` / `[]` suffixes. AviSynth `BackslashLineContinuations` joins before mask; Python joins `\` continuations outside strings and comments. Unterminated single-line strings recover at the next newline. CRLF is one newline.
 
 ## Validation
