@@ -117,7 +117,7 @@ internal static class VapourSynthBinder
                     BindDefHeader(quoted, span, self, buffer, names, scriptModules, scopes, index, classes, visible);
                 }
 
-                BindDefBody(quoted, span, self, names, scriptModules, buffer, scopes, index, visible);
+                BindDefBody(quoted, span, self, names, scriptModules, buffer, scopes, index, visible, token);
                 continue;
             }
 
@@ -175,12 +175,18 @@ internal static class VapourSynthBinder
             return;
         }
 
+        if (Keyword(quoted, start, end, "except"))
+        {
+            InvalidateExceptAlias(quoted, start, end, scope, names, buffer, visible);
+            return;
+        }
+
         if (IsSkippedKeyword(quoted, start, end))
         {
             return;
         }
 
-        TryAssign(quoted, start, end, scope, names, scriptModules, buffer, scopes, index, visible);
+        TryAssign(quoted, start, end, scope, names, scriptModules, buffer, scopes, index, visible, token);
     }
 
     private static void ApplyImport(string quoted, int start, int end, BindingScope? scope, string? documentPath,
@@ -502,8 +508,14 @@ internal static class VapourSynthBinder
 
     private static void TryAssign(string quoted, int start, int end, BindingScope? scope,
         Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer,
-        IReadOnlyList<BindingScope> scopes, VapourSynthCatalogIndex index, VisibleCache visible)
+        IReadOnlyList<BindingScope> scopes, VapourSynthCatalogIndex index, VisibleCache visible,
+        CancellationToken token)
     {
+        if (TryUnpackAssign(quoted, start, end, scope, names, buffer, visible))
+        {
+            return;
+        }
+
         var i = start;
         if (!TryIdent(quoted, ref i, end, out var name))
         {
@@ -511,36 +523,6 @@ internal static class VapourSynthBinder
         }
 
         SkipWs(quoted, ref i, end);
-        if (i < end && quoted[i] == ',')
-        {
-            var unpack = new List<string> { name };
-            while (i < end && quoted[i] == ',')
-            {
-                i++;
-                SkipWs(quoted, ref i, end);
-                if (!TryIdent(quoted, ref i, end, out var next))
-                {
-                    return;
-                }
-
-                unpack.Add(next);
-                SkipWs(quoted, ref i, end);
-            }
-
-            SkipWs(quoted, ref i, end);
-            if (i >= end || ParameterNames.KeywordEqualsIndex(quoted[i..end]) != 0)
-            {
-                return;
-            }
-
-            foreach (var item in unpack)
-            {
-                SetName(item, TypeRef.Unknown, scope, names, buffer, visible);
-            }
-
-            return;
-        }
-
         var annotation = "";
         if (i < end && quoted[i] == ':')
         {
@@ -549,6 +531,11 @@ internal static class VapourSynthBinder
             var depth = 0;
             while (i < end)
             {
+                if ((i & 4095) == 0)
+                {
+                    token.ThrowIfCancellationRequested();
+                }
+
                 var c = quoted[i];
                 if (c is '(' or '[' or '{')
                 {
@@ -558,7 +545,7 @@ internal static class VapourSynthBinder
                 {
                     depth--;
                 }
-                else if (depth == 0 && ParameterNames.KeywordEqualsIndex(quoted[i..end]) == 0)
+                else if (depth == 0 && ParameterNames.IsKeywordAssign(quoted, i))
                 {
                     break;
                 }
@@ -572,7 +559,7 @@ internal static class VapourSynthBinder
 
         var type = ResolveAnnotation(annotation, ForInfer(names, scriptModules, buffer, scopes, visible, scope));
         var targets = new List<string> { name };
-        if (i < end && ParameterNames.KeywordEqualsIndex(quoted[i..end]) == 0)
+        if (i < end && ParameterNames.IsKeywordAssign(quoted, i))
         {
             i++;
             SkipWs(quoted, ref i, end);
@@ -586,7 +573,7 @@ internal static class VapourSynthBinder
                 }
 
                 SkipWs(quoted, ref i, end);
-                if (i >= end || ParameterNames.KeywordEqualsIndex(quoted[i..end]) != 0)
+                if (i >= end || !ParameterNames.IsKeywordAssign(quoted, i))
                 {
                     i = saved;
                     break;
@@ -749,6 +736,89 @@ internal static class VapourSynthBinder
         }
     }
 
+    private static void InvalidateExceptAlias(string quoted, int start, int end, BindingScope? scope,
+        Dictionary<string, TypeRef> names, List<Symbol> buffer, VisibleCache? visible)
+    {
+        var i = AfterKeyword(quoted, start, end, "except");
+        if (i < end && quoted[i] == '*')
+        {
+            i++;
+        }
+
+        while (i < end)
+        {
+            SkipWs(quoted, ref i, end);
+            if (i >= end || quoted[i] == ':')
+            {
+                return;
+            }
+
+            if (Keyword(quoted, i, end, "as"))
+            {
+                i = AfterKeyword(quoted, i, end, "as");
+                if (TryIdent(quoted, ref i, end, out var name))
+                {
+                    SetName(name, TypeRef.Unknown, scope, names, buffer, visible);
+                }
+
+                return;
+            }
+
+            if (quoted[i] is '(' or '[')
+            {
+                var close = quoted[i] == '(' ? ')' : ']';
+                i = SkipBalanced(quoted, i, end, quoted[i], close);
+                continue;
+            }
+
+            if (!TryIdent(quoted, ref i, end, out _))
+            {
+                i++;
+            }
+        }
+    }
+
+    private static bool TryUnpackAssign(string quoted, int start, int end, BindingScope? scope,
+        Dictionary<string, TypeRef> names, List<Symbol> buffer, VisibleCache visible)
+    {
+        var eq = ParameterNames.TopLevelKeywordEquals(quoted, start, end);
+        if (eq < 0)
+        {
+            return false;
+        }
+
+        var i = start;
+        SkipWs(quoted, ref i, eq);
+        if (i >= eq)
+        {
+            return false;
+        }
+
+        var unpack = quoted[i] is '(' or '[' or '*';
+        if (!unpack)
+        {
+            if (!TryIdent(quoted, ref i, eq, out _))
+            {
+                return false;
+            }
+
+            SkipWs(quoted, ref i, eq);
+            unpack = i < eq && quoted[i] is ',' or '*';
+        }
+
+        if (!unpack)
+        {
+            return false;
+        }
+
+        foreach (var name in BindingTargets(quoted, start, eq, null))
+        {
+            SetName(name, TypeRef.Unknown, scope, names, buffer, visible);
+        }
+
+        return true;
+    }
+
     private static IEnumerable<string> BindingTargets(string quoted, int start, int end, string? stop)
     {
         var i = start;
@@ -760,7 +830,7 @@ internal static class VapourSynthBinder
                 yield break;
             }
 
-            if (quoted[i] == ',')
+            if (quoted[i] is ',' or '*')
             {
                 i++;
                 continue;
@@ -977,7 +1047,8 @@ internal static class VapourSynthBinder
 
     private static void BindDefBody(string quoted, StatementScanner.Span span, BindingScope? self,
         Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer,
-        IReadOnlyList<BindingScope> scopes, VapourSynthCatalogIndex index, VisibleCache visible)
+        IReadOnlyList<BindingScope> scopes, VapourSynthCatalogIndex index, VisibleCache visible,
+        CancellationToken token)
     {
         if (self == null || self.Start != span.Start || self.HeaderEnd >= span.End)
         {
@@ -988,7 +1059,7 @@ internal static class VapourSynthBinder
         SkipWs(quoted, ref i, span.End);
         if (i < span.End)
         {
-            TryAssign(quoted, i, span.End, self, names, scriptModules, buffer, scopes, index, visible);
+            TryAssign(quoted, i, span.End, self, names, scriptModules, buffer, scopes, index, visible, token);
         }
     }
 
@@ -1676,6 +1747,11 @@ internal static class VapourSynthBinder
                     continue;
                 }
 
+                if (ReferenceEquals(script.Value.Members, target))
+                {
+                    continue;
+                }
+
                 foreach (var symbol in script.Value.Members)
                 {
                     if (symbol.Name.StartsWith('_'))
@@ -2010,7 +2086,8 @@ internal static class VapourSynthBinder
                 continue;
             }
 
-            TryAssign(quoted, span.Start, span.End, null, dummy, scriptModules, members, scopes, index, visible);
+            TryAssign(quoted, span.Start, span.End, null, dummy, scriptModules, members, scopes, index, visible,
+                token);
         }
     }
 

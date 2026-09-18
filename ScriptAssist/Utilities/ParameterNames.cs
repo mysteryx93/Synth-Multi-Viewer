@@ -458,6 +458,13 @@ internal static class ParameterNames
     /// </summary>
     public static int TopLevelKeywordEquals(string text) => KeywordEqualsIndex(text, 0, text.Length, topLevel: true);
 
+    /// <summary>
+    /// Index of a top-level keyword <c>=</c> in <paramref name="text"/> between
+    /// <paramref name="start"/> and <paramref name="end"/>.
+    /// </summary>
+    public static int TopLevelKeywordEquals(string text, int start, int end) =>
+        KeywordEqualsIndex(text, start, end, topLevel: true);
+
     private static int KeywordEqualsIndex(string text, int start, int end, bool topLevel)
     {
         var depth = 0;

@@ -30,7 +30,8 @@ internal static class CallScanner
             : StringComparer.Ordinal;
         joins ??= StatementScanner.Joins(code, language, token);
         var stack = new Stack<CallFrame>();
-        for (var i = 0; i < caret; i++)
+        var from = StatementScanner.StatementStart(code, joins, caret);
+        for (var i = from; i < caret; i++)
         {
             if ((i & 4095) == 0)
             {
@@ -116,15 +117,17 @@ internal static class CallScanner
     /// Gets the innermost unclosed delimiter after walking <paramref name="code"/> to <paramref name="caret"/>.
     /// </summary>
     public static char? InnermostUnclosed(string code, CancellationToken token = default,
-        ILanguage? language = null, int caret = -1)
+        ILanguage? language = null, int caret = -1, bool[]? joins = null)
     {
         if (caret < 0 || caret > code.Length)
         {
             caret = code.Length;
         }
 
+        joins ??= language == null ? null : StatementScanner.Joins(code, language, token);
+        var from = joins == null ? 0 : StatementScanner.StatementStart(code, joins, caret);
         var stack = new Stack<char>();
-        for (var i = 0; i < caret; i++)
+        for (var i = from; i < caret; i++)
         {
             if ((i & 4095) == 0)
             {

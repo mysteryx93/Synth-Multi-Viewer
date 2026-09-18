@@ -2451,6 +2451,122 @@ public class ReviewRegressionTests
         Assert.Contains(service.Analyze(throughB, throughB.Length, Vs).Items, x => x.InsertionText == "First");
     }
 
+    [Fact]
+    public void WildcardSelfImportDoesNotThrow()
+    {
+        var helper = """
+            def Filter():
+                return 1
+            from helper import *
+            """;
+        var service = VsService((specifier, _) => specifier is "helper" or "/helper.py"
+            ? new IncludeFile("/helper.py", helper)
+            : null);
+        var text = "from helper import Filter\nFilter(";
+        var insight = service.Analyze(text, text.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("Filter", insight.Overloads[0].Name);
+    }
+
+    [Fact]
+    public void ParenthesizedAndStarredUnpackingInvalidateTypes()
+    {
+        var grouped = """
+            source = core.std.BlankClip()
+            (source, other) = get_pair()
+            source.
+            """;
+        var groupedReply = VsService().Analyze(grouped, grouped.Length, Vs);
+        Assert.DoesNotContain(groupedReply.Items, x => x.InsertionText == "std");
+
+        var starred = """
+            source = core.std.BlankClip()
+            source, *other = get_pair()
+            source.
+            """;
+        var starredReply = VsService().Analyze(starred, starred.Length, Vs);
+        Assert.DoesNotContain(starredReply.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void ExceptAliasInvalidatesPreviousType()
+    {
+        var text = """
+            source = core.std.BlankClip()
+            try:
+                pass
+            except Exception as source:
+                source.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void CallingModuleOrFormatPropertyIsUnknown()
+    {
+        var helper = "def Filter():\n    return 1\n";
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/helper.py", helper)
+            : null);
+        var module = """
+            import helper
+            result = helper()
+            result.
+            """;
+        var members = service.Analyze(module, module.Length, Vs);
+        Assert.DoesNotContain(members.Items, x => x.InsertionText == "Filter");
+
+        var format = """
+            clip = core.std.BlankClip()
+            value = clip.format()
+            value.
+            """;
+        var typed = VsService().Analyze(format, format.Length, Vs);
+        Assert.DoesNotContain(typed.Items, x => x.InsertionText == "replace");
+        Assert.DoesNotContain(typed.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void DocumentFunctionsReuseNativeCatalogIndex()
+    {
+        var native = Enumerable.Range(0, 40)
+            .Select(i => new Symbol("core.std.F" + i, ["clip:vnode"], ReturnType: "clip:vnode;"))
+            .Append(new Symbol("core.std.BlankClip", ["width:int:opt"], ReturnType: "clip:vnode;"))
+            .ToArray();
+        var text = """
+            def helper():
+                return 1
+            clip = core.std.BlankClip()
+            clip.
+            """;
+        var reply = VsService().Analyze(text, text.Length, native);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+        var call = """
+            def helper():
+                return 1
+            helper(
+            """;
+        var insight = VsService().Analyze(call, call.Length, native).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("helper", insight.Overloads[0].Name);
+    }
+
+    [Fact]
+    public void RepeatedRequestInsideFunctionReusesScopeView()
+    {
+        var text = """
+            def helper(clip: vs.VideoNode):
+                clip.
+            """;
+        var service = VsService();
+        Assert.Contains(service.Analyze(text, text.Length, Vs).Items, x => x.InsertionText == "std");
+        Assert.Contains(service.Analyze(text, text.Length, Vs).Items, x => x.InsertionText == "std");
+        var bindings = new VapourSynthLanguage().Bind(text, Vs, default);
+        Assert.Same(bindings.At(text.Length), bindings.At(text.Length));
+    }
+
     private sealed class CountingLanguage(ILanguage inner) : ILanguage
     {
         public int Binds;

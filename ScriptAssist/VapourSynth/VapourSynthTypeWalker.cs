@@ -232,13 +232,7 @@ internal static class VapourSynthTypeWalker
             return VapourSynthTypes.Core;
         }
 
-        if (current == VapourSynthTypes.Int || current == VapourSynthTypes.Float ||
-            current == VapourSynthTypes.Bool || current == VapourSynthTypes.String)
-        {
-            return TypeRef.Unknown;
-        }
-
-        return current;
+        return TypeRef.Unknown;
     }
 
     private static TypeRef ReturnOf(Symbol symbol) => VapourSynthTypes.FromReturn(symbol.ReturnType);
@@ -253,7 +247,12 @@ internal static class VapourSynthTypeWalker
             return segment.Kind == PathSegmentKind.Call ? TypeRef.Unknown : VapourSynthTypes.Script(nested);
         }
 
-        if (segment.Kind == PathSegmentKind.Call || symbol.Parameters == null)
+        if (segment.Kind == PathSegmentKind.Call)
+        {
+            return symbol.Parameters == null ? TypeRef.Unknown : ReturnOf(symbol);
+        }
+
+        if (symbol.Parameters == null)
         {
             return ReturnOf(symbol);
         }

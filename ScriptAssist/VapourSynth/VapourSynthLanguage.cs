@@ -3,7 +3,7 @@ namespace HanumanInstitute.ScriptAssist.VapourSynth;
 /// <summary>
 /// Catalog-driven VapourSynth profile: bound plugins, vs/core/VideoNode members, same-file types.
 /// </summary>
-public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage
+public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, IContextHover
 {
     private readonly IncludeReader? _read;
     /// <summary>
@@ -148,7 +148,15 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage
     }
 
     /// <inheritdoc />
-    public HoverInfo? Hover(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog)
+    public HoverInfo? Hover(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog) =>
+        HoverCore(code, path, bindings, catalog, null);
+
+    HoverInfo? IContextHover.Hover(string code, CaretPath path, DocumentBindings bindings,
+        IReadOnlyList<Symbol> catalog, HoverContext? context) =>
+        HoverCore(code, path, bindings, catalog, context);
+
+    private HoverInfo? HoverCore(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog,
+        HoverContext? context)
     {
         if (path.Start >= path.End || path.End > code.Length)
         {
@@ -161,7 +169,8 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage
             return null;
         }
 
-        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var parameter))
+        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var parameter,
+                context))
         {
             return parameter == null ? null : TypeHover(name, path, ParameterType(parameter));
         }

@@ -3,7 +3,7 @@ namespace HanumanInstitute.ScriptAssist.AviSynth;
 /// <summary>
 /// Catalog-driven AviSynth profile: <c>last</c>, implicit first clip, and internals.
 /// </summary>
-public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage
+public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContextHover
 {
     private readonly IncludeReader? _read;
     /// <summary>
@@ -79,7 +79,25 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage
             return [];
         }
 
-        return catalog.Where(symbol => symbol.Kind == SymbolKind.Function && AviSynthTypes.TakesClip(symbol)).ToList();
+        var items = new List<Symbol>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var symbol in bindings.BufferSymbols)
+        {
+            if (symbol.Kind == SymbolKind.Function && AviSynthTypes.TakesClip(symbol) && seen.Add(symbol.Name))
+            {
+                items.Add(symbol);
+            }
+        }
+
+        foreach (var symbol in catalog)
+        {
+            if (symbol.Kind == SymbolKind.Function && AviSynthTypes.TakesClip(symbol) && seen.Add(symbol.Name))
+            {
+                items.Add(symbol);
+            }
+        }
+
+        return items;
     }
 
     /// <inheritdoc />
@@ -89,7 +107,26 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage
 
         var name = callee[^1].Name;
         var implicitClip = callee.Count > 1;
-        var matches = catalog.Where(symbol => symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison)).ToList();
+        var matches = new List<Symbol>();
+        foreach (var symbol in bindings.BufferSymbols)
+        {
+            if (symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison))
+            {
+                matches.Add(symbol);
+            }
+        }
+
+        if (matches.Count == 0)
+        {
+            foreach (var symbol in catalog)
+            {
+                if (symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison))
+                {
+                    matches.Add(symbol);
+                }
+            }
+        }
+
         if (matches.Count == 0)
         {
             return null;
@@ -112,7 +149,15 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage
     }
 
     /// <inheritdoc />
-    public HoverInfo? Hover(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog)
+    public HoverInfo? Hover(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog) =>
+        HoverCore(code, path, bindings, catalog, null);
+
+    HoverInfo? IContextHover.Hover(string code, CaretPath path, DocumentBindings bindings,
+        IReadOnlyList<Symbol> catalog, HoverContext? context) =>
+        HoverCore(code, path, bindings, catalog, context);
+
+    private HoverInfo? HoverCore(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog,
+        HoverContext? context)
     {
         if (path.Start >= path.End || path.End > code.Length)
         {
@@ -125,7 +170,8 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage
             return null;
         }
 
-        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var parameter))
+        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var parameter,
+                context))
         {
             if (parameter == null)
             {
@@ -204,10 +250,34 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage
 
     private List<Symbol> Root(IReadOnlyList<Symbol> catalog, DocumentBindings bindings)
     {
-        var items = new List<Symbol>(Keywords.Count + catalog.Count + bindings.Names.Count);
+        var items = new List<Symbol>(Keywords.Count + catalog.Count + bindings.Names.Count +
+            bindings.BufferSymbols.Count);
         items.AddRange(Keywords);
-        items.AddRange(catalog);
-        items.AddRange(bindings.Names.Select(pair => new Symbol(pair.Key, null, SymbolKind.Local, ReturnType: pair.Value.Id)));
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var symbol in bindings.BufferSymbols)
+        {
+            if (bindings.Names.ContainsKey(symbol.Name) || !seen.Add(symbol.Name))
+            {
+                continue;
+            }
+
+            items.Add(symbol);
+        }
+
+        foreach (var symbol in catalog)
+        {
+            if (bindings.Names.ContainsKey(symbol.Name) || !seen.Add(symbol.Name))
+            {
+                continue;
+            }
+
+            items.Add(symbol);
+        }
+
+        foreach (var pair in bindings.Names)
+        {
+            items.Add(new Symbol(pair.Key, null, SymbolKind.Local, ReturnType: pair.Value.Id));
+        }
 
         return items;
     }

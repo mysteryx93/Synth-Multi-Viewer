@@ -5,6 +5,9 @@ namespace HanumanInstitute.ScriptAssist;
 /// </summary>
 public sealed class DocumentBindings
 {
+    private readonly Lock _viewsGate = new();
+    private Dictionary<BindingScope, DocumentBindings>? _views;
+
     /// <summary>
     /// Gets assigned names and their inferred types.
     /// </summary>
@@ -37,6 +40,47 @@ public sealed class DocumentBindings
             return this;
         }
 
+        var inner = Innermost(caret);
+        if (inner == null)
+        {
+            return this;
+        }
+
+        lock (_viewsGate)
+        {
+            _views ??= new();
+            if (_views.TryGetValue(inner, out var view))
+            {
+                return view;
+            }
+
+            view = OverlayView(caret);
+            _views[inner] = view;
+            return view;
+        }
+    }
+
+    private BindingScope? Innermost(int caret)
+    {
+        BindingScope? inner = null;
+        foreach (var scope in Scopes)
+        {
+            if (caret < scope.Start || caret > scope.End)
+            {
+                continue;
+            }
+
+            if (inner == null || scope.Start >= inner.Start)
+            {
+                inner = scope;
+            }
+        }
+
+        return inner;
+    }
+
+    private DocumentBindings OverlayView(int caret)
+    {
         var comparer = Names is Dictionary<string, TypeRef> dictionary
             ? dictionary.Comparer
             : StringComparer.Ordinal;

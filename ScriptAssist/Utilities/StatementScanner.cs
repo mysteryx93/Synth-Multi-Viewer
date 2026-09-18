@@ -110,6 +110,42 @@ internal static class StatementScanner
     }
 
     /// <summary>
+    /// Start of the logical statement containing <paramref name="caret"/>, using <paramref name="joins"/>.
+    /// </summary>
+    public static int StatementStart(string code, bool[] joins, int caret)
+    {
+        if (caret <= 0)
+        {
+            return 0;
+        }
+
+        var i = caret < code.Length ? caret : code.Length;
+        while (i > 0)
+        {
+            i--;
+            if (code[i] is not '\n' and not '\r')
+            {
+                continue;
+            }
+
+            var flag = i;
+            if (code[i] == '\n' && i > 0 && code[i - 1] == '\r')
+            {
+                flag = i - 1;
+            }
+
+            if (flag < joins.Length && joins[flag])
+            {
+                continue;
+            }
+
+            return i + 1;
+        }
+
+        return 0;
+    }
+
+    /// <summary>
     /// Gets whether a line at <paramref name="lineStart"/> begins a language-specific declaration.
     /// Python recovers at <c>def</c>/<c>class</c> name prefixes; AviSynth at <c>function</c> name prefixes.
     /// </summary>

@@ -89,7 +89,7 @@ public sealed class LanguageService : ILanguageService
         var scan = walk.Scan;
         var insight = scan?.Insight;
         var unclosed = bindings.InFunctionHeader(caret)
-            ? CallScanner.InnermostUnclosed(snapshot.Masked.Code, token, _language, caret)
+            ? CallScanner.InnermostUnclosed(snapshot.Masked.Code, token, _language, caret, snapshot.Joins)
             : walk.Unclosed;
         var items = !completions || unclosed == '[' && path.Segments.Count == 0
             ? new List<CompletionItem>()
@@ -99,16 +99,10 @@ public sealed class LanguageService : ILanguageService
             AddParameterNames(items, path, scan, snapshot.Masked.Code);
         }
 
-        NamedArgumentHover.Bind(new HoverContext(scan, unclosed, snapshot.Joins, token));
-        HoverInfo? hover;
-        try
-        {
-            hover = _language.Hover(snapshot.Masked.Code, path, bindings, snapshot.Catalog);
-        }
-        finally
-        {
-            NamedArgumentHover.Unbind();
-        }
+        var hoverContext = new HoverContext(scan, unclosed);
+        var hover = _language is IContextHover contextual
+            ? contextual.Hover(snapshot.Masked.Code, path, bindings, snapshot.Catalog, hoverContext)
+            : _language.Hover(snapshot.Masked.Code, path, bindings, snapshot.Catalog);
         var comparison = _language.Comparison;
         var comparer = comparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         return new(items.DistinctBy(x => x.InsertionText, comparer).OrderByDescending(x => x.Priority)
@@ -270,27 +264,7 @@ public sealed class LanguageService : ILanguageService
         var quoted = BufferLexer.Mask(text, _language.Lexer, maskStrings: false, token: token);
         var joins = StatementScanner.Joins(masked.Code, _language, token);
         var bindings = _language.Bind(text, native, token, documentPath);
-        var catalog = native;
-        if (bindings.BufferSymbols.Count > 0)
-        {
-            var comparer = _language.Comparison == StringComparison.OrdinalIgnoreCase
-                ? StringComparer.OrdinalIgnoreCase
-                : StringComparer.Ordinal;
-            var bufferNames = new HashSet<string>(bindings.BufferSymbols.Select(symbol => symbol.Name), comparer);
-            var combined = new List<Symbol>(native.Count + bindings.BufferSymbols.Count);
-            foreach (var symbol in native)
-            {
-                if (!bufferNames.Contains(symbol.Name))
-                {
-                    combined.Add(symbol);
-                }
-            }
-
-            combined.AddRange(bindings.BufferSymbols);
-            catalog = combined.ToArray();
-        }
-
-        var snapshot = new DocumentSnapshot(masked, quoted, joins, bindings, catalog);
+        var snapshot = new DocumentSnapshot(masked, quoted, joins, bindings, native);
         lock (_cacheGate)
         {
             if (_generation != generation)
