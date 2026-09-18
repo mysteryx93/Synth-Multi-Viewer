@@ -29,7 +29,7 @@ internal static class CallScanner
             }
             else if (c is ')' or ']' or '}')
             {
-                Close(stack, c);
+                CloseFrame(stack, c);
             }
             else if (c == ',' && stack.Count > 0)
             {
@@ -42,7 +42,7 @@ internal static class CallScanner
             else if (c is '\n' or '\r')
             {
                 var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
-                if (!StatementScanner.Continues(code, i) && StatementScanner.Recovers(code, last + 1))
+                if (!StatementScanner.Continues(code, i) && StatementScanner.Recovers(code, last + 1, language))
                 {
                     stack.Clear();
                 }
@@ -90,7 +90,8 @@ internal static class CallScanner
     /// <summary>
     /// Gets the innermost unclosed <c>(</c>, <c>[</c>, or <c>{</c>, or null when all are balanced.
     /// </summary>
-    public static char? InnermostUnclosed(string code, CancellationToken token = default)
+    public static char? InnermostUnclosed(string code, CancellationToken token = default,
+        ILanguage? language = null)
     {
         var stack = new Stack<char>();
         for (var i = 0; i < code.Length; i++)
@@ -107,21 +108,12 @@ internal static class CallScanner
             }
             else if (c is ')' or ']' or '}')
             {
-                var open = StatementScanner.Opening(c);
-                while (stack.Count > 0 && stack.Peek() != open)
-                {
-                    stack.Pop();
-                }
-
-                if (stack.Count > 0)
-                {
-                    stack.Pop();
-                }
+                StatementScanner.Close(stack, c);
             }
             else if (c is '\n' or '\r')
             {
                 var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
-                if (!StatementScanner.Continues(code, i) && StatementScanner.Recovers(code, last + 1))
+                if (!StatementScanner.Continues(code, i) && StatementScanner.Recovers(code, last + 1, language))
                 {
                     stack.Clear();
                 }
@@ -133,7 +125,7 @@ internal static class CallScanner
         return stack.Count == 0 ? null : stack.Peek();
     }
 
-    private static void Close(Stack<CallFrame> stack, char close)
+    private static void CloseFrame(Stack<CallFrame> stack, char close)
     {
         var open = StatementScanner.Opening(close);
         while (stack.Count > 0 && stack.Peek().Delimiter != open)

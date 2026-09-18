@@ -18,7 +18,7 @@ internal static class StatementScanner
     {
         var spans = new List<Span>();
         var start = 0;
-        var depth = 0;
+        var stack = new Stack<char>();
         var i = 0;
         while (i < code.Length)
         {
@@ -30,13 +30,13 @@ internal static class StatementScanner
             var c = code[i];
             if (c is '(' or '[' or '{')
             {
-                depth++;
+                stack.Push(c);
             }
-            else if (c is ')' or ']' or '}' && depth > 0)
+            else if (c is ')' or ']' or '}')
             {
-                depth--;
+                Close(stack, c);
             }
-            else if (c == ';' && depth == 0)
+            else if (c == ';' && stack.Count == 0)
             {
                 Add(spans, code, start, i);
                 start = i + 1;
@@ -46,11 +46,11 @@ internal static class StatementScanner
                 var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
                 if (!Continues(code, i))
                 {
-                    if (depth == 0 || Recovers(code, last + 1))
+                    if (stack.Count == 0 || Recovers(code, last + 1))
                     {
                         Add(spans, code, start, i);
                         start = last + 1;
-                        depth = 0;
+                        stack.Clear();
                     }
                 }
 
@@ -65,10 +65,10 @@ internal static class StatementScanner
     }
 
     /// <summary>
-    /// Gets whether a line at <paramref name="lineStart"/> begins a <c>def</c>, <c>class</c>, or
-    /// <c>function</c> declaration after indentation.
+    /// Gets whether a line at <paramref name="lineStart"/> begins a language-specific declaration.
+    /// Python recovers at <c>def</c>/<c>class</c> name prefixes; AviSynth at <c>function</c> name prefixes.
     /// </summary>
-    public static bool Recovers(string code, int lineStart)
+    public static bool Recovers(string code, int lineStart, ILanguage? language = null)
     {
         if (lineStart < 0 || lineStart >= code.Length)
         {
@@ -81,8 +81,14 @@ internal static class StatementScanner
             i++;
         }
 
-        return StartsKeyword(code, i, "def") || StartsKeyword(code, i, "class") ||
-            StartsKeyword(code, i, "function");
+        var aviSynth = language?.Lexer.BackslashLineContinuations == true;
+        if (aviSynth)
+        {
+            return Declaration(code, i, "function", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return Declaration(code, i, "def", StringComparison.Ordinal) ||
+            Declaration(code, i, "class", StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -110,14 +116,73 @@ internal static class StatementScanner
         _ => '\0'
     };
 
-    private static bool StartsKeyword(string code, int offset, string word)
+    /// <summary>
+    /// Pops mismatched openers until <paramref name="close"/> matches, then pops that opener.
+    /// </summary>
+    public static void Close(Stack<char> stack, char close)
+    {
+        var open = Opening(close);
+        while (stack.Count > 0 && stack.Peek() != open)
+        {
+            stack.Pop();
+        }
+
+        if (stack.Count > 0)
+        {
+            stack.Pop();
+        }
+    }
+
+    private static bool Declaration(string code, int offset, string keyword, StringComparison comparison)
+    {
+        if (!StartsKeyword(code, offset, keyword, comparison))
+        {
+            return false;
+        }
+
+        var i = offset + keyword.Length;
+        while (i < code.Length && code[i] is ' ' or '\t')
+        {
+            i++;
+        }
+
+        if (i >= code.Length || !BufferLexer.IsIdentifier(code[i]) || char.IsDigit(code[i]))
+        {
+            return false;
+        }
+
+        i++;
+        while (i < code.Length && BufferLexer.IsIdentifier(code[i]))
+        {
+            i++;
+        }
+
+        while (i < code.Length && code[i] is ' ' or '\t')
+        {
+            i++;
+        }
+
+        if (i >= code.Length || code[i] is '\n' or '\r')
+        {
+            return true;
+        }
+
+        if (code[i] == '(')
+        {
+            return true;
+        }
+
+        return keyword.Equals("class", StringComparison.Ordinal) && code[i] == ':';
+    }
+
+    private static bool StartsKeyword(string code, int offset, string word, StringComparison comparison)
     {
         if (offset < 0 || offset + word.Length > code.Length)
         {
             return false;
         }
 
-        if (!code.AsSpan(offset, word.Length).Equals(word, StringComparison.Ordinal))
+        if (!code.AsSpan(offset, word.Length).Equals(word, comparison))
         {
             return false;
         }

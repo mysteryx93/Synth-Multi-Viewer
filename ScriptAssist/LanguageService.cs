@@ -68,7 +68,8 @@ public sealed class LanguageService : ILanguageService
             ? null
             : CallScanner.Find(prefix.Code, _language, bindings, snapshot.Catalog, token, classified);
         var insight = scan?.Insight;
-        var items = CallScanner.InnermostUnclosed(prefix.Code, token) == '[' && path.Segments.Count == 0
+        var items = CallScanner.InnermostUnclosed(prefix.Code, token, _language) == '[' &&
+            path.Segments.Count == 0
             ? new List<CompletionItem>()
             : Complete(path, receiver, snapshot, bindings, token);
         AddParameterNames(items, path, scan, snapshot.Masked.Code);

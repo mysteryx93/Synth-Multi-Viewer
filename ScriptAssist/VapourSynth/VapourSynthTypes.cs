@@ -188,14 +188,12 @@ public static class VapourSynthTypes
             return "module " + script;
         }
 
-        var function = FunctionOf(type);
+        var function = FunctionSymbol(type);
         if (function != null)
         {
-            var local = function.StartsWith("local:", StringComparison.Ordinal)
-                ? function["local:".Length..]
-                : function;
-            var dot = local.LastIndexOf('.');
-            return dot >= 0 ? local[(dot + 1)..] : local;
+            var name = function.Name;
+            var dot = name.LastIndexOf('.');
+            return dot >= 0 ? name[(dot + 1)..] : name;
         }
 
         return type.Id;
@@ -218,24 +216,48 @@ public static class VapourSynthTypes
         return returnType == "format" ? "VideoFormat" : returnType;
     }
 
-    /// <summary>A resolved plugin, host, or local function not yet called.</summary>
-    public static TypeRef Function(string id, bool bound = false) =>
-        new((bound ? "fn-bound:" : "fn:") + id);
+    private const char Field = '\x1e';
+    private const char Param = '\x1f';
+    private const string FunctionPrefix = "fn:";
+    private const string BoundFunctionPrefix = "fn-bound:";
 
-    /// <summary>Gets the function identity stored by <see cref="Function"/>.</summary>
-    public static string? FunctionOf(TypeRef type)
+    /// <summary>A snapshot of a resolved plugin, host, or local function not yet called.</summary>
+    internal static TypeRef Function(Symbol symbol, bool bound = false)
     {
-        if (type.Id.StartsWith("fn-bound:", StringComparison.Ordinal))
+        var parameters = symbol.Parameters ?? [];
+        return new TypeRef(string.Concat(bound ? BoundFunctionPrefix : FunctionPrefix, symbol.Name, Field,
+            symbol.ReturnType ?? "", Field, string.Join(Param, parameters)));
+    }
+
+    /// <summary>Gets the function snapshot stored by <see cref="Function"/>.</summary>
+    internal static Symbol? FunctionSymbol(TypeRef type)
+    {
+        var id = type.Id;
+        var prefix = id.StartsWith(BoundFunctionPrefix, StringComparison.Ordinal) ? BoundFunctionPrefix
+            : id.StartsWith(FunctionPrefix, StringComparison.Ordinal) ? FunctionPrefix : null;
+        if (prefix == null)
         {
-            return type.Id["fn-bound:".Length..];
+            return null;
         }
 
-        return type.Id.StartsWith("fn:", StringComparison.Ordinal) ? type.Id["fn:".Length..] : null;
+        var payload = id[prefix.Length..];
+        var first = payload.IndexOf(Field);
+        var second = first < 0 ? -1 : payload.IndexOf(Field, first + 1);
+        if (second < 0)
+        {
+            return null;
+        }
+
+        var name = payload[..first];
+        var returnType = payload[(first + 1)..second];
+        var joined = payload[(second + 1)..];
+        var parameters = joined.Length == 0 ? Array.Empty<string>() : joined.Split(Param);
+        return new Symbol(name, parameters, ReturnType: returnType.Length == 0 ? null : returnType);
     }
 
     /// <summary>Gets whether a function alias was taken from a bound plugin.</summary>
-    public static bool IsBoundFunction(TypeRef type) =>
-        type.Id.StartsWith("fn-bound:", StringComparison.Ordinal);
+    internal static bool IsBoundFunction(TypeRef type) =>
+        type.Id.StartsWith(BoundFunctionPrefix, StringComparison.Ordinal);
 
     /// <summary>Maps a Python annotation or last identifier to a type.</summary>
     public static TypeRef FromAnnotation(string? annotation)
@@ -246,6 +268,11 @@ public static class VapourSynthTypes
         }
 
         var text = UnwrapAnnotation(annotation.Trim());
+        if (text == null)
+        {
+            return TypeRef.Unknown;
+        }
+
         var last = text.LastIndexOf('.');
         if (last >= 0)
         {
@@ -267,12 +294,17 @@ public static class VapourSynthTypes
         };
     }
 
-    private static string UnwrapAnnotation(string text)
+    private static string? UnwrapAnnotation(string text)
     {
         for (var n = 0; n < 4; n++)
         {
             text = StripQuotes(text.Trim());
             var union = UnionMember(text);
+            if (union == null)
+            {
+                return null;
+            }
+
             if (union != text)
             {
                 text = union;
@@ -301,11 +333,17 @@ public static class VapourSynthTypes
         return text;
     }
 
-    private static string UnionMember(string text)
+    private static string? UnionMember(string text)
     {
+        if (text.IndexOf('|') < 0)
+        {
+            return text;
+        }
+
         string? kept = null;
         var start = 0;
         var depth = 0;
+        var pipes = 0;
         for (var i = 0; i <= text.Length; i++)
         {
             var c = i < text.Length ? text[i] : '|';
@@ -319,6 +357,7 @@ public static class VapourSynthTypes
             }
             else if (c == '|' && depth == 0)
             {
+                pipes++;
                 var part = text[start..i].Trim();
                 start = i + 1;
                 if (part.Length == 0 || part == "None")
@@ -328,14 +367,14 @@ public static class VapourSynthTypes
 
                 if (kept != null)
                 {
-                    return text;
+                    return null;
                 }
 
                 kept = part;
             }
         }
 
-        return kept ?? text;
+        return pipes == 0 ? text : kept;
     }
 
     private static string? OptionalInner(string text)

@@ -17,7 +17,7 @@ internal static class VapourSynthTypeWalker
         }
 
         var current = ResolveName(segments[0].Name, bindings);
-        current = ApplyUse(current, segments[0], index, bindings);
+        current = ApplyUse(current, segments[0], bindings);
         for (var i = 1; i < segments.Count; i++)
         {
             current = Step(current, segments[i], index, bindings);
@@ -161,7 +161,7 @@ internal static class VapourSynthTypeWalker
         {
             if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
             {
-                return VapourSynthTypes.Function("local:" + name);
+                return VapourSynthTypes.Function(symbol);
             }
         }
 
@@ -218,8 +218,7 @@ internal static class VapourSynthTypeWalker
         return TypeRef.Unknown;
     }
 
-    private static TypeRef ApplyUse(TypeRef current, PathSegment segment, VapourSynthCatalogIndex index,
-        DocumentBindings bindings)
+    private static TypeRef ApplyUse(TypeRef current, PathSegment segment, DocumentBindings bindings)
     {
         if (segment.Kind == PathSegmentKind.Index)
         {
@@ -230,10 +229,10 @@ internal static class VapourSynthTypeWalker
             return current;
         }
 
-        var function = CallFunction(current, bindings, index);
-        if (!function.IsUnknown)
+        var snapshot = VapourSynthTypes.FunctionSymbol(current);
+        if (snapshot != null)
         {
-            return function;
+            return ReturnOf(snapshot);
         }
 
         if (current.IsUnknown || current.IsRoot)
@@ -259,84 +258,10 @@ internal static class VapourSynthTypeWalker
         return current;
     }
 
-    private static TypeRef CallFunction(TypeRef current, DocumentBindings bindings,
-        VapourSynthCatalogIndex index)
+    private static TypeRef ReturnOf(Symbol symbol)
     {
-        var id = VapourSynthTypes.FunctionOf(current);
-        if (id == null)
-        {
-            return TypeRef.Unknown;
-        }
-
-        var symbol = LookupFunction(id, bindings, index);
-        if (symbol == null)
-        {
-            return TypeRef.Unknown;
-        }
-
         var mapped = VapourSynthTypes.FromReturn(symbol.ReturnType);
         return mapped.IsUnknown && symbol.ReturnType is "format" ? VapourSynthTypes.Format : mapped;
-    }
-
-    internal static Symbol? LookupFunction(string id, DocumentBindings bindings,
-        VapourSynthCatalogIndex index)
-    {
-        if (id.StartsWith("local:", StringComparison.Ordinal))
-        {
-            var local = id["local:".Length..];
-            foreach (var symbol in bindings.BufferSymbols)
-            {
-                if (symbol.Name.Equals(local, StringComparison.Ordinal) && symbol.Parameters != null)
-                {
-                    return symbol;
-                }
-            }
-
-            return null;
-        }
-
-        const string prefix = "core.";
-        if (id.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            var rest = id[prefix.Length..];
-            var dot = rest.IndexOf('.');
-            if (dot > 0)
-            {
-                var found = index.Find(rest[..dot], rest[(dot + 1)..]);
-                if (found != null)
-                {
-                    return found;
-                }
-            }
-        }
-
-        foreach (var symbol in bindings.BufferSymbols)
-        {
-            if (symbol.Name.Equals(id, StringComparison.Ordinal) && symbol.Parameters != null)
-            {
-                return symbol;
-            }
-        }
-
-        return HostFunction(id, VapourSynthHostTypes.CoreMembers) ??
-            HostFunction(id, VapourSynthHostTypes.VideoNodeMembers) ??
-            HostFunction(id, VapourSynthHostTypes.AudioNodeMembers) ??
-            HostFunction(id, VapourSynthHostTypes.VideoFrameMembers) ??
-            HostFunction(id, VapourSynthHostTypes.FormatMembers) ??
-            HostFunction(id, VapourSynthHostTypes.ModuleMembers);
-    }
-
-    private static Symbol? HostFunction(string id, IReadOnlyList<Symbol> members)
-    {
-        foreach (var symbol in members)
-        {
-            if (symbol.Name.Equals(id, StringComparison.Ordinal) && symbol.Parameters != null)
-            {
-                return symbol;
-            }
-        }
-
-        return null;
     }
 
     private static Symbol? FindFunction(string name, DocumentBindings bindings)
@@ -384,9 +309,9 @@ internal static class VapourSynthTypeWalker
         }
         if (segment.Kind != PathSegmentKind.Call)
         {
-            return VapourSynthTypes.Function(symbol.Name, bound);
+            return VapourSynthTypes.Function(symbol, bound);
         }
-        _ = bound;
+
         return VapourSynthTypes.FromReturn(symbol.ReturnType);
     }
 
@@ -418,11 +343,10 @@ internal static class VapourSynthTypeWalker
 
             if (segment.Kind == PathSegmentKind.Call || symbol.Parameters == null)
             {
-                var mapped = VapourSynthTypes.FromReturn(symbol.ReturnType);
-                return mapped.IsUnknown && symbol.ReturnType is "format" ? VapourSynthTypes.Format : mapped;
+                return ReturnOf(symbol);
             }
 
-            return VapourSynthTypes.Function(symbol.Name);
+            return VapourSynthTypes.Function(symbol);
         }
         return TypeRef.Unknown;
     }

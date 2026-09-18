@@ -145,18 +145,14 @@ public sealed class VapourSynthLanguage : ILanguage
 
         if (callee.Count == 1 && bindings.Names.TryGetValue(name, out var aliased))
         {
-            var id = VapourSynthTypes.FunctionOf(aliased);
-            if (id != null)
+            var symbol = VapourSynthTypes.FunctionSymbol(aliased);
+            if (symbol != null)
             {
-                var symbol = VapourSynthTypeWalker.LookupFunction(id, bindings, index);
-                if (symbol != null)
+                return new CallResolution
                 {
-                    return new CallResolution
-                    {
-                        Overloads = [symbol],
-                        ImplicitReceiver = VapourSynthTypes.IsBoundFunction(aliased)
-                    };
-                }
+                    Overloads = [symbol],
+                    ImplicitReceiver = VapourSynthTypes.IsBoundFunction(aliased)
+                };
             }
         }
 

@@ -967,6 +967,52 @@ public class ReviewRegressionTests
         var insight = AvsService().Analyze(text, text.Length, []).Insight;
         Assert.NotNull(insight);
         Assert.Equal("Good", insight.Overloads[0].Name);
+
+        var upper = """
+            function Broken(clip c,
+            FUNCTION Good(clip c) {
+                return c
+            }
+            Good(
+            """;
+        var upperInsight = AvsService().Analyze(upper, upper.Length, []).Insight;
+        Assert.NotNull(upperInsight);
+        Assert.Equal("Good", upperInsight.Overloads[0].Name);
+    }
+
+    [Fact]
+    public void PythonFunctionIdentifierDoesNotTriggerDeclarationRecovery()
+    {
+        var call = """
+            core.std.Crop(
+            function=1,
+            right=
+            """;
+        var insight = VsService().Analyze(call, call.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("core.std.Crop", insight.Overloads[0].Name);
+        Assert.Equal(2, insight.ActiveParameter);
+
+        var invoked = """
+            core.std.Crop(
+            function(),
+            right=
+            """;
+        var invokedInsight = VsService().Analyze(invoked, invoked.Length, Vs).Insight;
+        Assert.NotNull(invokedInsight);
+        Assert.Equal("core.std.Crop", invokedInsight.Overloads[0].Name);
+
+        var header = """
+            def helper(
+                function=1,
+                radius=2):
+                return 1
+            helper(
+            """;
+        var helper = VsService().Analyze(header, header.Length, Vs).Insight;
+        Assert.NotNull(helper);
+        Assert.Equal("helper", helper.Overloads[0].Name);
+        Assert.Contains("radius=2", helper.Overloads[0].Signature);
     }
 
     [Fact]
@@ -982,6 +1028,16 @@ public class ReviewRegressionTests
             """;
         var assignment = VsService().Analyze(later, later.Length, Vs);
         Assert.Null(assignment.Insight);
+
+        var bind = """
+            core.std.Crop([0)
+            clip = core.std.BlankClip()
+            clip.
+            """;
+        var members = VsService().Analyze(bind, bind.Length, Vs);
+        Assert.Null(members.Insight);
+        Assert.Contains(members.Items, x => x.InsertionText == "std");
+        Assert.Contains(members.Items, x => x.InsertionText == "width");
 
         var crop = new Symbol("Crop", ["clip", "int [left]", "int [top]"]);
         var avs = "Crop([0),\n";
@@ -1056,16 +1112,29 @@ public class ReviewRegressionTests
     {
         foreach (var header in new[]
                  {
-                     "def f(clip: 'vs.VideoNode'):",
-                     "def f(clip: typing.Optional[vs.VideoNode]):",
-                     "def f(clip: None | vs.VideoNode):",
-                     "def f(clip: vs.VideoNode | None):"
+                     "def f(source: 'vs.VideoNode'):",
+                     "def f(source: typing.Optional[vs.VideoNode]):",
+                     "def f(source: None | vs.VideoNode):",
+                     "def f(source: vs.VideoNode | None):"
                  })
         {
-            var text = header + "\n    clip.";
+            var text = header + "\n    source.";
             var reply = VsService().Analyze(text, text.Length, Vs);
             Assert.Contains(reply.Items, x => x.InsertionText == "std");
             Assert.Contains(reply.Items, x => x.InsertionText == "width");
+        }
+
+        foreach (var header in new[]
+                 {
+                     "def f(source: int | vs.VideoNode):",
+                     "def f(source: vs.VideoNode | int):",
+                     "def f(source: vs.VideoNode | vs.AudioNode):"
+                 })
+        {
+            var text = header + "\n    source.";
+            var reply = VsService().Analyze(text, text.Length, Vs);
+            Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+            Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
         }
 
         var core = "def f(c: Core):\n    c.";
@@ -1128,5 +1197,70 @@ public class ReviewRegressionTests
         var members = VsService().Analyze(result, result.Length, Vs);
         Assert.Contains(members.Items, x => x.InsertionText == "std");
         Assert.Contains(members.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void FunctionAliasPreservesResolvedIdentity()
+    {
+        var helper = "def Filter(clip, radius=2):\n    return clip\n";
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+
+        var imported = """
+            import helper
+            alias = helper.Filter
+            alias(
+            """;
+        var insight = service.Analyze(imported, imported.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("Filter", insight.Overloads[0].Name);
+        Assert.Contains("radius=2", insight.Overloads[0].Signature);
+
+        var collision = """
+            def Filter(x):
+                return x
+            import helper
+            alias = helper.Filter
+            alias(
+            """;
+        var importedOverLocal = service.Analyze(collision, collision.Length, Vs).Insight;
+        Assert.NotNull(importedOverLocal);
+        Assert.Contains("radius=2", importedOverLocal.Overloads[0].Signature);
+
+        var host = """
+            def query_video_format():
+                return 1
+            fmt = core.query_video_format
+            fmt(
+            """;
+        var hostInsight = VsService().Analyze(host, host.Length, Vs).Insight;
+        Assert.NotNull(hostInsight);
+        Assert.Contains("subsampling_w", hostInsight.Overloads[0].Signature);
+
+        var rebound = """
+            def Filter(clip, radius=2):
+                return clip
+            alias = Filter
+            def Filter(x):
+                return x
+            alias(
+            """;
+        var stable = VsService().Analyze(rebound, rebound.Length, Vs).Insight;
+        Assert.NotNull(stable);
+        Assert.Contains("radius=2", stable.Overloads[0].Signature);
+    }
+
+    [Fact]
+    public void UnknownReturnCallDoesNotRemainCallable()
+    {
+        var text = """
+            def get_number():
+                return 1
+            result = get_number()
+            result(
+            """;
+        var insight = VsService().Analyze(text, text.Length, Vs).Insight;
+        Assert.True(insight == null || insight.Overloads.All(x => x.Name != "get_number"));
     }
 }
