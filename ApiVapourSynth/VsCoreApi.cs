@@ -114,7 +114,7 @@ internal sealed class VsCoreApi
             throw new VsException("The loaded VSScript library does not expose the VapourSynth 4 core API.");
         }
 
-        return new VsCoreApi(Marshal.PtrToStructure<VsCoreApiTable>(pointer));
+        return new(Marshal.PtrToStructure<VsCoreApiTable>(pointer));
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate void FreeNodeDelegate(IntPtr node);

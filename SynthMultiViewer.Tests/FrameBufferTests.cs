@@ -184,7 +184,6 @@ public class FrameBufferTests
     public void CopyFrom_AviSynthStackedClip_KeepsRedOnTopAfterFlip(string pixelType)
     {
         Assert.SkipUnless(AvsScript.TryFindLibrary(out _), "AviSynth+ native library was not found.");
-
         using var script = AvsScript.LoadScript($"""
             top = BlankClip(length=1, width=32, height=8, pixel_type="{pixelType}", color=$FF0000)
             bot = BlankClip(length=1, width=32, height=8, pixel_type="{pixelType}", color=$0000FF)
@@ -243,7 +242,6 @@ public class FrameBufferTests
     public void CopyRgbToBgra_VapourSynthStackedClip_KeepsRedOnTop(string format)
     {
         Assert.SkipUnless(VsHelper.TryFindLibrary(out _), "VapourSynth native library was not found.");
-
         using var script = VsScript.LoadScript(StackedVapourSynthClip(format));
         using var output = script.GetOutput();
         using var frame = output.GetFrame(0);
@@ -267,7 +265,6 @@ public class FrameBufferTests
     public void CopyFrom_AviSynthYv12Frame_ProducesOpaqueRedBgra()
     {
         Assert.SkipUnless(AvsScript.TryFindLibrary(out _), "AviSynth+ native library was not found.");
-
         using var script = AvsScript.LoadScript(
             "BlankClip(length=1, width=16, height=16, pixel_type=\"YV12\", color=$FF0000)\n");
         using var frame = script.GetFrame(0);
@@ -290,7 +287,6 @@ public class FrameBufferTests
     public void CopyRgbToBgra_VapourSynthYuv420Frame_ProducesOpaqueRedBgra()
     {
         Assert.SkipUnless(VsHelper.TryFindLibrary(out _), "VapourSynth native library was not found.");
-
         using var script = VsScript.LoadScript("""
             import vapoursynth as vs
             core = vs.core

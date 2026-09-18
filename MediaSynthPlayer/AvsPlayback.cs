@@ -31,7 +31,7 @@ internal sealed class AvsPlayback : ISynthPlayback
     public static AvsPlayback Open(string? file, string? script, ISynthPlayerSink sink)
     {
         var loaded = script != null ? AvsScript.LoadScript(script, file) : AvsScript.LoadFile(file!);
-        return new AvsPlayback(sink, loaded);
+        return new(sink, loaded);
     }
 
     public int Width => _video.Width;
@@ -317,7 +317,7 @@ internal sealed class AvsPlayback : ISynthPlayback
         var mapped = new FrameProperty[properties.Count];
         for (var i = 0; i < properties.Count; i++)
         {
-            mapped[i] = new FrameProperty(properties[i].Name, properties[i].Value);
+            mapped[i] = new(properties[i].Name, properties[i].Value);
         }
 
         return mapped;

@@ -21,7 +21,6 @@ public class FrameworkDetectionServiceTests
                 AviSynthPath = missingAvs
             }
         };
-
         try
         {
             var detection = new FrameworkDetectionService(settings);
@@ -47,14 +46,15 @@ public class FrameworkDetectionServiceTests
         {
             Value = { EnhanceEditorWithAutoComplete = false }
         };
-
         try
         {
             var detection = new FrameworkDetectionService(settings, factory);
-            Assert.False(factory.IsEnabled);
-
+            var disabled = factory.IsEnabled;
             settings.Value.EnhanceEditorWithAutoComplete = true;
+
             detection.Apply(settings.Value);
+
+            Assert.False(disabled);
             Assert.True(factory.IsEnabled);
         }
         finally

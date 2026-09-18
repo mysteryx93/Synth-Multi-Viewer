@@ -41,7 +41,7 @@ internal static class CallScanner
             var c = code[i];
             if (c is '(' or '[' or '{')
             {
-                stack.Push(new CallFrame(c, i, i + 1, comparer));
+                stack.Push(new(c, i, i + 1, comparer));
             }
             else if (c is ')' or ']' or '}')
             {
@@ -98,19 +98,19 @@ internal static class CallScanner
                 }
 
                 var parameter = slots.Length == 0 ? frame.Positional : slots[0];
-                return new CallWalk(new CallScan(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested,
+                return new(new(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested,
                     current, used, frame.Positional, keyword) { OverloadSlots = slots }, unclosed);
             }
 
             if (callee[^1].Name.Length > 0)
             {
-                return new CallWalk(null, unclosed);
+                return new(null, unclosed);
             }
 
             nested = true;
         }
 
-        return new CallWalk(null, unclosed);
+        return new(null, unclosed);
     }
 
     /// <summary>

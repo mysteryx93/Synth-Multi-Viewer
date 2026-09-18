@@ -48,7 +48,7 @@ internal sealed class VsScriptApi
             throw new VsException("The loaded VSScript library does not support API 4.1.");
         }
 
-        return new VsScriptApi(Marshal.PtrToStructure<VsScriptApiTable>(pointer));
+        return new(Marshal.PtrToStructure<VsScriptApiTable>(pointer));
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate int GetApiVersionDelegate();

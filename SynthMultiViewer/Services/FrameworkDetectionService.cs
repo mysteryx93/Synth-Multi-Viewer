@@ -87,26 +87,26 @@ public sealed class FrameworkDetectionService : IFrameworkDetectionService
     {
         if (found && usable)
         {
-            return new FrameworkInstall(
+            return new(
                 FrameworkStatus.Detected, libraryPath, pluginDirectories,
                 Version: version, VersionDetail: versionDetail);
         }
 
         if (found)
         {
-            return new FrameworkInstall(
+            return new(
                 FrameworkStatus.Error, libraryPath, pluginDirectories,
                 FirstMessage(error, "The library could not run a script."));
         }
 
         if (configuredPath.HasText())
         {
-            return new FrameworkInstall(
+            return new(
                 FrameworkStatus.Error, libraryPath, pluginDirectories,
                 FirstMessage(error, "Could not load from '" + configuredPath.Trim() + "'."));
         }
 
-        return new FrameworkInstall(FrameworkStatus.NotFound, libraryPath, pluginDirectories);
+        return new(FrameworkStatus.NotFound, libraryPath, pluginDirectories);
     }
 
     private static string FirstMessage(string? error, string fallback) =>

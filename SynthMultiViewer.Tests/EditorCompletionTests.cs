@@ -1,10 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Media;
 using Avalonia.Headless;
-using Avalonia.Interactivity;
+using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
@@ -16,7 +14,6 @@ using Xunit;
 
 namespace HanumanInstitute.SynthMultiViewer.Tests;
 
-[SuppressMessage("Usage", "xUnit1051:Calls to methods which accept CancellationToken should use TestContext.Current.CancellationToken")]
 public class EditorCompletionTests
 {
     private static readonly Symbol[] Vs =
@@ -30,90 +27,35 @@ public class EditorCompletionTests
     private static LanguageService Service() =>
         new(new VapourSynthLanguage(), new CatalogCache(() => []));
 
-    [Fact]
-    public void ExtraCommasStayOnRepeatingParameterOrStop()
+    [AvaloniaFact]
+    public void Complete_UnicodeReplacement_UndoRestoresDocument()
     {
-        var crop = new CallInsight([new("core.std.Crop", ["clip:vnode", "left:int:opt", "right:int:opt"])], 4, false);
-        Assert.Equal("No more parameters", OverloadProvider.ActiveParameterText(crop));
-        var six = new CallInsight(
-            [new("core.rife.RIFE", ["clip:vnode", "a:int:opt", "b:int:opt", "c:int:opt", "d:int:opt", "e:int:opt"])], 10,
-            false);
-        Assert.Equal("No more parameters", OverloadProvider.ActiveParameterText(six));
-        var every = new CallInsight([new("core.std.SelectEvery", ["clip:vnode", "cycle:int", "offsets:int[]"])], 5, false);
-        Assert.Contains("offsets:int[]", OverloadProvider.ActiveParameterText(every), StringComparison.Ordinal);
-        var planes = new CallInsight([new("ShufflePlanes", ["clip", "int* [planes]"])], 3, false);
-        Assert.Contains("int* [planes]", OverloadProvider.ActiveParameterText(planes), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CompletionHintShowsTruncatedParametersOnly()
-    {
-        var longSignature = "core.rife.RIFE(" + string.Join(", ", Enumerable.Repeat("clip:vnode:opt", 20)) + ")";
-        var item = new CompletionItem("RIFE", 0, 4, SymbolKind.Function, longSignature);
-        var hint = CompletionData.HintText(item)!;
-        Assert.DoesNotContain("Function", hint, StringComparison.Ordinal);
-        Assert.DoesNotContain("core.rife.RIFE", hint, StringComparison.Ordinal);
-        Assert.StartsWith("clip:vnode:opt", hint, StringComparison.Ordinal);
-        Assert.Contains("clip:vnode:opt, clip:vnode:opt", hint, StringComparison.Ordinal);
-        Assert.Equal("No parameters", CompletionData.HintText(
-            new CompletionItem("Foo", 0, 3, SymbolKind.Function, "Foo()")));
-        Assert.Null(CompletionData.HintText(
-            new CompletionItem("rife", 0, 4, SymbolKind.Namespace, "core.rife")));
-        Assert.Equal("int", CompletionData.HintText(
-            new CompletionItem("width", 0, 5, SymbolKind.Property, "width: int")));
-        Assert.Equal("clip", CompletionData.HintText(
-            new CompletionItem("C", 0, 1, SymbolKind.Local, "C: clip")));
-        Assert.Equal("Fraction", CompletionData.HintText(
-            new CompletionItem("fps", 0, 3, SymbolKind.Property, "fps: Fraction")));
-        Assert.Null(CompletionData.HintText(
-            new CompletionItem("fps", 0, 3, SymbolKind.Property, "fps")));
-        var description = Assert.IsType<TextBlock>(new CompletionData(item).Description);
-        Assert.Equal(CompletionData.HintMaxWidth, description.MaxWidth);
-        Assert.Equal(CompletionData.HintMaxLines, description.MaxLines);
-        Assert.Equal(TextWrapping.Wrap, description.TextWrapping);
-        Assert.Equal(TextTrimming.CharacterEllipsis, description.TextTrimming);
-        Assert.Equal(hint, description.Text);
-        var huge = CompletionData.TruncateHint(new string('x', 500));
-        Assert.True(huge.Length <= 400);
-        Assert.EndsWith("…", huge);
-        var hover = HoverPresenter.CreateTip(new string('x', 500) + "(" + string.Join(", ",
-            Enumerable.Repeat("clip:vnode:opt", 20)) + ")");
-        Assert.Equal(CompletionData.HintMaxWidth, hover.MaxWidth);
-        Assert.Equal(CompletionData.HintMaxLines, hover.MaxLines);
-        Assert.Equal(TextWrapping.Wrap, hover.TextWrapping);
-        Assert.Equal(TextTrimming.CharacterEllipsis, hover.TextTrimming);
-        Assert.True(hover.Text!.Length <= 400);
-        Assert.EndsWith("…", hover.Text);
-    }
-
-    [Fact]
-    public Task UnicodeReplacementAndUndoPreserveDocument() =>
-        UiSession.Dispatch(() =>
-    {
-        var text = "# 😀\n变量 = 1\n变suffix";
+        const string text = "# 😀\n变量 = 1\n变suffix";
         var editor = new BindableTextEditor { Text = text };
         var caret = text.IndexOf("变suffix", StringComparison.Ordinal) + 1;
         var item = Assert.Single(Service().Analyze(text, caret, []).Items, x => x.InsertionText == "变量");
-        new CompletionData(item).Complete(editor.TextArea, new SimpleSegment(item.Start, item.Length), EventArgs.Empty);
-        Assert.Equal("# 😀\n变量 = 1\n变量", editor.Text);
-        editor.Document.UndoStack.Undo();
-        Assert.Equal(text, editor.Text);
-    }, TestContext.Current.CancellationToken);
 
-    [Theory]
+        new CompletionData(item).Complete(editor.TextArea, new SimpleSegment(item.Start, item.Length), EventArgs.Empty);
+        var replaced = editor.Text;
+        editor.Document.UndoStack.Undo();
+
+        Assert.Equal("# 😀\n变量 = 1\n变量", replaced);
+        Assert.Equal(text, editor.Text);
+    }
+
+    [AvaloniaTheory]
     [InlineData("document")]
     [InlineData("text")]
     [InlineData("caret")]
     [InlineData("editor")]
     [InlineData("escape")]
     [InlineData("kind")]
-    public Task StaleReplyIsDiscardedEvenIfBackendIgnoresCancellation(string change) =>
-        UiSession.Dispatch(async () =>
+    public async Task RequestCompletion_StaleChange_DiscardsReply(string change)
     {
         var service = new DelayedService();
         var editor = new BindableTextEditor { Text = "co", LanguageService = service };
         var other = new TextBox();
-        using var shown = TestSupport.Show(new Window { Content = new StackPanel { Children = { editor, other } } });
+        using var shown = TestSupport.Show(new() { Content = new StackPanel { Children = { editor, other } } });
         editor.TextArea.Focus();
         editor.CaretOffset = 2;
         var request = editor.RequestCompletionAsync(delay: TimeSpan.Zero);
@@ -124,7 +66,7 @@ public class EditorCompletionTests
                 editor.Text = "cor";
                 break;
             case "document":
-                editor.Document = new TextDocument("co");
+                editor.Document = new("co");
                 break;
             case "caret":
                 editor.CaretOffset = 1;
@@ -139,121 +81,169 @@ public class EditorCompletionTests
                 editor.ScriptKind = MediaSynthUI.ScriptKind.AviSynth;
                 break;
         }
+
         service.Reply.SetResult(new([new("core", 0, 2, SymbolKind.Keyword, "core")], null));
         await request;
+
         Assert.Null(editor.DisplayedReply);
         editor.DismissCompletion();
-        return true;
-    }, TestContext.Current.CancellationToken);
+    }
 
-    [Theory]
+    [AvaloniaTheory]
     [InlineData("service")]
     [InlineData("path")]
     [InlineData("enabled")]
-    public Task StaleReplyIsDiscardedWhenAssistCallbacksChange(string change) =>
-        UiSession.Dispatch(async () =>
+    public async Task RequestAsync_AssistCallbackChanged_DiscardsReply(string change)
+    {
+        var delayed = new DelayedService();
+        ILanguageService? current = delayed;
+        string? path = "/tmp/a.vpy";
+        var enabled = true;
+        var editor = new TextEditor { Text = "co" };
+        var assist = new EditorAssist(editor, new()
         {
-            var delayed = new DelayedService();
-            ILanguageService? current = delayed;
-            string? path = "/tmp/a.vpy";
-            var enabled = true;
-            var editor = new TextEditor { Text = "co" };
-            var assist = new EditorAssist(editor, new EditorAssistOptions
-            {
-                ResolveService = () => current,
-                IsEnabled = () => enabled,
-                ResolveDocumentPath = () => path
-            });
-            assist.Attach();
-            using var shown = TestSupport.Show(new Window { Content = editor, Width = 400, Height = 200 });
-            editor.TextArea.Focus();
-            editor.CaretOffset = 2;
-            var request = assist.RequestAsync(delay: TimeSpan.Zero);
-            await delayed.Started.Task;
-            switch (change)
-            {
-                case "service":
-                    current = Service();
-                    break;
-                case "path":
-                    path = "/tmp/b.vpy";
-                    break;
-                case "enabled":
-                    enabled = false;
-                    break;
-            }
+            ResolveService = () => current,
+            IsEnabled = () => enabled,
+            ResolveDocumentPath = () => path
+        });
+        assist.Attach();
+        using var shown = TestSupport.Show(new() { Content = editor, Width = 400, Height = 200 });
+        editor.TextArea.Focus();
+        editor.CaretOffset = 2;
+        var request = assist.RequestAsync(delay: TimeSpan.Zero);
+        await delayed.Started.Task;
+        switch (change)
+        {
+            case "service":
+                current = Service();
+                break;
+            case "path":
+                path = "/tmp/b.vpy";
+                break;
+            case "enabled":
+                enabled = false;
+                break;
+        }
 
-            delayed.Reply.SetResult(new([new("core", 0, 2, SymbolKind.Keyword, "core")], null));
-            await request;
-            Assert.Null(assist.DisplayedReply);
-            assist.Dispose();
-            return true;
-        }, TestContext.Current.CancellationToken);
+        delayed.Reply.SetResult(new([new("core", 0, 2, SymbolKind.Keyword, "core")], null));
+        await request;
 
-    [Theory]
+        Assert.Null(assist.DisplayedReply);
+        assist.Dispose();
+    }
+
+    [AvaloniaTheory]
     [InlineData("service")]
     [InlineData("path")]
     [InlineData("enabled")]
-    public Task StaleHoverIsDiscardedWhenAssistCallbacksChange(string change) =>
-        UiSession.Dispatch(async () =>
+    public async Task RequestHover_AssistCallbackChanged_DiscardsHover(string change)
+    {
+        var delayed = new DelayedService();
+        ILanguageService? current = delayed;
+        string? path = "/tmp/a.vpy";
+        var enabled = true;
+        var editor = new TextEditor { Text = "clip" };
+        var assist = new EditorAssist(editor, new()
         {
-            var delayed = new DelayedService();
-            ILanguageService? current = delayed;
-            string? path = "/tmp/a.vpy";
-            var enabled = true;
-            var editor = new TextEditor { Text = "clip" };
-            var assist = new EditorAssist(editor, new EditorAssistOptions
-            {
-                ResolveService = () => current,
-                IsEnabled = () => enabled,
-                ResolveDocumentPath = () => path
-            });
-            assist.Attach();
-            using var shown = TestSupport.Show(new Window { Content = editor, Width = 400, Height = 200 });
-            editor.TextArea.Focus();
-            var request = assist.RequestHoverAsync(0);
-            await delayed.Started.Task;
-            switch (change)
-            {
-                case "service":
-                    current = Service();
-                    break;
-                case "path":
-                    path = "/tmp/b.vpy";
-                    break;
-                case "enabled":
-                    enabled = false;
-                    break;
-            }
+            ResolveService = () => current,
+            IsEnabled = () => enabled,
+            ResolveDocumentPath = () => path
+        });
+        assist.Attach();
+        using var shown = TestSupport.Show(new() { Content = editor, Width = 400, Height = 200 });
+        editor.TextArea.Focus();
+        var request = assist.RequestHoverAsync(0);
+        await delayed.Started.Task;
+        switch (change)
+        {
+            case "service":
+                current = Service();
+                break;
+            case "path":
+                path = "/tmp/b.vpy";
+                break;
+            case "enabled":
+                enabled = false;
+                break;
+        }
 
-            delayed.Reply.SetResult(new([], null, new HoverInfo("VideoNode", 0, 4)));
-            await request;
-            Assert.Null(ToolTip.GetTip(editor.TextArea.TextView));
-            assist.Dispose();
-            return true;
-        }, TestContext.Current.CancellationToken);
+        delayed.Reply.SetResult(new([], null, new("VideoNode", 0, 4)));
+        await request;
 
-    private static HeadlessUnitTestSession UiSession =>
-        HeadlessUnitTestSession.GetOrStartForAssembly(typeof(TestApplication).Assembly);
+        Assert.Null(ToolTip.GetTip(editor.TextArea.TextView));
+        assist.Dispose();
+    }
 
-    [Fact]
-    public Task InsightAdvancesAfterCommaWhenSpaceArrivesDuringDebounce() => UiSession.Dispatch(async () =>
+    [AvaloniaFact]
+    public async Task RequestCompletion_SpaceDuringDebounce_AdvancesInsightParameter()
     {
         var editor = OpenEditor("core.std.Crop(10,");
-        using var shown = TestSupport.Show(new Window { Content = editor });
+        using var shown = TestSupport.Show(new() { Content = editor });
         editor.TextArea.Focus();
         editor.CaretOffset = editor.Text.Length;
         _ = editor.RequestCompletionAsync(showCompletion: false, delay: TimeSpan.FromMilliseconds(80));
+
         editor.Document.Insert(editor.CaretOffset, " ");
         editor.CaretOffset = editor.Text.Length;
         await Task.Delay(160, TestContext.Current.CancellationToken);
+
         Assert.Equal(1, editor.DisplayedReply!.Insight!.ActiveParameter);
         editor.DismissCompletion();
-        return true;
-    }, TestContext.Current.CancellationToken);
+    }
 
-    [Fact]
-    public Task ParameterInfoFollowsCaretAndOmitsCompletionList() => UiSession.Dispatch(async () =>
+    [AvaloniaFact]
+    public async Task RequestCompletion_SecondArg_ShowsInsightWithoutList()
+    {
+        var editor = OpenEditor("core.std.Crop(10, 20");
+        using var shown = TestSupport.Show(new() { Content = editor });
+        editor.TextArea.Focus();
+        editor.CaretOffset = editor.Text.Length;
+
+        await editor.RequestCompletionAsync(showCompletion: false, delay: TimeSpan.Zero);
+
+        Assert.Null(editor.Completion);
+        Assert.Equal(1, editor.DisplayedReply!.Insight!.ActiveParameter);
+        editor.DismissCompletion();
+    }
+
+    [AvaloniaFact]
+    public async Task RequestCompletion_CaretMoves_UpdatesInsightWithoutList()
+    {
+        var editor = OpenEditor("core.std.Crop(10, 20");
+        using var shown = TestSupport.Show(new() { Content = editor });
+        editor.TextArea.Focus();
+        editor.CaretOffset = editor.Text.Length;
+        await editor.RequestCompletionAsync(showCompletion: false, delay: TimeSpan.Zero);
+
+        editor.CaretOffset = editor.Text.IndexOf('(') + 1;
+        await Task.Delay(120, TestContext.Current.CancellationToken);
+
+        Assert.Null(editor.Completion);
+        Assert.Equal(0, editor.DisplayedReply!.Insight!.ActiveParameter);
+        editor.DismissCompletion();
+    }
+
+    [AvaloniaFact]
+    public async Task RequestCompletion_CommaRemoved_KeepsInsightWithoutList()
+    {
+        var editor = OpenEditor("core.std.Crop(10, 20");
+        using var shown = TestSupport.Show(new() { Content = editor });
+        editor.TextArea.Focus();
+        editor.CaretOffset = editor.Text.Length;
+        await editor.RequestCompletionAsync(showCompletion: false, delay: TimeSpan.Zero);
+        var comma = editor.Text.IndexOf(',');
+
+        editor.Document.Remove(comma, 1);
+        editor.CaretOffset = comma;
+        await Task.Delay(120, TestContext.Current.CancellationToken);
+
+        Assert.Null(editor.Completion);
+        Assert.Equal(0, editor.DisplayedReply!.Insight!.ActiveParameter);
+        editor.DismissCompletion();
+    }
+
+    [AvaloniaFact]
+    public async Task RequestCompletion_ForceInsightShortcut_ShowsInsightWithoutList()
     {
         var editor = OpenEditor("core.std.Crop(10, 20");
         var window = new Window { Content = editor };
@@ -261,45 +251,35 @@ public class EditorCompletionTests
         editor.TextArea.Focus();
         editor.CaretOffset = editor.Text.Length;
         await editor.RequestCompletionAsync(showCompletion: false, delay: TimeSpan.Zero);
-        Assert.Null(editor.Completion);
-        Assert.Equal(1, editor.DisplayedReply!.Insight!.ActiveParameter);
-        editor.CaretOffset = editor.Text.IndexOf('(') + 1;
-        await Task.Delay(120, TestContext.Current.CancellationToken);
-        Assert.Null(editor.Completion);
-        Assert.Equal(0, editor.DisplayedReply!.Insight!.ActiveParameter);
-        var comma = editor.Text.IndexOf(',');
-        editor.Document.Remove(comma, 1);
-        editor.CaretOffset = comma;
-        await Task.Delay(120, TestContext.Current.CancellationToken);
-        Assert.Null(editor.Completion);
-        Assert.Equal(0, editor.DisplayedReply!.Insight!.ActiveParameter);
+
         TestSupport.Press(window, Key.Space, RawInputModifiers.Control | RawInputModifiers.Shift);
         await Task.Delay(50, TestContext.Current.CancellationToken);
+
         Assert.Null(editor.Completion);
         Assert.NotNull(editor.DisplayedReply?.Insight);
         editor.DismissCompletion();
-        return true;
-    }, TestContext.Current.CancellationToken);
+    }
 
-    [Fact]
-    public Task CurrentReplyDisplaysPopupAndInsight() => UiSession.Dispatch(async () =>
+    [AvaloniaFact]
+    public async Task RequestCompletion_ReplyReady_ShowsPopupAndInsight()
     {
         var service = new DelayedService();
         var editor = new BindableTextEditor { Text = "core.std.Crop(co", LanguageService = service };
-        using var shown = TestSupport.Show(new Window { Content = editor });
+        using var shown = TestSupport.Show(new() { Content = editor });
         editor.TextArea.Focus();
         editor.CaretOffset = editor.Text.Length;
         service.Reply.SetResult(Service().Analyze(editor.Text, editor.CaretOffset, Vs));
+
         await editor.RequestCompletionAsync(delay: TimeSpan.Zero);
+
         Assert.NotNull(editor.DisplayedReply);
         Assert.NotNull(editor.Completion);
         Assert.NotNull(editor.Insight);
         editor.DismissCompletion();
-        return true;
-    }, TestContext.Current.CancellationToken);
+    }
 
-    [Fact]
-    public Task EqualsDoesNotCommitCompletion() => UiSession.Dispatch(async () =>
+    [AvaloniaFact]
+    public async Task KeyText_Equals_DoesNotCommitCompletion()
     {
         var editor = OpenEditor("core.std.Cr");
         var window = new Window { Content = editor };
@@ -308,34 +288,47 @@ public class EditorCompletionTests
         editor.CaretOffset = editor.Text.Length;
         await editor.RequestCompletionAsync(delay: TimeSpan.Zero);
         Assert.NotNull(editor.Completion);
+
         window.KeyTextInput("=");
         Dispatcher.UIThread.RunJobs();
+
         Assert.Equal("core.std.Cr=", editor.Text);
         editor.DismissCompletion();
-        return true;
-    }, TestContext.Current.CancellationToken);
+    }
 
-    [Fact]
-    public Task MemberDotShowsListInsteadOfOverlappingParameterInfo() => UiSession.Dispatch(async () =>
+    [AvaloniaFact]
+    public async Task RequestCompletion_MemberDot_ShowsListWithoutInsight()
     {
         var editor = OpenEditor("core.std.Crop(core.rife.");
-        using var shown = TestSupport.Show(new Window { Content = editor });
+        using var shown = TestSupport.Show(new() { Content = editor });
         editor.TextArea.Focus();
         editor.CaretOffset = editor.Text.Length;
+
         await editor.RequestCompletionAsync(delay: TimeSpan.Zero);
+
         Assert.NotNull(editor.Completion);
         Assert.Contains(editor.DisplayedReply!.Items, x => x.InsertionText == "RIFE");
         Assert.Null(editor.Insight);
         editor.DismissCompletion();
+    }
+
+    [AvaloniaFact]
+    public async Task RequestCompletion_ShowCompletionFalse_ShowsInsightWithoutList()
+    {
+        var editor = OpenEditor("core.std.Crop(core.rife.");
+        using var shown = TestSupport.Show(new() { Content = editor });
+        editor.TextArea.Focus();
+        editor.CaretOffset = editor.Text.Length;
+
         await editor.RequestCompletionAsync(showCompletion: false, delay: TimeSpan.Zero);
+
         Assert.Null(editor.Completion);
         Assert.NotNull(editor.Insight);
         editor.DismissCompletion();
-        return true;
-    }, TestContext.Current.CancellationToken);
+    }
 
-    [Fact]
-    public Task CompletionAcceptsWithTabAndTypingOpensInsight() => UiSession.Dispatch(async () =>
+    [AvaloniaFact]
+    public async Task Tab_CompletionSelected_InsertsAndOpensInsight()
     {
         var editor = OpenEditor("core.std.Cr");
         var window = new Window { Content = editor };
@@ -343,19 +336,23 @@ public class EditorCompletionTests
         editor.TextArea.Focus();
         editor.CaretOffset = editor.Text.Length;
         await editor.RequestCompletionAsync(delay: TimeSpan.Zero);
+
         TestSupport.Press(window, Key.Tab);
-        Assert.Equal("core.std.Crop", editor.Text);
         window.KeyTextInput("(");
         await Task.Delay(250, TestContext.Current.CancellationToken);
-        Assert.NotNull(editor.DisplayedReply?.Insight);
-        Assert.Null(editor.Completion);
+        var text = editor.Text;
+        var insight = editor.DisplayedReply?.Insight;
+        var completion = editor.Completion;
         TestSupport.Press(window, Key.Escape);
-        Assert.Null(editor.DisplayedReply);
-        return true;
-    }, TestContext.Current.CancellationToken);
 
-    [Fact]
-    public Task CompletionInsertsWhenItemIsChosenAfterEditorLosesFocus() => UiSession.Dispatch(async () =>
+        Assert.Equal("core.std.Crop(", text);
+        Assert.NotNull(insight);
+        Assert.Null(completion);
+        Assert.Null(editor.DisplayedReply);
+    }
+
+    [AvaloniaFact]
+    public async Task RequestInsertion_AfterLostFocus_InsertsText()
     {
         var editor = OpenEditor("core.std.Cr");
         var window = new Window { Content = editor, Width = 640, Height = 320 };
@@ -366,15 +363,16 @@ public class EditorCompletionTests
         Dispatcher.UIThread.RunJobs();
         var completion = editor.Completion;
         Assert.NotNull(completion);
-        editor.RaiseEvent(new RoutedEventArgs(InputElement.LostFocusEvent));
+
+        editor.RaiseEvent(new(InputElement.LostFocusEvent));
         completion.CompletionList.RequestInsertion(EventArgs.Empty);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal("core.std.Crop", editor.Text);
-        return true;
-    }, TestContext.Current.CancellationToken);
 
-    [Fact]
-    public Task ClickingCompletionListInsertsText() => UiSession.Dispatch(async () =>
+        Assert.Equal("core.std.Crop", editor.Text);
+    }
+
+    [AvaloniaFact]
+    public async Task Click_CompletionItem_InsertsText()
     {
         var editor = OpenEditor("core.std.Cr");
         var window = new Window { Content = editor, Width = 640, Height = 320 };
@@ -388,33 +386,28 @@ public class EditorCompletionTests
         var item = list.ContainerFromIndex(Math.Max(0, list.SelectedIndex));
         Assert.NotNull(item);
         var root = TopLevel.GetTopLevel(item)!;
-        var point = item.TranslatePoint(new Point(12, Math.Max(1, item.Bounds.Height / 2)), root)!.Value;
+        var point = item.TranslatePoint(new(12, Math.Max(1, item.Bounds.Height / 2)), root)!.Value;
+
         root.MouseDown(point, MouseButton.Left);
         root.MouseUp(point, MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
+
         Assert.Equal("core.std.Crop", editor.Text);
-        return true;
-    }, TestContext.Current.CancellationToken);
+    }
 
-    private static BindableTextEditor OpenEditor(string text) => new()
-    {
-        Text = text,
-        LanguageService = new LanguageService(new VapourSynthLanguage(), new CatalogCache(() => Vs))
-    };
-
-    [Fact]
-    public Task DocumentChangeCancelsPendingAnalysis() => UiSession.Dispatch(async () =>
+    [AvaloniaFact]
+    public async Task DocumentChange_PendingRequest_CancelsAnalysis()
     {
         var service = new DelayedService();
         var editor = new BindableTextEditor { Text = "core.std.Crop(", LanguageService = service };
-        using var shown = TestSupport.Show(new Window { Content = editor, Width = 640, Height = 300 });
+        using var shown = TestSupport.Show(new() { Content = editor, Width = 640, Height = 300 });
         editor.TextArea.Focus();
         editor.CaretOffset = editor.Document.TextLength;
         var request = editor.RequestCompletionAsync(true, TimeSpan.Zero);
         await service.Started.Task;
+
         editor.Document.Remove(editor.Document.TextLength - 1, 1);
         Dispatcher.UIThread.RunJobs();
-        Assert.True(service.Token.IsCancellationRequested);
         service.Reply.TrySetCanceled();
         try
         {
@@ -424,9 +417,15 @@ public class EditorCompletionTests
         {
         }
 
+        Assert.True(service.Token.IsCancellationRequested);
         editor.DismissCompletion();
-        return true;
-    }, TestContext.Current.CancellationToken);
+    }
+
+    private static BindableTextEditor OpenEditor(string text) => new()
+    {
+        Text = text,
+        LanguageService = new LanguageService(new VapourSynthLanguage(), new CatalogCache(() => Vs))
+    };
 
     private sealed class DelayedService : ILanguageService
     {

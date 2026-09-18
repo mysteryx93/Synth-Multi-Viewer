@@ -46,7 +46,7 @@ internal sealed class FrameBuffer : IDisposable
                 }
             }
 
-            return new FrameBuffer(pixels, rowSize, height);
+            return new(pixels, rowSize, height);
         }
         catch
         {
@@ -87,7 +87,7 @@ internal sealed class FrameBuffer : IDisposable
                 }
             }
 
-            return new FrameBuffer(pixels, rowSize, height);
+            return new(pixels, rowSize, height);
         }
         catch
         {

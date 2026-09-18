@@ -281,7 +281,7 @@ internal static class StatementScanner
 
         if (end > start)
         {
-            spans.Add(new Span(start, end));
+            spans.Add(new(start, end));
         }
     }
 }

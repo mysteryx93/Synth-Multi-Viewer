@@ -198,9 +198,10 @@ internal static class TestSupport
 
     public sealed class TemporaryScript : IDisposable
     {
-        public TemporaryScript(string text)
+        public TemporaryScript(string text, string extension = ".vpy")
         {
-            Path = System.IO.Path.GetTempFileName();
+            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+                $"SynthMultiViewer-{Guid.NewGuid():N}{extension}");
             File.WriteAllText(Path, text);
         }
 

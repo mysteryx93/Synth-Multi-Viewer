@@ -34,7 +34,7 @@ internal static class ExpressionReader
 
         var typed = start <= caret && caret <= code.Length ? code[start..caret] : "";
         joins ??= StatementScanner.Joins(code, language, token);
-        return new CaretPath
+        return new()
         {
             Start = start,
             End = end,
@@ -89,7 +89,7 @@ internal static class ExpressionReader
             {
                 var list = new List<PathSegment>(prefix.Count + 1);
                 list.AddRange(prefix);
-                list.Add(new PathSegment { Name = trimmed[typedStart..], Kind = PathSegmentKind.Name });
+                list.Add(new() { Name = trimmed[typedStart..], Kind = PathSegmentKind.Name });
                 segments = list;
             }
         }
@@ -154,7 +154,7 @@ internal static class ExpressionReader
         var prefix = WalkLeft(code, start, joins, 0, language, token, out _);
         var segments = new List<PathSegment>(prefix.Count + 1);
         segments.AddRange(prefix);
-        segments.Add(new PathSegment { Name = name, Kind = PathSegmentKind.Name });
+        segments.Add(new() { Name = name, Kind = PathSegmentKind.Name });
         return segments;
     }
 
@@ -227,7 +227,7 @@ internal static class ExpressionReader
                     pos--;
                 }
 
-                collected.Add(new PathSegment { Name = code[pos..nameEnd], Kind = PathSegmentKind.Name });
+                collected.Add(new() { Name = code[pos..nameEnd], Kind = PathSegmentKind.Name });
                 continue;
             }
 
@@ -327,7 +327,7 @@ internal static class ExpressionReader
         {
             for (var i = uses.Count - 1; i >= 0; i--)
             {
-                segments.Add(new PathSegment { Name = i == 0 ? name : "", Kind = uses[i] });
+                segments.Add(new() { Name = i == 0 ? name : "", Kind = uses[i] });
             }
 
             return;
@@ -335,7 +335,7 @@ internal static class ExpressionReader
 
         for (var i = 0; i < uses.Count; i++)
         {
-            segments.Add(new PathSegment { Name = i == 0 ? name : "", Kind = uses[i] });
+            segments.Add(new() { Name = i == 0 ? name : "", Kind = uses[i] });
         }
     }
 

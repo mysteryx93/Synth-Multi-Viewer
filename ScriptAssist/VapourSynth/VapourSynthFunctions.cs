@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace HanumanInstitute.ScriptAssist.VapourSynth;
 
 /// <summary>
@@ -12,24 +10,9 @@ public static class VapourSynthFunctions
     /// </summary>
     public static IReadOnlyList<Symbol> Parse(string text, LexerOptions lexer, CancellationToken token = default)
     {
-        var spans = new List<Symbol>();
-        foreach (var span in Spans(text, lexer, token))
-        {
-            spans.Add(span.Symbol);
-        }
-
-        return spans;
-    }
-
-    /// <summary>
-    /// Returns column-0 function headers with offsets; comments are ignored, strings kept for defaults.
-    /// </summary>
-    internal static IReadOnlyList<VapourSynthFunctionSpan> Spans(string text, LexerOptions lexer,
-        CancellationToken token = default)
-    {
         var clean = BufferLexer.Mask(text, lexer, token: token).Code;
         var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token).Code;
-        var buffer = new List<VapourSynthFunctionSpan>();
+        var buffer = new List<Symbol>();
         var matches = VapourSynthPatterns.TopLevelDef().Matches(clean);
         for (var i = 0; i < matches.Count; i++)
         {
@@ -45,9 +28,7 @@ public static class VapourSynthFunctions
 
             var parameters = ParameterNames.Split(quoted[(open + 1)..close]);
             var returnType = ReturnId(quoted, close);
-            buffer.Add(new VapourSynthFunctionSpan(
-                new Symbol(match.Groups[1].Value, parameters, ReturnType: returnType),
-                match.Index, close));
+            buffer.Add(new(match.Groups[1].Value, parameters, ReturnType: returnType));
         }
 
         return buffer;
@@ -76,8 +57,3 @@ public static class VapourSynthFunctions
         return VapourSynthBinder.ResolveAnnotationId(text[start..i].Trim(), bindings);
     }
 }
-
-/// <summary>
-/// A column-0 <c>def</c> header and the offset of its closing <c>)</c>.
-/// </summary>
-internal readonly record struct VapourSynthFunctionSpan(Symbol Symbol, int Start, int ParenClose);

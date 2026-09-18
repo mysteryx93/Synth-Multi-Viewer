@@ -20,7 +20,7 @@ public sealed class AvsFrame : IDisposable
     public AvsPlane GetPlane(int plane)
     {
         ObjectDisposedException.ThrowIf(_frame == IntPtr.Zero, this);
-        return new AvsPlane(_native.GetReadPtr(_frame, plane), _native.GetPitch(_frame, plane),
+        return new(_native.GetReadPtr(_frame, plane), _native.GetPitch(_frame, plane),
             _native.GetRowSize(_frame, plane), _native.GetHeight(_frame, plane));
     }
 

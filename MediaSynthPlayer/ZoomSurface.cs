@@ -16,7 +16,7 @@ internal sealed class ZoomSurface
     public ZoomSurface()
     {
         Canvas.RenderTransform = _scale;
-        Canvas.RenderTransformOrigin = new RelativePoint(0, 0, RelativeUnit.Relative);
+        Canvas.RenderTransformOrigin = new(0, 0, RelativeUnit.Relative);
         Sizer.Child = Canvas;
         Root.Children.Add(Sizer);
     }
@@ -76,7 +76,7 @@ internal sealed class ZoomSurface
                 return source.Size;
             }
 
-            return new Size(_child?.DesiredSize.Width ?? 0, _child?.DesiredSize.Height ?? 0);
+            return new(_child?.DesiredSize.Width ?? 0, _child?.DesiredSize.Height ?? 0);
         }
     }
 

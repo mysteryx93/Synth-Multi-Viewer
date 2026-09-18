@@ -227,7 +227,7 @@ public static class VapourSynthTypes
     internal static TypeRef Function(Symbol symbol, bool bound = false)
     {
         var parameters = symbol.Parameters ?? [];
-        return new TypeRef(string.Concat(bound ? BoundFunctionPrefix : FunctionPrefix, symbol.Name, Field,
+        return new(string.Concat(bound ? BoundFunctionPrefix : FunctionPrefix, symbol.Name, Field,
             symbol.ReturnType ?? "", Field, string.Join(Param, parameters)));
     }
 
@@ -254,7 +254,7 @@ public static class VapourSynthTypes
         var returnType = payload[(first + 1)..second];
         var joined = payload[(second + 1)..];
         var parameters = joined.Length == 0 ? Array.Empty<string>() : joined.Split(Param);
-        return new Symbol(name, parameters, ReturnType: returnType.Length == 0 ? null : returnType);
+        return new(name, parameters, ReturnType: returnType.Length == 0 ? null : returnType);
     }
 
     /// <summary>Gets whether a function alias was taken from a bound plugin.</summary>

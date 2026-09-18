@@ -17,7 +17,7 @@ internal static class VapourSynthTypeWalker
         }
 
         var current = ResolveName(segments[0].Name, bindings);
-        current = ApplyUse(current, segments[0], bindings);
+        current = ApplyUse(current, segments[0]);
         for (var i = 1; i < segments.Count; i++)
         {
             current = Step(current, segments[i], index, bindings);
@@ -176,7 +176,7 @@ internal static class VapourSynthTypeWalker
         {
             if (segment.Name.Length > 0)
             {
-                current = Step(current, new PathSegment { Name = segment.Name, Kind = PathSegmentKind.Name },
+                current = Step(current, new() { Name = segment.Name, Kind = PathSegmentKind.Name },
                     index, bindings);
             }
 
@@ -210,7 +210,7 @@ internal static class VapourSynthTypeWalker
         return ApplyMember(symbol, segment, VapourSynthTypes.IsBound(current));
     }
 
-    private static TypeRef ApplyUse(TypeRef current, PathSegment segment, DocumentBindings bindings)
+    private static TypeRef ApplyUse(TypeRef current, PathSegment segment)
     {
         if (segment.Kind == PathSegmentKind.Index)
         {
@@ -240,7 +240,7 @@ internal static class VapourSynthTypeWalker
     private static TypeRef ApplyMember(Symbol symbol, PathSegment segment, bool bound)
     {
         var nested = symbol.ReturnType != null
-            ? VapourSynthTypes.ScriptOf(new TypeRef(symbol.ReturnType))
+            ? VapourSynthTypes.ScriptOf(new(symbol.ReturnType))
             : null;
         if (nested != null)
         {

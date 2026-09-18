@@ -118,7 +118,7 @@ internal sealed class AvsNative : IDisposable
     public AvsValue Eval(IntPtr environment, string script) => InvokeString(environment, "Eval", script);
 
     public AvsValue Invoke(IntPtr environment, string name) =>
-        _invoke(environment, name, new AvsValue { Type = (short)'a', ArraySize = 0 }, IntPtr.Zero);
+        _invoke(environment, name, new() { Type = (short)'a', ArraySize = 0 }, IntPtr.Zero);
 
     public void SetVar(IntPtr environment, string name, AvsValue value) => _setVar(environment, name, value);
 
@@ -216,7 +216,7 @@ internal sealed class AvsNative : IDisposable
         try
         {
             Marshal.StructureToPtr(arg, argHandle, false);
-            return _invoke(environment, name, new AvsValue { Type = (short)'a', ArraySize = 1, Value = argHandle },
+            return _invoke(environment, name, new() { Type = (short)'a', ArraySize = 1, Value = argHandle },
                 IntPtr.Zero);
         }
         finally
@@ -232,7 +232,7 @@ internal sealed class AvsNative : IDisposable
         try
         {
             Marshal.Copy(bytes, 0, memory, bytes.Length);
-            return _invoke(environment, name, new AvsValue { Type = (short)'s', Value = memory }, IntPtr.Zero);
+            return _invoke(environment, name, new() { Type = (short)'s', Value = memory }, IntPtr.Zero);
         }
         finally
         {
@@ -297,7 +297,7 @@ internal sealed class AvsNative : IDisposable
         {
             if (NativeLibrary.TryLoad(candidate, out var library))
             {
-                return new AvsNative(library);
+                return new(library);
             }
         }
 

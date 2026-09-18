@@ -1,4 +1,3 @@
-using System.Reactive.Linq;
 using Avalonia.Controls;
 using HanumanInstitute.MvvmDialogs;
 using HanumanInstitute.SynthMultiViewer.Services;

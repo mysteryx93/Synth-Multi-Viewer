@@ -19,9 +19,7 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
     /// <summary>
     /// Creates a settings dialog with a working copy of the current theme and library paths.
     /// </summary>
-    public SettingsViewModel(
-        ISettingsProvider<AppSettingsData> settingsProvider, IAppTheme appTheme, IFrameworkDetectionService frameworks,
-        IDialogService dialogService)
+    public SettingsViewModel(ISettingsProvider<AppSettingsData> settingsProvider, IAppTheme appTheme, IFrameworkDetectionService frameworks, IDialogService dialogService)
     {
         _settingsProvider = settingsProvider;
         _appTheme = appTheme;
@@ -229,8 +227,8 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
             SuggestedFileName = FileNameIfExists(current),
             Filters =
             {
-                new FileFilter("Library", LibraryExtensions()),
-                new FileFilter("All files", "*")
+                new("Library", LibraryExtensions()),
+                new("All files", "*")
             }
         };
         var file = await _dialogService.ShowOpenFileDialogAsync(this, settings);

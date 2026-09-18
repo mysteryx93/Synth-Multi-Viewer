@@ -45,7 +45,7 @@ public partial class BindableTextEditor
 
     private void InitializeCompletion()
     {
-        _assist = new EditorAssist(this, new EditorAssistOptions
+        _assist = new(this, new()
         {
             ResolveService = ResolveService,
             IsEnabled = () => LanguageService != null || ResolveFactory()?.IsEnabled != false,

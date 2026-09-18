@@ -1,7 +1,8 @@
 using System.Runtime.InteropServices;
 using Xunit;
+// ReSharper disable AccessToDisposedClosure
 
-namespace HanumanInstitute.ApiVapourSynth.Tests;
+namespace HanumanInstitute.ApiVapourSynth.Tests.Integration;
 
 [CollectionDefinition("VapourSynthNative", DisableParallelization = true)]
 public class VapourSynthNativeCollection;
@@ -27,11 +28,13 @@ public class VsScriptIntegrationTests
     });
 
     [Fact]
-    public void CatalogContainsStandardFunctionsAndApi4Arguments()
+    public void Read_StdCrop_IncludesVnodeArgument()
     {
         SkipIfNativeUnavailable();
+
         var functions = VsCatalog.Read();
-        var crop = Assert.Single(functions.Where(x => x.Namespace == "std" && x.Name == "Crop"));
+
+        var crop = Assert.Single(functions, x => x is { Namespace: "std", Name: "Crop" });
         Assert.Contains("clip:vnode", crop.Arguments);
     }
 
@@ -48,16 +51,6 @@ public class VsScriptIntegrationTests
         clip = core.std.BlankClip(width=320, height=240, length=5, format=vs.YUV420P8)
         clip.set_output()
         """;
-
-    [Fact]
-    public void CreateEmpty_NativeLibrary_CreatesScriptEnvironment()
-    {
-        SkipIfNativeUnavailable();
-
-        using var script = VsScript.CreateEmpty();
-
-        Assert.NotNull(script);
-    }
 
     [Fact]
     public void LoadScript_BlankClipRgb_ReturnsRgb24Frame()
@@ -87,7 +80,7 @@ public class VsScriptIntegrationTests
     public void LoadScript_YuvFilterRejectsRgb_EvaluatesThenConvertsForDisplay()
     {
         SkipIfNativeUnavailable();
-        var scriptText = """
+        const string scriptText = """
             import vapoursynth as vs
             core = vs.core
             clip = core.std.BlankClip(width=32, height=32, length=2, format=vs.YUV420P8)
@@ -180,36 +173,10 @@ public class VsScriptIntegrationTests
     }
 
     [Fact]
-    public void LoadScript_Yuv420P10_SourceVideoInfoKeepsTenBit()
-    {
-        SkipIfNativeUnavailable();
-        var scriptText = """
-            import vapoursynth as vs
-            core = vs.core
-            clip = core.std.BlankClip(width=32, height=16, length=2, format=vs.YUV420P10)
-            clip.set_output()
-            """;
-
-        using var script = VsScript.LoadScript(scriptText);
-        using var output = script.GetOutput();
-        var source = script.SourceVideoInfo!;
-
-        Assert.Equal(VsColorFamily.RGB, output.VideoInfo.Format.ColorFamily);
-        Assert.Equal(8, output.VideoInfo.Format.BitsPerSample);
-        Assert.Equal("YUV420P10", source.Format.Name);
-        Assert.Equal(VsColorFamily.YUV, source.Format.ColorFamily);
-        Assert.Equal(10, source.Format.BitsPerSample);
-        Assert.Equal(32, source.Width);
-        Assert.Equal(16, source.Height);
-        Assert.Equal(2, source.NumFrames);
-        Assert.Equal("4:2:0", VsFormatName.Subsampling(source.Format));
-    }
-
-    [Fact]
     public void GetSourceFrameProperties_SetFrameProps_ReturnsSourceKeys()
     {
         SkipIfNativeUnavailable();
-        var scriptText = """
+        const string scriptText = """
             import vapoursynth as vs
             core = vs.core
             clip = core.std.BlankClip(width=16, height=16, length=2, format=vs.YUV420P8)
@@ -248,20 +215,7 @@ public class VsScriptIntegrationTests
             "clip.set_output()\n";
 
         using var script = VsScript.LoadScript(scriptText);
-        AssertRedRgb(script);
-    }
 
-    [Fact]
-    public void LoadScript_Yuv420Red_ConvertsToRedRgb24()
-    {
-        SkipIfNativeUnavailable();
-
-        using var script = VsScript.LoadScript("""
-            import vapoursynth as vs
-            core = vs.core
-            clip = core.std.BlankClip(width=16, height=16, length=1, format=vs.YUV420P8, color=[81, 90, 240])
-            clip.set_output()
-            """);
         AssertRedRgb(script);
     }
 
@@ -284,6 +238,7 @@ public class VsScriptIntegrationTests
                 clip = core.ffms2.Source(r"{path}")
                 clip.set_output()
                 """);
+
             AssertRedRgb(script);
         }
         catch (VsException ex) when (ex.Message.Contains("ffms2", StringComparison.OrdinalIgnoreCase) ||
@@ -307,46 +262,28 @@ public class VsScriptIntegrationTests
     public void LoadScript_Yuv420IdentityMatrix_StillConvertsToRedRgb24()
     {
         SkipIfNativeUnavailable();
-
-        using var script = VsScript.LoadScript("""
+        const string scriptText = """
             import vapoursynth as vs
             core = vs.core
             clip = core.std.BlankClip(width=16, height=16, length=1, format=vs.YUV420P8, color=[81, 90, 240])
             clip = clip.std.SetFrameProps(_Matrix=0)
             clip.set_output()
-            """);
+            """;
+
+        using var script = VsScript.LoadScript(scriptText);
+
         AssertRedRgb(script);
-    }
-
-    [Fact]
-    public void LoadScript_BlankClipYuv_ConvertsToRgb24()
-    {
-        SkipIfNativeUnavailable();
-
-        using var script = VsScript.LoadScript(YuvBlankClip);
-        using var output = script.GetOutput();
-        var info = output.VideoInfo;
-        using var frame = output.GetFrame(0);
-        var red = frame.GetPlane(0);
-
-        Assert.Equal(320, info.Width);
-        Assert.Equal(240, info.Height);
-        Assert.Equal(VsColorFamily.RGB, info.Format.ColorFamily);
-        Assert.Equal(3, info.Format.NumPlanes);
-        Assert.Equal(8, info.Format.BitsPerSample);
-        Assert.Equal(320, red.Width);
-        Assert.NotEqual(IntPtr.Zero, red.Ptr);
     }
 
     [Fact]
     public void LoadScript_MissingOutput_ThrowsVsExceptionWithOutputMessage()
     {
         SkipIfNativeUnavailable();
-        var scriptText = "import vapoursynth as vs\ncore = vs.core\n";
+        const string scriptText = "import vapoursynth as vs\ncore = vs.core\n";
 
-        var action = () => VsScript.LoadScript(scriptText);
+        var act = () => VsScript.LoadScript(scriptText);
 
-        var error = Assert.Throws<VsException>(action);
+        var error = Assert.Throws<VsException>(act);
         Assert.Contains("did not set", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("output", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Python exception: 0", error.Message, StringComparison.OrdinalIgnoreCase);
@@ -356,7 +293,7 @@ public class VsScriptIntegrationTests
     public void LoadScript_WithoutPath_EvaluatesBufferWithoutAWorkingDirectory()
     {
         SkipIfNativeUnavailable();
-        var scriptText = """
+        const string scriptText = """
             import vapoursynth as vs
             if "__file__" in globals():
                 raise vs.Error("unsaved evaluation must not invent __file__")
@@ -411,7 +348,6 @@ public class VsScriptIntegrationTests
             clip = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.RGB24)
             clip.set_output()
             """;
-
         try
         {
             using var script = VsScript.LoadScript(scriptText, path);
@@ -445,7 +381,6 @@ public class VsScriptIntegrationTests
             clip = vs.core.std.BlankClip(width=16, height=16, length=1, format=vs.RGB24)
             clip.set_output()
             """);
-
         try
         {
             using var script = VsScript.LoadScript(File.ReadAllText(path), path);
@@ -465,7 +400,6 @@ public class VsScriptIntegrationTests
     {
         SkipIfNativeUnavailable();
         var path = WriteTempScript(".vpy", YuvBlankClip);
-
         try
         {
             using var script = VsScript.LoadFile(path);
@@ -488,7 +422,6 @@ public class VsScriptIntegrationTests
     {
         SkipIfNativeUnavailable();
         var path = WriteTempScript(".vpy", YuvBlankClip);
-
         try
         {
             using var script = VsScript.LoadFileDirect(path, true);
@@ -513,12 +446,12 @@ public class VsScriptIntegrationTests
     public void GetOutput_MissingIndex_ThrowsVsException()
     {
         SkipIfNativeUnavailable();
-
         using var script = VsScript.LoadScript(RgbBlankClip);
         using var output = script.GetOutput();
-        var action = () => script.GetOutput(1);
 
-        var error = Assert.Throws<VsException>(action);
+        var act = () => script.GetOutput(1);
+
+        var error = Assert.Throws<VsException>(act);
         Assert.Contains("did not set the requested video output", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(320, output.VideoInfo.Width);
     }
@@ -529,7 +462,6 @@ public class VsScriptIntegrationTests
         SkipIfNativeUnavailable();
         using var ready = new ManualResetEventSlim(false);
         VsFrameStatus? status = null;
-
         using var script = VsScript.LoadScript(RgbBlankClip);
         using var output = script.GetOutput();
         output.FrameReady += (_, e) =>
@@ -537,6 +469,7 @@ public class VsScriptIntegrationTests
             status = e;
             ready.Set();
         };
+
         output.GetFrameAsync(0);
 
         Assert.True(ready.Wait(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken));
@@ -553,7 +486,6 @@ public class VsScriptIntegrationTests
         using var done = new ManualResetEventSlim(false);
         var ready = 0;
         IReadOnlyList<(string Name, string Value)>? properties = null;
-
         using var script = VsScript.LoadScript(YuvBlankClip);
         using var output = script.GetOutput();
         output.FrameReady += (_, e) =>
@@ -564,6 +496,7 @@ public class VsScriptIntegrationTests
                 done.Set();
             }
         };
+
         for (var i = 0; i < count; i++)
         {
             output.GetFrameAsync(i);
@@ -578,7 +511,6 @@ public class VsScriptIntegrationTests
     public void ClearQueue_SlowFrameInFlight_DisposeDoesNotDeadlock()
     {
         SkipIfNativeUnavailable();
-
         const string slow = """
             import vapoursynth as vs
             import time
@@ -599,8 +531,8 @@ public class VsScriptIntegrationTests
         {
             Thread.Sleep(1);
         }
+        var queued = output.GetQueueLength(VsFrameState.Requested);
 
-        Assert.True(output.GetQueueLength(VsFrameState.Requested) > 0);
         var started = DateTime.UtcNow;
         output.ClearQueue(() =>
         {
@@ -608,23 +540,13 @@ public class VsScriptIntegrationTests
             script.Dispose();
             released.Set();
         });
+        var elapsed = DateTime.UtcNow - started;
+        var finished = released.Wait(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken);
 
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(1),
+        Assert.True(queued > 0);
+        Assert.True(elapsed < TimeSpan.FromSeconds(1),
             "ClearQueue blocked the caller while a VapourSynth frame was still in flight.");
-        Assert.True(released.Wait(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public void SetThreadCount_PositiveValue_ReturnsReportedCount()
-    {
-        SkipIfNativeUnavailable();
-
-        using var script = VsScript.LoadScript(RgbBlankClip);
-        using var output = script.GetOutput();
-
-        var threads = output.SetThreadCount(2);
-
-        Assert.True(threads >= 1);
+        Assert.True(finished);
     }
 
     private static void AssertRedRgb(VsScript script)

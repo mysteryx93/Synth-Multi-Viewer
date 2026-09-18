@@ -37,10 +37,9 @@ public partial class VideoPropertiesPlacement : ReactiveObject
     /// Places a window on the owner's right edge, vertically centered so it does not cover the toolbar.
     /// Sizes are outer frames in pixels so window chrome does not hang past the owner.
     /// </summary>
-    public static PixelPoint AlignToOwnerRight(
-        PixelPoint ownerPosition, PixelSize ownerFrameSize, PixelSize childFrameSize)
+    public static PixelPoint AlignToOwnerRight(PixelPoint ownerPosition, PixelSize ownerFrameSize, PixelSize childFrameSize)
     {
-        return new PixelPoint(
+        return new(
             ownerPosition.X + ownerFrameSize.Width - childFrameSize.Width,
             ownerPosition.Y + (ownerFrameSize.Height - childFrameSize.Height) / 2);
     }
@@ -56,7 +55,7 @@ public partial class VideoPropertiesPlacement : ReactiveObject
             return PixelSize.FromSize(frame, scale);
         }
 
-        return PixelSize.FromSize(new Size(owner.Width, owner.Height), scale);
+        return PixelSize.FromSize(new(owner.Width, owner.Height), scale);
     }
 
     /// <summary>

@@ -17,7 +17,7 @@ public class VsVideoInfoTests
     [Fact]
     public void IsConstantFormat_FixedSizeAndPlanes_ReturnsTrue()
     {
-        var info = new VsVideoInfo { Width = 640, Height = 480, Format = new VsFormat { NumPlanes = 3 } };
+        var info = new VsVideoInfo { Width = 640, Height = 480, Format = new() { NumPlanes = 3 } };
 
         var isConstant = info.IsConstantFormat;
 

@@ -1,38 +1,29 @@
 using System.ComponentModel;
 using System.Reactive.Linq;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Headless;
+using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
-using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using AvaloniaEdit;
-using AvaloniaEdit.Search;
 using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.MvvmDialogs;
 using HanumanInstitute.MvvmDialogs.Avalonia;
 using HanumanInstitute.MvvmDialogs.FileSystem;
 using HanumanInstitute.ScriptAssist;
-using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 using HanumanInstitute.ScriptAssist.VapourSynth;
 using HanumanInstitute.SynthMultiViewer.Controls;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
-using AvaloniaPlayer = HanumanInstitute.MediaPlayer.Avalonia.MediaPlayer;
 using Xunit;
 
 namespace HanumanInstitute.SynthMultiViewer.Tests;
 
 public class KeyBindingTests
 {
-    private static HeadlessUnitTestSession UiSession =>
-        HeadlessUnitTestSession.GetOrStartForAssembly(typeof(TestApplication).Assembly);
-
-    [Fact]
-    public Task WindowBindings_FileTabsAndDialogs_Execute() => UiSession.Dispatch(async () =>
+    [AvaloniaFact]
+    public async Task WindowBindings_FileTabsAndDialogs_Execute()
     {
         using var file = new TestSupport.TemporaryScript("BlankClip()\n");
         var dialogs = new RecordingDialogs();
@@ -42,84 +33,86 @@ public class KeyBindingTests
         using var shown = TestSupport.Show(view);
         view.Focus();
         Dispatcher.UIThread.RunJobs();
+        var savePath = Path.Combine(Path.GetTempPath(), "keybind-save.vpy");
 
         TestSupport.Press(view, Key.N, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
         var vs = Assert.IsType<EditorViewModel>(model.SelectedItem);
-        Assert.Equal(ScriptKind.VapourSynth, vs.Kind);
+        var vsKind = vs.Kind;
         vs.MarkSaved();
-
         TestSupport.Press(view, Key.M, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
         var avs = Assert.IsType<EditorViewModel>(model.SelectedItem);
-        Assert.Equal(ScriptKind.AviSynth, avs.Kind);
+        var avsKind = avs.Kind;
         avs.MarkSaved();
-
         TestSupport.Press(view, Key.O, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(file.Path, Assert.IsType<EditorViewModel>(model.SelectedItem).FileName);
-
+        var openedPath = Assert.IsType<EditorViewModel>(model.SelectedItem).FileName;
         TestSupport.Press(view, Key.D1, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Same(vs, model.SelectedItem);
-
+        var afterCtrl1 = model.SelectedItem;
         TestSupport.Press(view, Key.Tab, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Same(avs, model.SelectedItem);
-
+        var afterCtrlTab = model.SelectedItem;
         TestSupport.Press(view, Key.Tab, RawInputModifiers.Control | RawInputModifiers.Shift);
         Dispatcher.UIThread.RunJobs();
-        Assert.Same(vs, model.SelectedItem);
-
+        var afterShiftTab = model.SelectedItem;
         TestSupport.Press(view, Key.Right, RawInputModifiers.Alt);
         Dispatcher.UIThread.RunJobs();
-        Assert.Same(vs, model.ScriptList[1]);
+        var afterAltRight = model.ScriptList[1];
         TestSupport.Press(view, Key.Left, RawInputModifiers.Alt);
         Dispatcher.UIThread.RunJobs();
-        Assert.Same(vs, model.ScriptList[0]);
-
+        var afterAltLeft = model.ScriptList[0];
         TestSupport.Press(view, Key.F2);
         Dispatcher.UIThread.RunJobs();
-        Assert.True(vs.IsEditingHeader);
+        var editing = vs.IsEditingHeader;
         vs.IsEditingHeader = false;
         Dispatcher.UIThread.RunJobs();
-
         TestSupport.Press(view, Key.T, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.IsType<TabColorViewModel>(dialogs.LastDialog);
-
+        var tabColor = dialogs.LastDialog;
         TestSupport.Press(view, Key.F1);
         Dispatcher.UIThread.RunJobs();
-        Assert.IsType<HelpViewModel>(dialogs.LastDialog);
-
+        var help = dialogs.LastDialog;
         TestSupport.Press(view, Key.OemComma, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.IsType<SettingsViewModel>(dialogs.LastDialog);
-
+        var settings = dialogs.LastDialog;
         TestSupport.Press(view, Key.S, RawInputModifiers.Control | RawInputModifiers.Shift);
         Dispatcher.UIThread.RunJobs();
-        Assert.IsType<MvvmDialogs.FrameworkDialogs.SaveFileDialogSettings>(dialogs.LastFramework);
-
-        var savePath = Path.Combine(Path.GetTempPath(), "keybind-save.vpy");
+        var saveAs = dialogs.LastFramework;
         dialogs.QueueSave(savePath);
         TestSupport.Press(view, Key.S, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(savePath, vs.FileName);
+        var savedPath = vs.FileName;
         File.Delete(savePath);
-
         TestSupport.Press(view, Key.F5);
         Dispatcher.UIThread.RunJobs();
-        Assert.IsType<ViewerViewModel>(model.SelectedItem);
-
+        var afterF5 = model.SelectedItem;
         var beforeClose = model.ScriptList.Count;
         TestSupport.Press(view, Key.F4, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(beforeClose - 1, model.ScriptList.Count);
-        return true;
-    }, TestContext.Current.CancellationToken);
+        var afterClose = model.ScriptList.Count;
 
-    [Fact]
-    public Task ViewerBindings_SeekPlayZoomPropertiesAndCopy_Execute() => UiSession.Dispatch(async () =>
+        Assert.Equal(ScriptKind.VapourSynth, vsKind);
+        Assert.Equal(ScriptKind.AviSynth, avsKind);
+        Assert.Equal(file.Path, openedPath);
+        Assert.Same(vs, afterCtrl1);
+        Assert.Same(avs, afterCtrlTab);
+        Assert.Same(vs, afterShiftTab);
+        Assert.Same(vs, afterAltRight);
+        Assert.Same(vs, afterAltLeft);
+        Assert.True(editing);
+        Assert.IsType<TabColorViewModel>(tabColor);
+        Assert.IsType<HelpViewModel>(help);
+        Assert.IsType<SettingsViewModel>(settings);
+        Assert.IsType<MvvmDialogs.FrameworkDialogs.SaveFileDialogSettings>(saveAs);
+        Assert.Equal(savePath, savedPath);
+        Assert.IsType<ViewerViewModel>(afterF5);
+        Assert.Equal(beforeClose - 1, afterClose);
+    }
+
+    [AvaloniaFact]
+    public async Task ViewerBindings_SeekPlayZoomPropertiesAndCopy_Execute()
     {
         var dialogs = new RecordingDialogs
         {
@@ -140,7 +133,7 @@ public class KeyBindingTests
         await model.New.Execute();
         await model.Run.Execute();
         Dispatcher.UIThread.RunJobs();
-        var first = (ViewerViewModel)model.ScriptList.OfType<ViewerViewModel>().First();
+        var first = model.ScriptList.OfType<ViewerViewModel>().First();
         var second = (ViewerViewModel)model.SelectedItem!;
         first.Duration = TimeSpan.FromSeconds(239);
         second.Duration = TimeSpan.FromSeconds(239);
@@ -150,72 +143,78 @@ public class KeyBindingTests
 
         TestSupport.Press(view, Key.Left);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(TimeSpan.FromSeconds(19), second.Position);
+        var afterLeft = second.Position;
         TestSupport.Press(view, Key.Right);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(TimeSpan.FromSeconds(20), second.Position);
+        var afterRight = second.Position;
         TestSupport.Press(view, Key.Left, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(TimeSpan.FromSeconds(10), second.Position);
+        var afterCtrlLeft = second.Position;
         TestSupport.Press(view, Key.Right, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(TimeSpan.FromSeconds(20), second.Position);
-
+        var afterCtrlRight = second.Position;
         TestSupport.Press(view, Key.Space);
         Dispatcher.UIThread.RunJobs();
-        Assert.True(second.IsPlaying);
+        var playing = second.IsPlaying;
         TestSupport.Press(view, Key.Space);
         Dispatcher.UIThread.RunJobs();
-        Assert.False(second.IsPlaying);
-
+        var paused = second.IsPlaying;
         var startZoom = model.Zoom;
         TestSupport.Press(view, Key.OemPlus);
         Dispatcher.UIThread.RunJobs();
-        Assert.NotEqual(startZoom, model.Zoom);
+        var zoomed = model.Zoom;
         TestSupport.Press(view, Key.OemMinus);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(startZoom, model.Zoom);
-
+        var zoomRestored = model.Zoom;
         TestSupport.Press(view, Key.G, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(TimeSpan.FromSeconds(29), second.Position);
-
+        var afterGoTo = second.Position;
         TestSupport.Press(view, Key.I, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.True(model.IsPropertiesOpen);
+        var propertiesOpen = model.IsPropertiesOpen;
         TestSupport.Press(view, Key.I, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.False(model.IsPropertiesOpen);
-
+        var propertiesClosed = model.IsPropertiesOpen;
         first.Position = TimeSpan.FromSeconds(5);
         TestSupport.Press(view, Key.F6, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(second.Position, first.Position);
-
+        var synced = first.Position;
         var threaded = model.IsMultiThreaded;
         TestSupport.Press(view, Key.F8);
         Dispatcher.UIThread.RunJobs();
-        Assert.NotEqual(threaded, model.IsMultiThreaded);
-
+        var afterThreads = model.IsMultiThreaded;
         var square = model.SquarePixels;
         TestSupport.Press(view, Key.F9);
         Dispatcher.UIThread.RunJobs();
-        Assert.NotEqual(square, model.SquarePixels);
-
+        var afterSquare = model.SquarePixels;
         view.GetVisualDescendants().OfType<SynthPlayerHost>().First(x => x.IsEffectivelyVisible)
-            .PresentTestFrame(new WriteableBitmap(new PixelSize(8, 8), new Vector(96, 96),
+            .PresentTestFrame(new(new(8, 8), new(96, 96),
                 PixelFormat.Bgra8888, AlphaFormat.Opaque));
         Dispatcher.UIThread.RunJobs();
         TestSupport.Press(view, Key.C, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
         var copied = await view.Clipboard!.TryGetBitmapAsync();
-        Assert.NotNull(copied);
-        Assert.Equal(new PixelSize(8, 8), copied.PixelSize);
-        return true;
-    }, TestContext.Current.CancellationToken);
 
-    [Fact]
-    public Task EditorBindings_AvaloniaEditAndAssist_Execute() => UiSession.Dispatch(async () =>
+        Assert.Equal(TimeSpan.FromSeconds(19), afterLeft);
+        Assert.Equal(TimeSpan.FromSeconds(20), afterRight);
+        Assert.Equal(TimeSpan.FromSeconds(10), afterCtrlLeft);
+        Assert.Equal(TimeSpan.FromSeconds(20), afterCtrlRight);
+        Assert.True(playing);
+        Assert.False(paused);
+        Assert.NotEqual(startZoom, zoomed);
+        Assert.Equal(startZoom, zoomRestored);
+        Assert.Equal(TimeSpan.FromSeconds(29), afterGoTo);
+        Assert.True(propertiesOpen);
+        Assert.False(propertiesClosed);
+        Assert.Equal(second.Position, synced);
+        Assert.NotEqual(threaded, afterThreads);
+        Assert.NotEqual(square, afterSquare);
+        Assert.NotNull(copied);
+        Assert.Equal(new(8, 8), copied.PixelSize);
+    }
+
+    [AvaloniaFact]
+    public async Task EditorBindings_AvaloniaEditAndAssist_Execute()
     {
         var factory = new CountingFactory();
         var editor = new BindableTextEditor
@@ -224,7 +223,7 @@ public class KeyBindingTests
             LanguageService = new LanguageService(new VapourSynthLanguage(),
                 new CatalogCache(() =>
                 [
-                    new Symbol("core.std.Crop", ["clip:vnode", "left:int:opt"], ReturnType: "clip:vnode")
+                    new("core.std.Crop", ["clip:vnode", "left:int:opt"], ReturnType: "clip:vnode")
                 ])),
             LanguageFactory = factory
         };
@@ -236,126 +235,139 @@ public class KeyBindingTests
 
         TestSupport.Press(window, Key.D, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.StartsWith("beta", editor.Text, StringComparison.Ordinal);
-
+        var afterDeleteLine = editor.Text;
         TestSupport.Press(window, Key.Z, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.StartsWith("alpha", editor.Text, StringComparison.Ordinal);
-
+        var afterUndoDelete = editor.Text;
         TestSupport.Press(window, Key.A, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(editor.Text.Length, editor.SelectionLength);
-
+        var selectedAll = editor.SelectionLength;
+        var selectAllLength = editor.Text.Length;
         editor.SelectionLength = 0;
         editor.CaretOffset = 0;
         TestSupport.Press(window, Key.Tab);
         Dispatcher.UIThread.RunJobs();
-        Assert.StartsWith("\t", editor.Text, StringComparison.Ordinal);
-
+        var afterTab = editor.Text;
         TestSupport.Press(window, Key.Z, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.StartsWith("alpha", editor.Text, StringComparison.Ordinal);
+        var afterUndoTab = editor.Text;
         TestSupport.Press(window, Key.Y, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.StartsWith("\t", editor.Text, StringComparison.Ordinal);
-
+        var afterRedoTab = editor.Text;
         TestSupport.Press(window, Key.Tab, RawInputModifiers.Shift);
         Dispatcher.UIThread.RunJobs();
-        Assert.StartsWith("alpha", editor.Text, StringComparison.Ordinal);
-
+        var afterUnindent = editor.Text;
         editor.Text = "hello world\nsecond";
         editor.CaretOffset = 5;
         Dispatcher.UIThread.RunJobs();
         TestSupport.Press(window, Key.Home);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(0, editor.CaretOffset);
+        var afterHome = editor.CaretOffset;
         TestSupport.Press(window, Key.End);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(11, editor.CaretOffset);
+        var afterEnd = editor.CaretOffset;
         TestSupport.Press(window, Key.End, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(editor.Text.Length, editor.CaretOffset);
+        var afterCtrlEnd = editor.CaretOffset;
+        var documentLength = editor.Text.Length;
         TestSupport.Press(window, Key.Home, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(0, editor.CaretOffset);
+        var afterCtrlHome = editor.CaretOffset;
         TestSupport.Press(window, Key.Right, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.True(editor.CaretOffset > 0);
+        var afterWordRight = editor.CaretOffset;
         TestSupport.Press(window, Key.Left, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(0, editor.CaretOffset);
-
+        var afterWordLeft = editor.CaretOffset;
         editor.CaretOffset = 11;
         TestSupport.Press(window, Key.Back, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.StartsWith("hello ", editor.Text, StringComparison.Ordinal);
+        var afterCtrlBack = editor.Text;
         editor.CaretOffset = 0;
         TestSupport.Press(window, Key.Delete, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.DoesNotContain("hello", editor.Text, StringComparison.Ordinal);
-
+        var afterCtrlDelete = editor.Text;
         editor.Text = "beta one\nbeta two\n";
         editor.CaretOffset = 0;
         TestSupport.Press(window, Key.F, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.False(editor.SearchPanel.IsClosed);
-
+        var findClosed = editor.SearchPanel.IsClosed;
         TestSupport.Press(window, Key.H, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
-        Assert.True(editor.SearchPanel.IsReplaceMode);
-
+        var replaceMode = editor.SearchPanel.IsReplaceMode;
         editor.SearchPanel.SearchPattern = "beta";
         TestSupport.Press(window, Key.F3);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal("beta", editor.SelectedText);
+        var firstFindText = editor.SelectedText;
         var firstMatch = editor.SelectionStart;
         TestSupport.Press(window, Key.F3);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal("beta", editor.SelectedText);
-        Assert.NotEqual(firstMatch, editor.SelectionStart);
+        var secondFindText = editor.SelectedText;
+        var secondMatch = editor.SelectionStart;
         TestSupport.Press(window, Key.F3, RawInputModifiers.Shift);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(firstMatch, editor.SelectionStart);
-
+        var previousMatch = editor.SelectionStart;
         editor.SearchPanel.ReplacePattern = "gamma";
         editor.CaretOffset = 0;
         TestSupport.Press(window, Key.R, RawInputModifiers.Alt);
         Dispatcher.UIThread.RunJobs();
-        Assert.StartsWith("gamma", editor.Text, StringComparison.Ordinal);
-
+        var afterReplace = editor.Text;
         TestSupport.Press(window, Key.A, RawInputModifiers.Alt);
         Dispatcher.UIThread.RunJobs();
-        Assert.Contains("gamma two", editor.Text, StringComparison.Ordinal);
-        Assert.DoesNotContain("beta", editor.Text, StringComparison.Ordinal);
-
+        var afterReplaceAll = editor.Text;
         TestSupport.Press(window, Key.Escape);
         Dispatcher.UIThread.RunJobs();
-        Assert.True(editor.SearchPanel.IsClosed);
-
+        var searchClosed = editor.SearchPanel.IsClosed;
         editor.Text = "core.std.Cr";
         editor.CaretOffset = editor.Text.Length;
         TestSupport.Press(window, Key.Space, RawInputModifiers.Control);
         await Task.Delay(80, TestContext.Current.CancellationToken);
         Dispatcher.UIThread.RunJobs();
-        Assert.NotNull(editor.Completion);
-
+        var completion = editor.Completion;
         TestSupport.Press(window, Key.Escape);
         Dispatcher.UIThread.RunJobs();
-        Assert.Null(editor.DisplayedReply);
-
+        var dismissed = editor.DisplayedReply;
         editor.Text = "core.std.Crop(";
         editor.CaretOffset = editor.Text.Length;
         TestSupport.Press(window, Key.Space, RawInputModifiers.Control | RawInputModifiers.Shift);
         await Task.Delay(80, TestContext.Current.CancellationToken);
         Dispatcher.UIThread.RunJobs();
-        Assert.NotNull(editor.DisplayedReply?.Insight);
-
+        var insight = editor.DisplayedReply?.Insight;
         TestSupport.Press(window, Key.R, RawInputModifiers.Control | RawInputModifiers.Shift);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal(1, factory.RefreshCount);
+        var refreshCount = factory.RefreshCount;
         editor.DismissCompletion();
-        return true;
-    }, TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("beta", afterDeleteLine, StringComparison.Ordinal);
+        Assert.StartsWith("alpha", afterUndoDelete, StringComparison.Ordinal);
+        Assert.Equal(selectAllLength, selectedAll);
+        Assert.StartsWith("\t", afterTab, StringComparison.Ordinal);
+        Assert.StartsWith("alpha", afterUndoTab, StringComparison.Ordinal);
+        Assert.StartsWith("\t", afterRedoTab, StringComparison.Ordinal);
+        Assert.StartsWith("alpha", afterUnindent, StringComparison.Ordinal);
+        Assert.Equal(0, afterHome);
+        Assert.Equal(11, afterEnd);
+        Assert.Equal(documentLength, afterCtrlEnd);
+        Assert.Equal(0, afterCtrlHome);
+        Assert.True(afterWordRight > 0);
+        Assert.Equal(0, afterWordLeft);
+        Assert.StartsWith("hello ", afterCtrlBack, StringComparison.Ordinal);
+        Assert.DoesNotContain("hello", afterCtrlDelete, StringComparison.Ordinal);
+        Assert.False(findClosed);
+        Assert.True(replaceMode);
+        Assert.Equal("beta", firstFindText);
+        Assert.Equal("beta", secondFindText);
+        Assert.NotEqual(firstMatch, secondMatch);
+        Assert.Equal(firstMatch, previousMatch);
+        Assert.StartsWith("gamma", afterReplace, StringComparison.Ordinal);
+        Assert.Contains("gamma two", afterReplaceAll, StringComparison.Ordinal);
+        Assert.DoesNotContain("beta", afterReplaceAll, StringComparison.Ordinal);
+        Assert.True(searchClosed);
+        Assert.NotNull(completion);
+        Assert.Null(dismissed);
+        Assert.NotNull(insight);
+        Assert.Equal(1, refreshCount);
+    }
 
     private sealed class CountingFactory : IScriptLanguageFactory
     {

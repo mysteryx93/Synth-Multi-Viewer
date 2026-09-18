@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using HanumanInstitute.SynthMultiViewer.Models;
@@ -33,7 +32,7 @@ public class AppVersionClient : IAppVersionClient
         {
             var url = QueryVersionUrl.FormatInvariant(AppId, GetRuntimeIdentifier());
             using var stream = await _httpClient.GetStreamAsync(url);
-            return await JsonSerializer.DeserializeAsync(stream, AppJsonContext.Default.AppVersionQuery);
+            return await JsonSerializer.DeserializeAsync(stream, AppJsonContext.Default.AppVersionInfo);
         }
         catch (HttpRequestException) { }
         catch (TaskCanceledException) { }

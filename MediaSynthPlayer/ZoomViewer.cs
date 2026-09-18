@@ -253,9 +253,9 @@ public class ZoomViewer : ScrollViewer
         if (point.Properties.IsLeftButtonPressed && AllowPan)
         {
             _start = e.GetPosition(this);
-            _origin = new Point(Math.Max(0, Offset.X), Math.Max(0, Offset.Y));
+            _origin = new(Math.Max(0, Offset.X), Math.Max(0, Offset.Y));
             _panning = true;
-            Cursor = new Cursor(StandardCursorType.Hand);
+            Cursor = new(StandardCursorType.Hand);
             e.Pointer.Capture(this);
             e.Handled = true;
         }
@@ -317,7 +317,7 @@ public class ZoomViewer : ScrollViewer
         }
 
         _panning = false;
-        Cursor = new Cursor(StandardCursorType.Arrow);
+        Cursor = new(StandardCursorType.Arrow);
     }
 
     private double CoerceZoom(double value)
@@ -353,7 +353,7 @@ public class ZoomViewer : ScrollViewer
         var viewHeight = Viewport.Height > 0 ? Viewport.Height : Bounds.Height;
         if (viewWidth > 0 && viewHeight > 0 && oldZoom > 0)
         {
-            _pendingCenter ??= new Point(
+            _pendingCenter ??= new(
                 _surface.Sizer.Width <= viewWidth ? _surface.Sizer.Width / oldZoom / 2
                     : (Math.Max(0, Offset.X) + viewWidth / 2) / oldZoom,
                 _surface.Sizer.Height <= viewHeight ? _surface.Sizer.Height / oldZoom / 2
@@ -368,7 +368,7 @@ public class ZoomViewer : ScrollViewer
     {
         var width = Viewport.Width > 0 ? Viewport.Width : Bounds.Width;
         var height = Viewport.Height > 0 ? Viewport.Height : Bounds.Height;
-        _surface.FitViewport(new Size(width, height));
+        _surface.FitViewport(new(width, height));
     }
 
     private void ApplyOffset()
@@ -399,7 +399,7 @@ public class ZoomViewer : ScrollViewer
         }
 
         var pending = _pendingCenter is { } center
-            ? new Vector(Math.Max(0, center.X * Zoom - Viewport.Width / 2),
+            ? new(Math.Max(0, center.X * Zoom - Viewport.Width / 2),
                 Math.Max(0, center.Y * Zoom - Viewport.Height / 2))
             : _pendingOffset!.Value;
         var maxX = Math.Max(0, Extent.Width - Viewport.Width);
@@ -410,7 +410,7 @@ public class ZoomViewer : ScrollViewer
         _updatingOffset = true;
         try
         {
-            SetCurrentValue(OffsetProperty, new Vector(Math.Min(pending.X, maxX), Math.Min(pending.Y, maxY)));
+            SetCurrentValue(OffsetProperty, new(Math.Min(pending.X, maxX), Math.Min(pending.Y, maxY)));
         }
         finally
         {

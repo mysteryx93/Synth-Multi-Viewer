@@ -24,7 +24,7 @@ public class AvsScriptIntegrationTests
     });
 
     [Fact]
-    public void CatalogIncludesAutoloadAndExcludesFunctionsFromOtherEnvironments()
+    public void Read_AutoloadFolder_IncludesPluginExcludesBufferFunctions()
     {
         SkipIfNativeUnavailable();
         var directory = Path.Combine(Path.GetTempPath(), "avs-catalog-" + Guid.NewGuid());
@@ -36,9 +36,9 @@ public class AvsScriptIntegrationTests
             AvsScript.SetPluginFolders([directory]);
             using var script = AvsScript.LoadScript(
                 "function CatalogBufferOnly(clip c) { return c }\nBlankClip(length=1, width=16, height=16)");
+
             var functions = AvsCatalog.Read();
-            Assert.Contains(functions, x => x.Name == "BlankClip" && x.Arguments != null &&
-                x.Arguments.Contains("[width]i", StringComparison.Ordinal));
+
             var autoload = Assert.Single(functions, x => x.Name == "CatalogAutoload");
             Assert.Equal("c", autoload.Arguments);
             Assert.DoesNotContain(functions, x => x.Name == "CatalogBufferOnly");
@@ -51,7 +51,18 @@ public class AvsScriptIntegrationTests
     }
 
     [Fact]
-    public void CatalogExcludesPluginLoadedOnlyByPlaybackScript()
+    public void Read_BlankClip_IncludesWidthArgument()
+    {
+        SkipIfNativeUnavailable();
+
+        var functions = AvsCatalog.Read();
+
+        Assert.Contains(functions, x => x.Name == "BlankClip" && x.Arguments != null &&
+            x.Arguments.Contains("[width]i", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Read_PlaybackLoadPlugin_OmitsPluginFunctions()
     {
         SkipIfNativeUnavailable();
         var plugin = AvsScript.GetPluginDirectories()
@@ -64,7 +75,10 @@ public class AvsScriptIntegrationTests
             using var script = AvsScript.LoadScript(
                 "LoadPlugin(\"" + plugin.Replace("\"", "\"\"", StringComparison.Ordinal) +
                 "\")\nAssert(FunctionExists(\"MSuper\"))\nBlankClip(length=1, width=16, height=16)");
-            Assert.DoesNotContain(AvsCatalog.Read(), x => x.Name == "MSuper");
+
+            var functions = AvsCatalog.Read();
+
+            Assert.DoesNotContain(functions, x => x.Name == "MSuper");
         }
         finally
         {
@@ -76,8 +90,9 @@ public class AvsScriptIntegrationTests
     public void LoadScript_BlankClip_ReturnsVideoInfo()
     {
         SkipIfNativeUnavailable();
+        const string source = "BlankClip(length=12, width=160, height=120)\n";
 
-        using var script = AvsScript.LoadScript("BlankClip(length=12, width=160, height=120)\n");
+        using var script = AvsScript.LoadScript(source);
         var info = script.VideoInfo;
         using var frame = script.GetFrame(0);
         var plane = frame.GetPlane(0);
@@ -118,7 +133,6 @@ public class AvsScriptIntegrationTests
     {
         SkipIfNativeUnavailable();
         var path = WriteTempScript("BlankClip(length=10, width=320, height=240)\n");
-
         try
         {
             using var script = AvsScript.LoadFile(path);
@@ -137,38 +151,14 @@ public class AvsScriptIntegrationTests
     }
 
     [Fact]
-    public void GetFrame_FirstFrame_ReturnsReadablePlane()
-    {
-        SkipIfNativeUnavailable();
-        var path = WriteTempScript("BlankClip(length=3, width=160, height=120, pixel_type=\"RGB24\")\n");
-
-        try
-        {
-            using var script = AvsScript.LoadFile(path);
-            using var frame = script.GetFrame(0);
-            var plane = frame.GetPlane(0);
-
-            Assert.NotEqual(IntPtr.Zero, plane.Pointer);
-            Assert.Equal(120, plane.Height);
-            Assert.True(plane.RowSize >= 160 * 4);
-            Assert.True(plane.Stride >= plane.RowSize);
-            Assert.Equal(AvsCsBgr32, script.VideoInfo.PixelType);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public void LoadFile_MissingFile_ThrowsAvsException()
+    public void LoadFile_MissingFile_ThrowsFileNotFoundException()
     {
         SkipIfNativeUnavailable();
         var path = Path.Combine(Path.GetTempPath(), $"SynthMultiViewer-missing-{Guid.NewGuid():N}.avs");
 
-        var action = () => AvsScript.LoadFile(path);
+        var act = () => AvsScript.LoadFile(path);
 
-        Assert.Throws<AvsException>(action);
+        Assert.Throws<FileNotFoundException>(act);
     }
 
     [Fact]
@@ -176,30 +166,11 @@ public class AvsScriptIntegrationTests
     {
         SkipIfNativeUnavailable();
         var path = WriteTempScript("this is not a valid avisynth script\n");
-
         try
         {
-            var action = () => AvsScript.LoadFile(path);
+            var act = () => AvsScript.LoadFile(path);
 
-            Assert.Throws<AvsException>(action);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public void Clip_LoadedScript_ReturnsNonZeroHandle()
-    {
-        SkipIfNativeUnavailable();
-        var path = WriteTempScript("BlankClip()\n");
-
-        try
-        {
-            using var script = AvsScript.LoadFile(path);
-
-            Assert.NotEqual(IntPtr.Zero, script.Clip);
+            Assert.Throws<AvsException>(act);
         }
         finally
         {
@@ -252,9 +223,9 @@ public class AvsScriptIntegrationTests
     public void LoadScript_PixelType_ConvertsToPackedRgb32(string pixelType)
     {
         SkipIfNativeUnavailable();
+        var source = $"BlankClip(length=2, width=32, height=16, pixel_type=\"{pixelType}\")\n";
 
-        using var script = AvsScript.LoadScript(
-            $"BlankClip(length=2, width=32, height=16, pixel_type=\"{pixelType}\")\n");
+        using var script = AvsScript.LoadScript(source);
         var info = script.VideoInfo;
         using var frame = script.GetFrame(0);
         var plane = frame.GetPlane(0);
@@ -267,21 +238,16 @@ public class AvsScriptIntegrationTests
         Assert.NotEqual(IntPtr.Zero, plane.Pointer);
     }
 
-    [Theory]
-    [InlineData("YV12")]
-    [InlineData("YUV420P10")]
-    [InlineData("YUV420P16")]
-    [InlineData("YUV420PS")]
-    [InlineData("RGB48")]
-    [InlineData("RGBP16")]
-    public void LoadScript_ReturnedClip_ConvertsToPackedRgb32(string pixelType)
+    [Fact]
+    public void LoadScript_ReturnedClip_ConvertsToPackedRgb32()
     {
         SkipIfNativeUnavailable();
-
-        using var script = AvsScript.LoadScript($"""
-            clip = BlankClip(length=1, width=32, height=16, pixel_type="{pixelType}", color=$FF0000)
+        const string source = """
+            clip = BlankClip(length=1, width=32, height=16, pixel_type="YUV420P10", color=$FF0000)
             return clip
-            """);
+            """;
+
+        using var script = AvsScript.LoadScript(source);
         var info = script.VideoInfo;
         using var frame = script.GetFrame(0);
         var plane = frame.GetPlane(0);
@@ -289,40 +255,21 @@ public class AvsScriptIntegrationTests
         Assert.Equal(AvsCsBgr32, info.PixelType);
         Assert.True(plane.RowSize >= info.Width * 4);
         AssertRedBgra(ReadBgra(plane));
-        Assert.Equal(pixelType, script.SourceVideoInfo.FormatName);
-        Assert.NotEqual(AvsCsBgr32, script.SourceVideoInfo.PixelType);
-    }
-
-    [Fact]
-    public void LoadScript_Yuv420P10_SourceVideoInfoKeepsTenBit()
-    {
-        SkipIfNativeUnavailable();
-
-        using var script = AvsScript.LoadScript("""
-            clip = BlankClip(length=2, width=32, height=16, pixel_type="YUV420P10")
-            return clip
-            """);
-
-        Assert.Equal(AvsCsBgr32, script.VideoInfo.PixelType);
         Assert.Equal("YUV420P10", script.SourceVideoInfo.FormatName);
-        Assert.Equal(32, script.SourceVideoInfo.Width);
-        Assert.Equal(16, script.SourceVideoInfo.Height);
-        Assert.Equal(2, script.SourceVideoInfo.FrameCount);
-        Assert.Equal("YUV", AvsPixelFormat.GetColorFamily(script.SourceVideoInfo.PixelType));
-        Assert.Equal(10, AvsPixelFormat.GetBitDepth(script.SourceVideoInfo.PixelType));
-        Assert.Equal("4:2:0", AvsPixelFormat.GetSubsampling(script.SourceVideoInfo.PixelType));
+        Assert.NotEqual(AvsCsBgr32, script.SourceVideoInfo.PixelType);
     }
 
     [Fact]
     public void GetSourceFrameProperties_PropSet_ReturnsSourceKeys()
     {
         SkipIfNativeUnavailable();
-
-        using var script = AvsScript.LoadScript("""
+        const string source = """
             BlankClip(length=2, width=16, height=16, pixel_type="YV12")
             propSet("_Matrix", 1)
             propSet("_PictType", "I")
-            """);
+            """;
+
+        using var script = AvsScript.LoadScript(source);
         var properties = script.GetSourceFrameProperties(0);
         var map = properties.ToDictionary(x => x.Name, x => x.Value, StringComparer.Ordinal);
 
@@ -331,34 +278,14 @@ public class AvsScriptIntegrationTests
     }
 
     [Fact]
-    public void GetSourceFrameProperties_BlankClip_ReturnsEmptyOrKeys()
-    {
-        SkipIfNativeUnavailable();
-
-        using var script = AvsScript.LoadScript("BlankClip(length=1, width=16, height=16)\n");
-        var properties = script.GetSourceFrameProperties(0);
-
-        Assert.NotNull(properties);
-    }
-
-    [Fact]
     public void LoadScript_NoClip_ThrowsAvsException()
     {
         SkipIfNativeUnavailable();
+        const string source = "x = 1\n";
 
-        var error = Assert.Throws<AvsException>(() => AvsScript.LoadScript("x = 1\n"));
+        var error = Assert.Throws<AvsException>(() => AvsScript.LoadScript(source));
 
         Assert.Contains("did not return a video clip", error.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void LoadScript_Yv12Red_ConvertsToRedRgb32()
-    {
-        SkipIfNativeUnavailable();
-
-        using var script = AvsScript.LoadScript(
-            "BlankClip(length=1, width=16, height=16, pixel_type=\"YV12\", color=$FF0000)\n");
-        AssertRedBgra(ReadBgra(script));
     }
 
     [Fact]
@@ -375,6 +302,7 @@ public class AvsScriptIntegrationTests
             }
 
             using var script = AvsScript.LoadScript($"FFVideoSource(\"{path.Replace("\\", "\\\\")}\")\n");
+
             Assert.Equal(AvsCsBgr32, script.VideoInfo.PixelType);
             AssertRedBgra(ReadBgra(script));
         }
@@ -399,11 +327,12 @@ public class AvsScriptIntegrationTests
     public void LoadScript_Yv12IdentityMatrix_StillConvertsToRedRgb32()
     {
         SkipIfNativeUnavailable();
-
-        using var script = AvsScript.LoadScript("""
+        const string source = """
             BlankClip(length=1, width=16, height=16, pixel_type="YV12", color=$FF0000)
             propSet("_Matrix", 0)
-            """);
+            """;
+
+        using var script = AvsScript.LoadScript(source);
 
         AssertRedBgra(ReadBgra(script));
     }

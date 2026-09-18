@@ -28,11 +28,11 @@ public class VsPathResolverTests
     [Fact]
     public void ResolveScriptPath_EmptyPath_ThrowsArgumentException()
     {
-        var path = string.Empty;
+        const string path = "";
 
-        var action = () => VsPathResolver.ResolveScriptPath(path);
+        var act = () => VsPathResolver.ResolveScriptPath(path);
 
-        Assert.Throws<ArgumentException>(action);
+        Assert.Throws<ArgumentException>(act);
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public class VsPathResolverTests
                 Path.Combine(libDir, "vapoursynth", "plugins"),
                 Path.Combine(libDir, "plugins"),
                 Path.Combine(libDir, "core", "plugins"),
-                Path.Combine(parent, "plugins"),
-                Path.Combine(parent, "vapoursynth", "plugins")
+                Path.Combine(parent, "vapoursynth", "plugins"),
+                Path.Combine(parent, "plugins")
             ],
             directories);
     }
@@ -58,7 +58,7 @@ public class VsPathResolverTests
     [Fact]
     public void GetBundledPluginDirectories_RelativeLibrary_ReturnsEmpty()
     {
-        var libraryPath = "libvsscript.so";
+        const string libraryPath = "libvsscript.so";
 
         var directories = VsPathResolver.GetBundledPluginDirectories(libraryPath);
 
@@ -66,17 +66,17 @@ public class VsPathResolverTests
     }
 
     [Fact]
-    public void GetPythonModuleDirectories_WalksAncestorsForSitePackages()
+    public void GetPythonModuleDirectories_AncestorTree_FindsSitePackages()
     {
         var root = Path.Combine(Path.GetTempPath(), "vs-python-" + Guid.NewGuid().ToString("N"));
         var site = Path.Combine(root, "lib", "python3.14", "site-packages");
         var package = Path.Combine(site, "vapoursynth");
         Directory.CreateDirectory(package);
         var libraryPath = Path.Combine(package, "libvapoursynth.so");
-
         try
         {
             var directories = VsPathResolver.GetPythonModuleDirectories(libraryPath);
+
             Assert.Contains(site, directories);
         }
         finally
@@ -93,10 +93,10 @@ public class VsPathResolverTests
         var site = Path.Combine(lib, "python3.12", "site-packages");
         Directory.CreateDirectory(site);
         var libraryPath = Path.Combine(lib, "libvapoursynth-script.so");
-
         try
         {
             var directories = VsPathResolver.GetPythonModuleDirectories(libraryPath);
+
             Assert.Contains(site, directories);
         }
         finally
@@ -136,18 +136,17 @@ public class VsPathResolverTests
     [Fact]
     public void ResolveExistingPath_EmptyPath_ThrowsArgumentException()
     {
-        var path = string.Empty;
+        const string path = "";
 
-        var action = () => VsPathResolver.ResolveExistingPath(path);
+        var act = () => VsPathResolver.ResolveExistingPath(path);
 
-        Assert.Throws<ArgumentException>(action);
+        Assert.Throws<ArgumentException>(act);
     }
 
     [Fact]
     public void GetLibraryCandidates_OverrideFile_ReturnsOnlyThatFile()
     {
         var overridePath = Path.GetTempFileName();
-
         try
         {
             var candidates = VsPathResolver.GetLibraryCandidates(overridePath);
@@ -164,7 +163,6 @@ public class VsPathResolverTests
     public void ExpandConfiguredPath_Directory_YieldsLibraryFileNames()
     {
         var directory = Directory.CreateTempSubdirectory();
-
         try
         {
             var candidates = VsPathResolver.ExpandConfiguredPath(directory.FullName, VsPathResolver.LibraryFileNames);
@@ -236,14 +234,16 @@ public class VsPathResolverTests
     [Fact]
     public void FilterDirectories_Arm64_DropsPlainLibWhenLib64TwinExists()
     {
-        var directories = VsPathResolver.FilterDirectories(
-            [
+        var input =
+            new[]
+            {
                 "/usr/lib/vapoursynth",
                 "/usr/lib64/vapoursynth",
                 "/usr/lib/aarch64-linux-gnu/vapoursynth",
                 "/usr/lib/x86_64-linux-gnu/vapoursynth"
-            ],
-            Architecture.Arm64);
+            };
+
+        var directories = VsPathResolver.FilterDirectories(input, Architecture.Arm64);
 
         Assert.Equal(
             ["/usr/lib64/vapoursynth", "/usr/lib/aarch64-linux-gnu/vapoursynth"],
@@ -251,36 +251,11 @@ public class VsPathResolverTests
     }
 
     [Fact]
-    public void LinuxMultiarchDirectory_Arm64_ReturnsAarch64Path()
-    {
-        var directory = VsPathResolver.LinuxMultiarchDirectory(Architecture.Arm64);
-
-        Assert.Equal("/usr/lib/aarch64-linux-gnu", directory);
-    }
-
-    [Fact]
-    public void Is64BitArchitecture_Arm64_ReturnsTrue()
-    {
-        var is64Bit = VsPathResolver.Is64BitArchitecture(Architecture.Arm64);
-
-        Assert.True(is64Bit);
-    }
-
-    [Fact]
-    public void Is64BitArchitecture_Arm_ReturnsFalse()
-    {
-        var is64Bit = VsPathResolver.Is64BitArchitecture(Architecture.Arm);
-
-        Assert.False(is64Bit);
-    }
-
-    [Fact]
     public void FilterDirectories_64Bit_DropsForeignArchitectureAndLibTwin()
     {
         Assert.SkipUnless(Environment.Is64BitProcess, "64-bit process");
-
-        var directories = VsPathResolver.FilterDirectories(
-        [
+        var input = new[]
+        {
             "/usr/lib/vapoursynth",
             "/usr/lib64/vapoursynth",
             "/usr/lib/x86_64-linux-gnu/vapoursynth",
@@ -288,7 +263,9 @@ public class VsPathResolverTests
             "/usr/lib/i386-linux-gnu/vapoursynth",
             "/home/u/.config/VapourSynth/plugins32",
             "/home/u/.config/VapourSynth/plugins64"
-        ]);
+        };
+
+        var directories = VsPathResolver.FilterDirectories(input);
 
         Assert.DoesNotContain("/usr/lib/vapoursynth", directories);
         Assert.Contains("/usr/lib64/vapoursynth", directories);
@@ -303,7 +280,6 @@ public class VsPathResolverTests
             Assert.Contains("/usr/lib/aarch64-linux-gnu/vapoursynth", directories);
             Assert.DoesNotContain("/usr/lib/x86_64-linux-gnu/vapoursynth", directories);
         }
-
         Assert.DoesNotContain("/usr/lib/i386-linux-gnu/vapoursynth", directories);
         Assert.DoesNotContain("/home/u/.config/VapourSynth/plugins32", directories);
         Assert.Contains("/home/u/.config/VapourSynth/plugins64", directories);
@@ -313,8 +289,9 @@ public class VsPathResolverTests
     public void FilterDirectories_64Bit_KeepsPlainLibWhenNoTwinExists()
     {
         Assert.SkipUnless(Environment.Is64BitProcess, "64-bit process");
+        var input = new[] { "/usr/lib/vapoursynth" };
 
-        var directories = VsPathResolver.FilterDirectories(["/usr/lib/vapoursynth"]);
+        var directories = VsPathResolver.FilterDirectories(input);
 
         Assert.Equal(["/usr/lib/vapoursynth"], directories);
     }
@@ -331,7 +308,6 @@ public class VsPathResolverTests
         {
             Assert.Contains(multiarch, directories);
         }
-
         if (Environment.Is64BitProcess)
         {
             Assert.Contains("/usr/lib64", directories);

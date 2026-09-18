@@ -287,7 +287,7 @@ IsRGB() ? ConvertToRGB32() : ConvertToRGB32(matrix=mat)
             throw new AvsException("AviSynth could not return the requested frame.");
         }
 
-        return new AvsFrame(_native, frame);
+        return new(_native, frame);
     }
 
     /// <summary>

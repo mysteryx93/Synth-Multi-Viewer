@@ -15,7 +15,7 @@ public sealed class DefaultScriptService : IDefaultScriptService
 
     private static string Read(string fileName)
     {
-        using var stream = AssetLoader.Open(new Uri($"avares://SynthMultiViewer/Assets/{fileName}"));
+        using var stream = AssetLoader.Open(new($"avares://SynthMultiViewer/Assets/{fileName}"));
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd().Replace("\r\n", "\n");
     }

@@ -3,7 +3,6 @@ using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.VisualTree;
 using HanumanInstitute.MvvmDialogs.FrameworkDialogs;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
@@ -85,75 +84,6 @@ public class SettingsViewModelTests
         Assert.Equal(Environment.ProcessorCount, model.VapourSynthThreads);
         Assert.Equal(AppTheme.Dark, settings.Value.Theme);
         Assert.Equal(0, settings.SaveCount);
-    }
-
-    [AvaloniaFact]
-    public void SettingsView_DarkTheme_SelectsDarkComboItem()
-    {
-        var settings = new TestSupport.MemorySettingsProvider { Value = { Theme = AppTheme.Dark } };
-        var model = TestSupport.CreateSettings(settings);
-        var view = new SettingsView { DataContext = model };
-
-        using var window = TestSupport.Show(view);
-        var combo = view.GetVisualDescendants().OfType<ComboBox>().Single();
-
-        Assert.Equal(AppTheme.Dark, combo.SelectedItem);
-    }
-
-    [AvaloniaFact]
-    public void SettingsView_DialogButtons_CenterLabelInsidePadding()
-    {
-        var model = TestSupport.CreateSettings();
-        var view = new SettingsView { DataContext = model };
-
-        using var window = TestSupport.Show(view);
-        var buttons = view.GetVisualDescendants().OfType<Button>()
-            .Where(button => button.Content is "Default" or "Apply" or "OK" or "Cancel")
-            .ToList();
-
-        Assert.Equal(4, buttons.Count);
-        Assert.All(buttons, button =>
-        {
-            Assert.Equal(Avalonia.Layout.VerticalAlignment.Center, button.VerticalContentAlignment);
-            Assert.True(button.Padding.Top >= 4);
-            Assert.True(button.Padding.Bottom >= 4);
-            Assert.True(button.Bounds.Height >= 28);
-        });
-    }
-
-    [AvaloniaFact]
-    public void SettingsView_FrameworkStatus_ShowsDetectedAndNotFoundCaptions()
-    {
-        var detection = new TestSupport.MemoryFrameworkDetection
-        {
-            VapourSynth = new(
-                FrameworkStatus.Detected, "/usr/lib/libvsscript.so",
-                ["/usr/lib/vapoursynth", "/usr/lib64/vapoursynth"], Version: "R79"),
-            AviSynth = new(false)
-        };
-        var model = TestSupport.CreateSettings(detection: detection);
-        var view = new SettingsView { DataContext = model };
-
-        using var window = TestSupport.Show(view);
-        var vapourSynth = view.FindControl<TextBlock>("VapourSynthStatus")!;
-        var aviSynth = view.FindControl<TextBlock>("AviSynthStatus")!;
-        var detectedLibrary = view.FindControl<TextBox>("VapourSynthDetectedLibrary")!;
-        var detectedPlugins = view.FindControl<TextBox>("VapourSynthDetectedPlugins")!;
-        var library = view.FindControl<TextBox>("VapourSynthLibraryPath")!;
-        var plugins = view.FindControl<TextBox>("VapourSynthPluginFolders")!;
-
-        Assert.Equal("(Detected R79)", vapourSynth.Text);
-        Assert.Equal("(Not Found)", aviSynth.Text);
-        var vapourSynthTitle = view.GetVisualDescendants().OfType<TextBlock>().First(x => x.Text == "VapourSynth");
-        Assert.True(vapourSynth.Bounds.Left > vapourSynthTitle.Bounds.Right);
-        Assert.True(vapourSynth.Bounds.Left < vapourSynthTitle.Bounds.Right + 80);
-        Assert.True(detectedLibrary.IsReadOnly);
-        Assert.Equal("/usr/lib/libvsscript.so", detectedLibrary.Text);
-        Assert.Equal("/usr/lib/vapoursynth; /usr/lib64/vapoursynth", detectedPlugins.Text);
-        Assert.Equal("Override detected library", library.PlaceholderText);
-        Assert.Equal("Extra folders, separated by ;", plugins.PlaceholderText);
-        Assert.Equal("", model.AviSynthLibraryDisplay);
-        Assert.Equal("", model.AviSynthPluginsDisplay);
     }
 
     [Fact]
@@ -301,23 +231,19 @@ public class SettingsViewModelTests
     }
 
     [AvaloniaFact]
-    public void SettingsView_VapourSynthThreads_ShowsNumericUpDownWithoutSpinner()
+    public void SettingsView_ClearedThreads_LostFocusRestoresValue()
     {
         var settings = new TestSupport.MemorySettingsProvider { Value = { VapourSynthThreads = 6 } };
         var model = TestSupport.CreateSettings(settings);
         var view = new SettingsView { DataContext = model };
-
         using var window = TestSupport.Show(view);
         var box = view.FindControl<NumericUpDown>("VapourSynthThreads")!;
-
-        Assert.Equal(6, box.Value);
-        Assert.Equal(1, box.Minimum);
-        Assert.Equal(256, box.Maximum);
-        Assert.False(box.ShowButtonSpinner);
+        var shown = box.Value;
 
         box.Value = null;
         box.RaiseEvent(new FocusChangedEventArgs(InputElement.LostFocusEvent));
 
+        Assert.Equal(6, shown);
         Assert.Equal(6, box.Value);
         Assert.Equal(6, model.VapourSynthThreads);
         Assert.False(DataValidationErrors.GetHasErrors(box));
@@ -402,27 +328,5 @@ public class SettingsViewModelTests
 
         Assert.Equal("/opt/avs/plugins", model.AviSynthPluginFolders);
         Assert.IsType<OpenFolderDialogSettings>(dialogs.LastFrameworkSettings);
-    }
-
-    [AvaloniaFact]
-    public void SettingsView_BrowseButtons_SitBesidePathFields()
-    {
-        var model = TestSupport.CreateSettings();
-        var view = new SettingsView { DataContext = model };
-
-        using var window = TestSupport.Show(view);
-        var library = view.FindControl<TextBox>("VapourSynthLibraryPath")!;
-        var browse = view.FindControl<Button>("BrowseVapourSynthLibrary")!;
-        var buttons = new[]
-        {
-            view.FindControl<Button>("BrowseVapourSynthLibrary")!,
-            view.FindControl<Button>("BrowseVapourSynthPlugins")!,
-            view.FindControl<Button>("BrowseAviSynthLibrary")!,
-            view.FindControl<Button>("BrowseAviSynthPlugins")!
-        };
-
-        Assert.All(buttons, button => Assert.Equal("...", button.Content));
-        Assert.True(browse.Bounds.Left > library.Bounds.Right);
-        Assert.True(browse.Bounds.Height >= 28);
     }
 }

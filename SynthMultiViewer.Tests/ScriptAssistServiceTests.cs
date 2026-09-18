@@ -28,7 +28,19 @@ public class ScriptAssistServiceTests
         var service = new ScriptAssistService(settings);
 
         Assert.False(service.IsEnabled);
+    }
+
+    [Fact]
+    public void EnhanceEditorSetting_ChangedAfterConstruct_DoesNotEnable()
+    {
+        var settings = new TestSupport.MemorySettingsProvider
+        {
+            Value = { EnhanceEditorWithAutoComplete = false }
+        };
+        var service = new ScriptAssistService(settings);
+
         settings.Value.EnhanceEditorWithAutoComplete = true;
+
         Assert.False(service.IsEnabled);
     }
 
@@ -49,6 +61,7 @@ public class ScriptAssistServiceTests
     {
         var file = ScriptIncludeIO.VapourSynth("havsfunc", null);
         Assert.SkipWhen(file == null, "havsfunc is not installed on this machine");
+
         Assert.Contains("def QTGMC(", file.Value.Text, StringComparison.Ordinal);
         Assert.True(file.Value.Path.Contains("site-packages", StringComparison.Ordinal)
             || file.Value.Path.Contains("dist-packages", StringComparison.Ordinal)

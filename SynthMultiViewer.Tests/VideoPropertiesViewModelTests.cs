@@ -27,7 +27,7 @@ public class VideoPropertiesViewModelTests
     {
         var viewer = new ViewerViewModel
         {
-            ClipInfo = new ClipInfo
+            ClipInfo = new()
             {
                 Host = ScriptKind.AviSynth,
                 Width = 32,
@@ -48,8 +48,8 @@ public class VideoPropertiesViewModelTests
 
         model.Rebuild(viewer);
 
-        Assert.Contains(model.Items, x => x.IsHeader && x.Name == "Clip");
-        Assert.Contains(model.Items, x => x.IsHeader && x.Name == "Frame");
+        Assert.Contains(model.Items, x => x is { IsHeader: true, Name: "Clip" });
+        Assert.Contains(model.Items, x => x is { IsHeader: true, Name: "Frame" });
         Assert.Equal("AviSynth", Value(model, "Host"));
         Assert.Equal("32×16", Value(model, "Size"));
         Assert.Equal("YUV420P10", Value(model, "Format"));
@@ -66,7 +66,7 @@ public class VideoPropertiesViewModelTests
     {
         var viewer = new ViewerViewModel
         {
-            ClipInfo = new ClipInfo
+            ClipInfo = new()
             {
                 Host = ScriptKind.AviSynth,
                 Width = 8,
@@ -87,7 +87,7 @@ public class VideoPropertiesViewModelTests
 
         model.Rebuild(viewer);
 
-        Assert.Contains(model.Items, x => x.IsHeader && x.Name == "Frame");
+        Assert.Contains(model.Items, x => x is { IsHeader: true, Name: "Frame" });
         Assert.Equal("None", Value(model, "Properties"));
     }
 
@@ -96,7 +96,7 @@ public class VideoPropertiesViewModelTests
     {
         var viewer = new ViewerViewModel
         {
-            ClipInfo = new ClipInfo
+            ClipInfo = new()
             {
                 Host = ScriptKind.VapourSynth,
                 Width = 16,
@@ -113,9 +113,9 @@ public class VideoPropertiesViewModelTests
             },
             FrameProperties =
             [
-                new FrameProperty("_Matrix", "1"),
-                new FrameProperty("_PictType", "I"),
-                new FrameProperty("MyFilter", "on")
+                new("_Matrix", "1"),
+                new("_PictType", "I"),
+                new("MyFilter", "on")
             ]
         };
         var model = new VideoPropertiesViewModel();
@@ -135,7 +135,7 @@ public class VideoPropertiesViewModelTests
         var model = new VideoPropertiesViewModel();
         var viewer = new ViewerViewModel
         {
-            ClipInfo = new ClipInfo
+            ClipInfo = new()
             {
                 Host = ScriptKind.VapourSynth,
                 Width = 8,
@@ -154,8 +154,34 @@ public class VideoPropertiesViewModelTests
         model.Viewer = viewer;
 
         Assert.Equal("GRAY8", Value(model, "Format"));
+    }
+
+    [Fact]
+    public void ViewerChanged_FrameProperties_UpdatesRows()
+    {
+        var model = new VideoPropertiesViewModel();
+        var viewer = new ViewerViewModel
+        {
+            ClipInfo = new()
+            {
+                Host = ScriptKind.VapourSynth,
+                Width = 8,
+                Height = 8,
+                FrameCount = 1,
+                FpsNumerator = 24,
+                FpsDenominator = 1,
+                FormatName = "GRAY8",
+                ColorFamily = "Gray",
+                BitDepth = 8,
+                SampleType = "Integer",
+                Planes = 1
+            }
+        };
+        model.Viewer = viewer;
+
         viewer.Position = TimeSpan.FromSeconds(0);
-        viewer.FrameProperties = [new FrameProperty("_DurationNum", "1")];
+        viewer.FrameProperties = [new("_DurationNum", "1")];
+
         Assert.Equal("1", Value(model, "_DurationNum"));
     }
 

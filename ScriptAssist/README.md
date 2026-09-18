@@ -102,4 +102,4 @@ dotnet build ScriptAssist.Tests/ScriptAssist.Tests.csproj
 dotnet ScriptAssist.Tests/bin/Debug/net10.0/ScriptAssist.Tests.dll
 ```
 
-The tests use the xunit.v3 executable runner, rather than `dotnet test` / VSTest. Implementation notes: [AGENTS.md](AGENTS.md).
+The tests use the xunit.v3 executable runner, rather than `dotnet test` / VSTest. Implementation notes: [AGENTS.md](AGENTS.md). Repository test contract: [../AGENTS.md](../AGENTS.md).

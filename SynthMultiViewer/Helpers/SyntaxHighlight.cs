@@ -36,7 +36,7 @@ public static class SyntaxHighlight
             return;
         }
 
-        Editors.Add(new WeakReference<TextEditor>(editor));
+        Editors.Add(new(editor));
         if (Application.Current is { } app && Editors.Count == 1)
         {
             app.ActualThemeVariantChanged += (_, _) => RefreshAll();
@@ -83,7 +83,7 @@ public static class SyntaxHighlight
         highlighting = null;
         try
         {
-            using var stream = Avalonia.Platform.AssetLoader.Open(new Uri($"avares://SynthMultiViewer/Assets/{resourceName}"));
+            using var stream = Avalonia.Platform.AssetLoader.Open(new($"avares://SynthMultiViewer/Assets/{resourceName}"));
             using var reader = XmlReader.Create(stream);
             highlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
             return true;

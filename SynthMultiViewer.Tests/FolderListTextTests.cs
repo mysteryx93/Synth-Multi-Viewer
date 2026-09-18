@@ -16,7 +16,7 @@ public class FolderListTextTests
     [Fact]
     public void Parse_NewlinesAndBlanks_ReturnsDistinctFolders()
     {
-        var text = "/opt/a\n\n/opt/b\n/opt/a";
+        const string text = "/opt/a\n\n/opt/b\n/opt/a";
 
         var folders = FolderListText.Parse(text);
 

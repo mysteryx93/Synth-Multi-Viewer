@@ -28,7 +28,7 @@ public sealed class VsScript : IDisposable
             throw new VsException("VapourSynth could not create a script environment.");
         }
 
-        return new VsScript(scriptApi, handle);
+        return new(scriptApi, handle);
     }
 
     /// <summary>
@@ -345,7 +345,7 @@ synthmultiviewer_node.set_output()
     public VsOutput GetOutput(int index)
     {
         ThrowIfDisposed();
-        return new VsOutput(_scriptApi, _handle, index);
+        return new(_scriptApi, _handle, index);
     }
 
     /// <summary>

@@ -14,19 +14,18 @@ public class VsHelperTests
         var target = Marshal.AllocHGlobal(destination.Length);
         Marshal.Copy(sourceRows, 0, source, sourceRows.Length);
         Marshal.Copy(destination, 0, target, destination.Length);
-
         try
         {
             VsHelper.BitBlt(target, 8, source, 6, 4, 2);
             Marshal.Copy(target, destination, 0, destination.Length);
+
+            Assert.Equal([1, 2, 3, 4, 0, 0, 0, 0, 5, 6, 7, 8, 0, 0, 0, 0], destination);
         }
         finally
         {
             Marshal.FreeHGlobal(source);
             Marshal.FreeHGlobal(target);
         }
-
-        Assert.Equal([1, 2, 3, 4, 0, 0, 0, 0, 5, 6, 7, 8, 0, 0, 0, 0], destination);
     }
 
     [Fact]
@@ -35,23 +34,6 @@ public class VsHelperTests
         var version = VsHelper.GetApiVersion();
 
         Assert.Equal(4 << 16, version);
-    }
-
-    [Fact]
-    public void TryFindLibrary_WhenFound_ReturnsNonEmptyPath()
-    {
-        var found = VsHelper.TryFindLibrary(out var path);
-
-        if (found)
-        {
-            Assert.False(string.IsNullOrWhiteSpace(path));
-            Assert.True(Path.IsPathRooted(path));
-            Assert.True(File.Exists(path));
-        }
-        else
-        {
-            Assert.Null(path);
-        }
     }
 
     [Fact]

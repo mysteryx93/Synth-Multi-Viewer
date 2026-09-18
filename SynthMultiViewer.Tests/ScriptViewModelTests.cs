@@ -1,5 +1,4 @@
 using System.Windows.Input;
-using Avalonia.Headless.XUnit;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using Xunit;
 
@@ -7,7 +6,7 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 
 public class ScriptViewModelTests
 {
-    [AvaloniaFact]
+    [Fact]
     public void HeaderEditDone_PaddedName_TrimsName()
     {
         var model = new EditorViewModel { IsActive = true };
@@ -20,7 +19,7 @@ public class ScriptViewModelTests
         Assert.False(model.IsEditingHeader);
     }
 
-    [AvaloniaTheory]
+    [Theory]
     [InlineData("")]
     [InlineData("   ")]
     public void HeaderEditDone_BlankName_RestoresPreviousName(string name)
@@ -35,7 +34,7 @@ public class ScriptViewModelTests
         Assert.False(model.IsEditingHeader);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void HeaderEditCancel_EditedName_RestoresPreviousName()
     {
         var model = new EditorViewModel { IsActive = true };

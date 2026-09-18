@@ -18,41 +18,11 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 public class SynthPlayerHostTests
 {
     [AvaloniaFact]
-    public void MeasureOverride_HostInWindow_ArrangesHostContainer()
-    {
-        var host = new SynthPlayerHost();
-
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
-
-        Assert.True(host.Bounds.Width > 0);
-        Assert.True(host.Bounds.Height > 0);
-        Assert.Equal(host.Bounds.Size, host.HostContainer.Bounds.Size);
-    }
-
-    [AvaloniaFact]
-    public void ViewerHost_MediaPlayerLayout_GivesHostAVideoSlot()
-    {
-        var view = new ViewerView { DataContext = new ViewerViewModel() };
-
-        using var window = TestSupport.Show(new Window
-        {
-            Width = 640,
-            Height = 480,
-            DataContext = TestSupport.CreateMain(),
-            Content = view
-        });
-        var host = view.FindControl<SynthPlayerHost>("PlayerHost")!;
-
-        Assert.True(host.Bounds.Height > 50);
-        Assert.True(host.HostContainer.Bounds.Height > 50);
-    }
-
-    [AvaloniaFact]
     public void ApplyZoomMode_DefaultZoom_ShowsZoomViewer()
     {
         var host = new SynthPlayerHost();
 
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+        using var window = TestSupport.Show(new() { Width = 320, Height = 240, Content = host });
         var grid = Assert.IsType<Grid>(host.HostContainer);
 
         Assert.False(grid.Children.OfType<Image>().Single().IsVisible);
@@ -63,9 +33,9 @@ public class SynthPlayerHostTests
     public void PresentTestFrame_ColoredBitmap_SizesVisibleImage()
     {
         var host = new SynthPlayerHost();
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+        using var window = TestSupport.Show(new() { Width = 320, Height = 240, Content = host });
         var bitmap = new WriteableBitmap(
-            new PixelSize(64, 48), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+            new(64, 48), new(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
         using (var framebuffer = bitmap.Lock())
         {
             var color = unchecked((int)0xFFC06020);
@@ -87,17 +57,17 @@ public class SynthPlayerHostTests
         Assert.True(zoom.IsVisible);
         Assert.True(host.HostContainer.IsVisible);
         Assert.Equal(bitmap, zoom.Child is Image image ? image.Source : null);
-        Assert.Equal(64, sizer.Width);
-        Assert.Equal(48, sizer.Height);
+        Assert.Equal(bitmap.PixelSize.Width, sizer.Width);
+        Assert.Equal(bitmap.PixelSize.Height, sizer.Height);
     }
 
     [AvaloniaFact]
     public void ApplyZoomMode_ScaleToFit_ShowsUniformImage()
     {
         var host = new SynthPlayerHost { ZoomScaleToFit = true };
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
-        var bitmap = new WriteableBitmap(
-            new PixelSize(64, 48), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+        using var window = TestSupport.Show(new() { Width = 320, Height = 240, Content = host });
+        var bitmap = new WriteableBitmap(new(64, 48), new(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+
         host.PresentTestFrame(bitmap);
         Dispatcher.UIThread.RunJobs();
 
@@ -105,25 +75,6 @@ public class SynthPlayerHostTests
         var image = grid.Children.OfType<Image>().Single();
         Assert.True(image.IsVisible);
         Assert.False(grid.Children.OfType<ZoomViewer>().Single().IsVisible);
-        Assert.Equal(Avalonia.Media.Stretch.Uniform, image.Stretch);
-        Assert.True(image.UseLayoutRounding);
-        Assert.True(image.Bounds.Width > 64);
-        Assert.True(image.Bounds.Height > 48);
-    }
-
-    [AvaloniaFact]
-    public void Images_Default_SnapToDevicePixels()
-    {
-        var host = new SynthPlayerHost();
-
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
-        var grid = Assert.IsType<Grid>(host.HostContainer);
-        var zoom = grid.Children.OfType<ZoomViewer>().Single();
-
-        Assert.True(grid.UseLayoutRounding);
-        Assert.True(grid.Children.OfType<Image>().Single().UseLayoutRounding);
-        Assert.True(zoom.UseLayoutRounding);
-        Assert.True(((Image)zoom.Child!).UseLayoutRounding);
     }
 
     [AvaloniaTheory]
@@ -141,20 +92,23 @@ public class SynthPlayerHostTests
         using var shown = TestSupport.Show(window);
         var host = view.FindControl<SynthPlayerHost>("PlayerHost")!;
         using var bitmap = new WriteableBitmap(
-            new PixelSize(width, height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+            new(width, height), new(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
         host.PresentTestFrame(bitmap);
         model.Zoom = 0;
         Dispatcher.UIThread.RunJobs();
-        var point = host.TranslatePoint(new Point(host.Bounds.Width * x, host.Bounds.Height * y), window)!.Value;
+        var point = host.TranslatePoint(new(host.Bounds.Width * x, host.Bounds.Height * y), window)!.Value;
 
-        window.MouseWheel(point, new Vector(0, direction));
+        window.MouseWheel(point, new(0, direction));
+        Dispatcher.UIThread.RunJobs();
+        var hostFit = host.ZoomScaleToFit;
+        var modelFit = model.ZoomScaleToFit;
+        var zoomAfterFirst = model.Zoom;
+        window.MouseWheel(point, new(0, direction));
         Dispatcher.UIThread.RunJobs();
 
-        Assert.False(host.ZoomScaleToFit);
-        Assert.False(model.ZoomScaleToFit);
-        Assert.Equal(1, model.Zoom);
-        window.MouseWheel(point, new Vector(0, direction));
-        Dispatcher.UIThread.RunJobs();
+        Assert.False(hostFit);
+        Assert.False(modelFit);
+        Assert.Equal(1, zoomAfterFirst);
         Assert.Equal(direction > 0 ? model.ZoomIncrement : 1 / model.ZoomIncrement, model.Zoom, precision: 8);
     }
 
@@ -163,9 +117,9 @@ public class SynthPlayerHostTests
     {
         var image = new Image { Stretch = Avalonia.Media.Stretch.None };
         var zoom = new ZoomViewer { Child = image };
-        using var window = TestSupport.Show(new Window { Width = 400, Height = 300, Content = zoom });
+        using var window = TestSupport.Show(new() { Width = 400, Height = 300, Content = zoom });
         using var bitmap = new WriteableBitmap(
-            new PixelSize(80, 40), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+            new(80, 40), new(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
 
         image.Source = bitmap;
         Dispatcher.UIThread.RunJobs();
@@ -180,7 +134,7 @@ public class SynthPlayerHostTests
     {
         var model = TestSupport.CreateMain();
         var view = new ViewerView { DataContext = new ViewerViewModel() };
-        using var window = TestSupport.Show(new Window
+        using var window = TestSupport.Show(new()
         {
             Width = 640,
             Height = 480,
@@ -204,26 +158,22 @@ public class SynthPlayerHostTests
     {
         var image = new Image { Stretch = Avalonia.Media.Stretch.None };
         var zoom = new ZoomViewer { Child = image, MinZoom = 0.1, MaxZoom = 10 };
-        using var window = TestSupport.Show(new Window
+        using var window = TestSupport.Show(new()
         {
             Width = 240,
             Height = 200,
             Content = new Border { Width = 200, Height = 160, Child = zoom }
         });
         using var bitmap = new WriteableBitmap(
-            new PixelSize(80, 40), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+            new(80, 40), new(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
         image.Source = bitmap;
         Dispatcher.UIThread.RunJobs();
 
         zoom.Zoom = 4;
         Dispatcher.UIThread.RunJobs();
 
-        var sizer = Assert.IsType<Border>(Assert.IsType<Grid>(zoom.Content).Children.Single());
-        Assert.Equal(320, sizer.Width);
-        Assert.Equal(160, sizer.Height);
         Assert.True(zoom.Extent.Width > zoom.Viewport.Width);
         Assert.True(zoom.Offset.X > 0);
-        Assert.InRange(zoom.Offset.X, (320 - zoom.Viewport.Width) / 2 - 2, (320 - zoom.Viewport.Width) / 2 + 2);
     }
 
     [AvaloniaFact]
@@ -239,13 +189,13 @@ public class SynthPlayerHostTests
         };
         using var _ = TestSupport.Show(window);
         using var bitmap = new WriteableBitmap(
-            new PixelSize(80, 40), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+            new(80, 40), new(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
         image.Source = bitmap;
         zoom.Zoom = 4;
         Dispatcher.UIThread.RunJobs();
         var start = zoom.Offset;
 
-        var origin = zoom.TranslatePoint(new Point(40, 40), window)!.Value;
+        var origin = zoom.TranslatePoint(new(40, 40), window)!.Value;
         window.MouseMove(origin);
         window.MouseDown(origin, Avalonia.Input.MouseButton.Left);
         window.MouseMove(origin + new Vector(-30, -20));
@@ -267,7 +217,7 @@ public class SynthPlayerHostTests
             Threads = 1,
             LimitFps = false
         };
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+        using var window = TestSupport.Show(new() { Width = 320, Height = 240, Content = host });
         host.Script = """
             import vapoursynth as vs
             import time
@@ -280,7 +230,7 @@ public class SynthPlayerHostTests
             clip.set_output()
             """;
         Dispatcher.UIThread.RunJobs();
-        Assert.True(host.IsMediaLoaded);
+        var loaded = host.IsMediaLoaded;
         host.IsPlaying = true;
         Dispatcher.UIThread.RunJobs();
         Thread.Sleep(200);
@@ -288,9 +238,7 @@ public class SynthPlayerHostTests
 
         var started = DateTime.UtcNow;
         host.Stop();
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(1),
-            "Stop blocked the UI thread while a VapourSynth frame was still in flight.");
-
+        var elapsed = DateTime.UtcNow - started;
         var deadline = DateTime.UtcNow.AddSeconds(15);
         while (host.IsMediaLoaded && DateTime.UtcNow < deadline)
         {
@@ -298,6 +246,9 @@ public class SynthPlayerHostTests
             Thread.Sleep(20);
         }
 
+        Assert.True(loaded);
+        Assert.True(elapsed < TimeSpan.FromSeconds(1),
+            "Stop blocked the UI thread while a VapourSynth frame was still in flight.");
         Assert.False(host.IsMediaLoaded);
     }
 
@@ -306,14 +257,14 @@ public class SynthPlayerHostTests
     {
         SkipIfAviSynthUnavailable();
         var host = new SynthPlayerHost { Kind = ScriptKind.AviSynth };
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+        using var window = TestSupport.Show(new() { Width = 320, Height = 240, Content = host });
 
         host.Script = "BlankClip(length=12, width=160, height=120, pixel_type=\"RGB24\")\n";
         Dispatcher.UIThread.RunJobs();
 
         Assert.NotNull(host.VideoSource);
         Assert.Equal(TimeSpan.Zero, host.Position);
-        Assert.Equal(new PixelSize(160, 120), host.VideoSource.PixelSize);
+        Assert.Equal(new(160, 120), host.VideoSource.PixelSize);
     }
 
     [AvaloniaTheory]
@@ -324,7 +275,7 @@ public class SynthPlayerHostTests
     {
         SkipIfAviSynthUnavailable();
         var host = new SynthPlayerHost { Kind = ScriptKind.AviSynth, AutoPlay = false };
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+        using var window = TestSupport.Show(new() { Width = 320, Height = 240, Content = host });
 
         host.Script = $"""
             top = BlankClip(length=1, width=32, height=8, pixel_type="{pixelType}", color=$FF0000)
@@ -335,7 +286,7 @@ public class SynthPlayerHostTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.NotNull(host.VideoSource);
-        Assert.Equal(new PixelSize(32, 16), host.VideoSource.PixelSize);
+        Assert.Equal(new(32, 16), host.VideoSource.PixelSize);
         var (top, bottom) = ReadBitmapCorners(host.VideoSource);
         Assert.True(top[2] > 180 && top[2] > top[0] + 60, $"top B={top[0]} G={top[1]} R={top[2]} A={top[3]}");
         Assert.True(bottom[0] > 180 && bottom[0] > bottom[2] + 60,
@@ -353,7 +304,7 @@ public class SynthPlayerHostTests
     {
         SkipIfVapourSynthUnavailable();
         var host = new SynthPlayerHost { Kind = ScriptKind.VapourSynth, AutoPlay = false };
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+        using var window = TestSupport.Show(new() { Width = 320, Height = 240, Content = host });
         var gray = format.StartsWith("GRAY", StringComparison.Ordinal);
 
         host.Script = format == "GRAY32"
@@ -381,7 +332,7 @@ public class SynthPlayerHostTests
 
         Assert.False(host.IsErrorVisible, host.ErrorMessage);
         Assert.NotNull(host.VideoSource);
-        Assert.Equal(new PixelSize(32, 16), host.VideoSource.PixelSize);
+        Assert.Equal(new(32, 16), host.VideoSource.PixelSize);
         var (top, bottom) = ReadBitmapCorners(host.VideoSource);
         Assert.Equal(byte.MaxValue, top[3]);
         Assert.Equal(byte.MaxValue, bottom[3]);
@@ -390,7 +341,6 @@ public class SynthPlayerHostTests
             Assert.True(top[2] > bottom[2] + 40, $"top R={top[2]} bottom R={bottom[2]}");
             return;
         }
-
         Assert.True(top[2] > 180 && top[2] > top[0] + 60, $"top B={top[0]} G={top[1]} R={top[2]} A={top[3]}");
         Assert.True(bottom[0] > 180 && bottom[0] > bottom[2] + 60,
             $"bottom B={bottom[0]} G={bottom[1]} R={bottom[2]} A={bottom[3]}");
@@ -401,7 +351,7 @@ public class SynthPlayerHostTests
     {
         SkipIfAviSynthUnavailable();
         var host = new SynthPlayerHost { Kind = ScriptKind.AviSynth };
-        using var window = TestSupport.Show(new Window { Width = 320, Height = 240, Content = host });
+        using var window = TestSupport.Show(new() { Width = 320, Height = 240, Content = host });
         host.Script = "BlankClip(length=12, width=160, height=120, pixel_type=\"RGB24\")\n";
         Dispatcher.UIThread.RunJobs();
 

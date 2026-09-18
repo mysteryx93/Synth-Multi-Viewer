@@ -92,7 +92,7 @@ public sealed class LanguageService : ILanguageService
             ? CallScanner.InnermostUnclosed(snapshot.Masked.Code, token, _language, caret, snapshot.Joins)
             : walk.Unclosed;
         var items = !completions || unclosed == '[' && path.Segments.Count == 0
-            ? new List<CompletionItem>()
+            ? new()
             : Complete(path, receiver, snapshot, bindings, token);
         if (completions)
         {
@@ -283,7 +283,7 @@ public sealed class LanguageService : ILanguageService
                     ReferenceEquals(item.Catalog, native));
             }
 
-            _snapshots.Insert(0, new CachedSnapshot(text, documentPath, native, snapshot));
+            _snapshots.Insert(0, new(text, documentPath, native, snapshot));
             var bytes = 0L;
             foreach (var item in _snapshots)
             {

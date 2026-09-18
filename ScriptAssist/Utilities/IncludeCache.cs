@@ -86,7 +86,7 @@ internal sealed class IncludeCache
     /// Stores parsed exports for a resolved include path.
     /// </summary>
     public void SetMembers(string path, IReadOnlyList<Symbol> members, int version) =>
-        SetEntry(path, new IncludeEntry(Copy(members), []), version);
+        SetEntry(path, new(Copy(members), []), version);
 
     /// <summary>
     /// Stores declarations and import dependencies for a resolved include path.
@@ -100,11 +100,7 @@ internal sealed class IncludeCache
                 return;
             }
 
-            _entries[path] = entry with
-            {
-                Members = Copy(entry.Members),
-                Dependencies = Copy(entry.Dependencies)
-            };
+            _entries[path] = new IncludeEntry(Copy(entry.Members), Copy(entry.Dependencies));
         }
     }
 
@@ -146,7 +142,7 @@ internal readonly struct IncludeSession
     {
         Cache = cache;
         Version = cache?.Version ?? 0;
-        Complete = new HashSet<string>(StringComparer.Ordinal);
+        Complete = new(StringComparer.Ordinal);
     }
 
     public IncludeCache? Cache { get; }

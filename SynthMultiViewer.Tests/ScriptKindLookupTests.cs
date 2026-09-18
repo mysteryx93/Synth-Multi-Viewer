@@ -40,7 +40,7 @@ public class ScriptKindLookupTests
     [Fact]
     public void FromPath_EmptyPath_ThrowsArgumentException()
     {
-        var path = string.Empty;
+        const string path = "";
 
         void Act()
         {

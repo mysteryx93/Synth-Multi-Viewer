@@ -50,7 +50,7 @@ public static class AviSynthFunctions
             }
 
             var inside = AviSynthPatterns.Whitespace().Replace(quoted[(open + 1)..end], " ");
-            buffer.Add(new AviSynthFunctionSpan(new Symbol(match.Groups[1].Value, ParameterNames.Split(inside)),
+            buffer.Add(new(new(match.Groups[1].Value, ParameterNames.Split(inside)),
                 match.Index, close < 0 ? Math.Max(open, end - 1) : close));
         }
 
@@ -64,7 +64,7 @@ public static class AviSynthFunctions
         LexerOptions lexer, CancellationToken token = default)
     {
         var buffer = new List<Symbol>();
-        AddImports(text, documentPath, read, buffer, new HashSet<string>(StringComparer.Ordinal), lexer, token);
+        AddImports(text, documentPath, read, buffer, new(StringComparer.Ordinal), lexer, token);
         return buffer;
     }
 
@@ -160,7 +160,7 @@ public static class AviSynthFunctions
             deps.Add(file.Value.Path);
         }
 
-        includes.SetEntry(path, new IncludeEntry(own, deps));
+        includes.SetEntry(path, new(own, deps));
     }
 
     private static bool EntryComplete(string path, IncludeSession includes, CancellationToken token)

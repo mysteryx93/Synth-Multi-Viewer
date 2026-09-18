@@ -1,4 +1,3 @@
-using System.Net.Http;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.MvvmDialogs;

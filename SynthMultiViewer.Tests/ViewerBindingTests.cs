@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Interactivity;
 using HanumanInstitute.MediaPlayer.Avalonia;
 using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
@@ -24,11 +23,11 @@ public class ViewerBindingTests
         model.SelectedItem = second;
         second.Position = TimeSpan.FromSeconds(40);
         var view = new ViewerView { DataContext = first };
-        using var window = TestSupport.Show(new Window { DataContext = model, Content = view });
+        using var window = TestSupport.Show(new() { DataContext = model, Content = view });
         var host = view.FindControl<SynthPlayerHost>("PlayerHost")!;
         host.SetValue(PlayerHostBase.DurationProperty, TimeSpan.FromSeconds(100));
 
-        host.RaiseEvent(new RoutedEventArgs(PlayerHostBase.MediaLoadedEvent));
+        host.RaiseEvent(new(PlayerHostBase.MediaLoadedEvent));
 
         Assert.Equal(TimeSpan.FromSeconds(20), first.Position);
         Assert.Equal(TimeSpan.FromSeconds(40), second.Position);
@@ -40,7 +39,7 @@ public class ViewerBindingTests
         var first = new ViewerViewModel();
         var second = new ViewerViewModel();
         var view = new ViewerView { DataContext = first };
-        using var window = TestSupport.Show(new Window { DataContext = TestSupport.CreateMain(), Content = view });
+        using var window = TestSupport.Show(new() { DataContext = TestSupport.CreateMain(), Content = view });
         var host = view.FindControl<SynthPlayerHost>("PlayerHost")!;
 
         host.SetValue(PlayerHostBase.DurationProperty, TimeSpan.FromSeconds(100));
@@ -55,7 +54,7 @@ public class ViewerBindingTests
     public void ViewerBindings_DataContextReplaced_PublishesCurrentPlayerState()
     {
         var view = new ViewerView { DataContext = new ViewerViewModel() };
-        using var window = TestSupport.Show(new Window { DataContext = TestSupport.CreateMain(), Content = view });
+        using var window = TestSupport.Show(new() { DataContext = TestSupport.CreateMain(), Content = view });
         var host = view.FindControl<SynthPlayerHost>("PlayerHost")!;
         host.SetValue(PlayerHostBase.DurationProperty, TimeSpan.FromSeconds(100));
         host.DisplayError("test error");
@@ -72,7 +71,7 @@ public class ViewerBindingTests
     {
         var model = new ViewerViewModel { Kind = ScriptKind.AviSynth };
         var view = new ViewerView { DataContext = model };
-        using var window = TestSupport.Show(new Window { DataContext = TestSupport.CreateMain(), Content = view });
+        using var window = TestSupport.Show(new() { DataContext = TestSupport.CreateMain(), Content = view });
         var host = view.FindControl<SynthPlayerHost>("PlayerHost")!;
 
         Assert.Equal(ScriptKind.AviSynth, host.Kind);
@@ -84,7 +83,7 @@ public class ViewerBindingTests
         var path = Path.Combine(Path.GetTempPath(), "clip.vpy");
         var model = new ViewerViewModel { FileName = path };
         var view = new ViewerView { DataContext = model };
-        using var window = TestSupport.Show(new Window { DataContext = TestSupport.CreateMain(), Content = view });
+        using var window = TestSupport.Show(new() { DataContext = TestSupport.CreateMain(), Content = view });
         var host = view.FindControl<SynthPlayerHost>("PlayerHost")!;
 
         Assert.Equal(path, host.Path);

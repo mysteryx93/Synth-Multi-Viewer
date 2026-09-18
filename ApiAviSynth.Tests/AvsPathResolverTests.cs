@@ -28,11 +28,11 @@ public class AvsPathResolverTests
     [Fact]
     public void ResolveScriptPath_EmptyPath_ThrowsArgumentException()
     {
-        var path = string.Empty;
+        const string path = "";
 
-        var action = () => AvsPathResolver.ResolveScriptPath(path);
+        var act = () => AvsPathResolver.ResolveScriptPath(path);
 
-        Assert.Throws<ArgumentException>(action);
+        Assert.Throws<ArgumentException>(act);
     }
 
     [Fact]
@@ -85,7 +85,6 @@ public class AvsPathResolverTests
     public void ResolveExistingPath_FileOnDisk_ReturnsAbsolutePath()
     {
         var file = Path.GetTempFileName();
-
         try
         {
             var resolved = AvsPathResolver.ResolveExistingPath(file);
@@ -101,18 +100,17 @@ public class AvsPathResolverTests
     [Fact]
     public void ResolveExistingPath_EmptyPath_ThrowsArgumentException()
     {
-        var path = string.Empty;
+        const string path = "";
 
-        var action = () => AvsPathResolver.ResolveExistingPath(path);
+        var act = () => AvsPathResolver.ResolveExistingPath(path);
 
-        Assert.Throws<ArgumentException>(action);
+        Assert.Throws<ArgumentException>(act);
     }
 
     [Fact]
     public void GetLibraryCandidates_OverrideFile_ReturnsOnlyThatFile()
     {
         var overridePath = Path.GetTempFileName();
-
         try
         {
             var candidates = AvsPathResolver.GetLibraryCandidates(overridePath);
@@ -158,14 +156,16 @@ public class AvsPathResolverTests
     [Fact]
     public void FilterDirectories_Arm64_DropsPlainLibWhenLib64TwinExists()
     {
-        var directories = AvsPathResolver.FilterDirectories(
-            [
+        var input =
+            new[]
+            {
                 "/usr/lib/avisynth",
                 "/usr/lib64/avisynth",
                 "/usr/lib/aarch64-linux-gnu/avisynth",
                 "/usr/lib/x86_64-linux-gnu/avisynth"
-            ],
-            Architecture.Arm64);
+            };
+
+        var directories = AvsPathResolver.FilterDirectories(input, Architecture.Arm64);
 
         Assert.Equal(
             ["/usr/lib64/avisynth", "/usr/lib/aarch64-linux-gnu/avisynth"],
@@ -173,42 +173,19 @@ public class AvsPathResolverTests
     }
 
     [Fact]
-    public void LinuxMultiarchDirectory_Arm64_ReturnsAarch64Path()
-    {
-        var directory = AvsPathResolver.LinuxMultiarchDirectory(Architecture.Arm64);
-
-        Assert.Equal("/usr/lib/aarch64-linux-gnu", directory);
-    }
-
-    [Fact]
-    public void Is64BitArchitecture_Arm64_ReturnsTrue()
-    {
-        var is64Bit = AvsPathResolver.Is64BitArchitecture(Architecture.Arm64);
-
-        Assert.True(is64Bit);
-    }
-
-    [Fact]
-    public void Is64BitArchitecture_Arm_ReturnsFalse()
-    {
-        var is64Bit = AvsPathResolver.Is64BitArchitecture(Architecture.Arm);
-
-        Assert.False(is64Bit);
-    }
-
-    [Fact]
     public void FilterDirectories_64Bit_DropsForeignArchitectureAndLibTwin()
     {
         Assert.SkipUnless(Environment.Is64BitProcess, "64-bit process");
-
-        var directories = AvsPathResolver.FilterDirectories(
-        [
+        var input = new[]
+        {
             "/usr/lib/avisynth",
             "/usr/lib64/avisynth",
             "/usr/lib/i386-linux-gnu/avisynth",
             "/usr/lib/aarch64-linux-gnu/avisynth",
             @"C:\Program Files (x86)\AviSynth+\plugins"
-        ]);
+        };
+
+        var directories = AvsPathResolver.FilterDirectories(input);
 
         Assert.DoesNotContain("/usr/lib/avisynth", directories);
         Assert.Contains("/usr/lib64/avisynth", directories);

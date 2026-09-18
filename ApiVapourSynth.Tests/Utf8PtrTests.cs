@@ -9,7 +9,7 @@ public class Utf8PtrTests
     [Fact]
     public void Constructor_String_CopiesNullTerminatedUtf8()
     {
-        var text = "vapoursynth";
+        const string text = "vapoursynth";
         using var pointer = new Utf8Ptr(text);
         var expected = Encoding.UTF8.GetBytes(text + '\0');
         var actual = new byte[expected.Length];

@@ -87,11 +87,11 @@ public class VsOutput : IDisposable
             var pointer = Api.GetVideoInfo(_nodePtr);
             if (pointer == IntPtr.Zero)
             {
-                throw new Exception("VapourSynth failed to get GetVideoInfo.");
+                throw new("VapourSynth failed to get GetVideoInfo.");
             }
 
             return Marshal.PtrToStructure<VsVideoInfo>(pointer)
-                ?? throw new Exception("VapourSynth failed to get GetVideoInfo.");
+                ?? throw new("VapourSynth failed to get GetVideoInfo.");
         }
     }
 
@@ -110,7 +110,7 @@ public class VsOutput : IDisposable
                 throw new VsException(Utf8Ptr.FromUtf8Ptr(errorPtr, bufSize) ?? "VapourSynth could not return the requested frame.");
             }
 
-            return new VsFrame(this, result, index);
+            return new(this, result, index);
         }
         finally
         {
@@ -135,7 +135,7 @@ public class VsOutput : IDisposable
     {
         lock (_queue)
         {
-            _queue.Add(new VsFrameStatus(index));
+            _queue.Add(new(index));
         }
 
         Api.GetFrameAsync(index, _nodePtr, _getFrameAsyncCallbackPtr, IntPtr.Zero);

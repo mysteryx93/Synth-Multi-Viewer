@@ -53,8 +53,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
         new("core", null, SymbolKind.Keyword)
     ];
 
-    /// <inheritdoc />
-    internal IncludeCache Includes { get; } = new();
+    private IncludeCache Includes { get; } = new();
 
     void IRefreshableLanguage.Invalidate() => Includes.Clear();
 
@@ -106,7 +105,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
                 return null;
             }
 
-            return new CallResolution
+            return new()
             {
                 Overloads = [member],
                 ImplicitReceiver = VapourSynthTypes.IsBound(receiver)
@@ -118,7 +117,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
             var symbol = VapourSynthTypes.FunctionSymbol(aliased);
             if (symbol != null)
             {
-                return new CallResolution
+                return new()
                 {
                     Overloads = [symbol],
                     ImplicitReceiver = VapourSynthTypes.IsBoundFunction(aliased)
@@ -140,7 +139,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
 
             if (local != null)
             {
-                return new CallResolution { Overloads = local };
+                return new() { Overloads = local };
             }
         }
 
@@ -200,9 +199,9 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
                     continue;
                 }
 
-                if (symbol.Kind == SymbolKind.Function && symbol.Parameters != null)
+                if (symbol is { Kind: SymbolKind.Function, Parameters: not null })
                 {
-                    return new HoverInfo(symbol.Signature, path.Start, path.End - path.Start);
+                    return new(symbol.Signature, path.Start, path.End - path.Start);
                 }
 
                 return TypeHover(name, path, VapourSynthTypes.Display(memberType) ??
@@ -218,7 +217,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
             {
                 if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
                 {
-                    return new HoverInfo(symbol.Signature, path.Start, path.End - path.Start);
+                    return new(symbol.Signature, path.Start, path.End - path.Start);
                 }
             }
         }
@@ -229,7 +228,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
             {
                 if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
                 {
-                    return new HoverInfo(symbol.Signature, path.Start, path.End - path.Start);
+                    return new(symbol.Signature, path.Start, path.End - path.Start);
                 }
             }
         }
@@ -249,7 +248,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
             return null;
         }
 
-        return new HoverInfo(type, path.Start, path.End - path.Start);
+        return new(type, path.Start, path.End - path.Start);
     }
 
     private static string? ParameterType(string parameter)
@@ -305,7 +304,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
             segments[i] = prefix[i];
         }
 
-        segments[^1] = new PathSegment { Name = name, Kind = PathSegmentKind.Name };
+        segments[^1] = new() { Name = name, Kind = PathSegmentKind.Name };
         return segments;
     }
 }

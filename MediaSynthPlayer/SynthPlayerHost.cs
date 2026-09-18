@@ -36,7 +36,7 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
         TextWrapping = TextWrapping.Wrap,
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(12),
+        Margin = new(12),
         IsVisible = false
     };
 
@@ -100,13 +100,13 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
         _surface.Measure(availableSize);
         var width = double.IsInfinity(availableSize.Width) ? _surface.DesiredSize.Width : availableSize.Width;
         var height = double.IsInfinity(availableSize.Height) ? _surface.DesiredSize.Height : availableSize.Height;
-        return new Size(width, height);
+        return new(width, height);
     }
 
     /// <inheritdoc />
     protected override Size ArrangeOverride(Size finalSize)
     {
-        _surface.Arrange(new Rect(finalSize));
+        _surface.Arrange(new(finalSize));
         return finalSize;
     }
 
@@ -709,9 +709,9 @@ public class SynthPlayerHost : PlayerHostBase, IDisposable, ISynthPlayerSink
                 FrameProperties = [];
             }
 
-            _bmp = new WriteableBitmap(
-                new PixelSize(playback.Width, playback.Height),
-                new Vector(96, 96),
+            _bmp = new(
+                new(playback.Width, playback.Height),
+                new(96, 96),
                 PixelFormat.Bgra8888,
                 AlphaFormat.Premul);
             IsVideoVisible = true;

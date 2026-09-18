@@ -35,12 +35,12 @@ public class ZoomViewerTests
                 var expected = Math.Clamp(direction > 0
                     ? fixture.Viewer.Zoom * fixture.Viewer.ZoomIncrement
                     : fixture.Viewer.Zoom / fixture.Viewer.ZoomIncrement, 0.1, 10);
-                var position = fixture.Viewer.TranslatePoint(new Point(100, 80), fixture.Window)!.Value;
-                fixture.Window.MouseWheel(position, new Vector(0, direction));
+                var position = fixture.Viewer.TranslatePoint(new(100, 80), fixture.Window)!.Value;
+                fixture.Window.MouseWheel(position, new(0, direction));
                 Dispatcher.UIThread.RunJobs();
 
                 Assert.Equal(expected, fixture.Viewer.Zoom, 10);
-                var center = fixture.Image.TranslatePoint(new Point(40, 20), fixture.Viewer)!.Value;
+                var center = fixture.Image.TranslatePoint(new(40, 20), fixture.Viewer)!.Value;
                 AssertNear(fixture.Viewer.Viewport.Width / 2, center.X);
                 AssertNear(fixture.Viewer.Viewport.Height / 2, center.Y);
             }
@@ -55,9 +55,9 @@ public class ZoomViewerTests
         fixture.Viewer.AllowZoom = false;
         Dispatcher.UIThread.RunJobs();
         var before = fixture.Viewer.Offset;
-        var position = fixture.Viewer.TranslatePoint(new Point(100, 80), fixture.Window)!.Value;
+        var position = fixture.Viewer.TranslatePoint(new(100, 80), fixture.Window)!.Value;
 
-        fixture.Window.MouseWheel(position, new Vector(0, -1));
+        fixture.Window.MouseWheel(position, new(0, -1));
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(10, fixture.Viewer.Zoom);
@@ -75,7 +75,7 @@ public class ZoomViewerTests
             fixture.Viewer.Zoom = scale;
             Dispatcher.UIThread.RunJobs();
 
-            var center = fixture.Image.TranslatePoint(new Point(40, 20), fixture.Viewer)!.Value;
+            var center = fixture.Image.TranslatePoint(new(40, 20), fixture.Viewer)!.Value;
             AssertNear(fixture.Viewer.Viewport.Width / 2, center.X);
             AssertNear(fixture.Viewer.Viewport.Height / 2, center.Y);
         }
@@ -87,16 +87,16 @@ public class ZoomViewerTests
         using var fixture = new ViewerFixture();
         fixture.Viewer.Zoom = 6;
         Dispatcher.UIThread.RunJobs();
-        fixture.Viewer.Offset = new Vector(280, 30);
+        fixture.Viewer.Offset = new(280, 30);
         Dispatcher.UIThread.RunJobs();
         var before = fixture.Viewer.TranslatePoint(
-            new Point(fixture.Viewer.Viewport.Width / 2, fixture.Viewer.Viewport.Height / 2), fixture.Image)!.Value;
+            new(fixture.Viewer.Viewport.Width / 2, fixture.Viewer.Viewport.Height / 2), fixture.Image)!.Value;
 
         fixture.Viewer.Zoom = 10;
         Dispatcher.UIThread.RunJobs();
 
         var after = fixture.Viewer.TranslatePoint(
-            new Point(fixture.Viewer.Viewport.Width / 2, fixture.Viewer.Viewport.Height / 2), fixture.Image)!.Value;
+            new(fixture.Viewer.Viewport.Width / 2, fixture.Viewer.Viewport.Height / 2), fixture.Image)!.Value;
         AssertNear(before.X, after.X);
         AssertNear(before.Y, after.Y);
         Assert.True(fixture.Viewer.Offset.X > 280);
@@ -109,9 +109,10 @@ public class ZoomViewerTests
         fixture.Viewer.Zoom = 4;
         fixture.Viewer.Zoom = 6;
         fixture.Viewer.Zoom = 10;
+
         Dispatcher.UIThread.RunJobs();
 
-        var center = fixture.Image.TranslatePoint(new Point(40, 20), fixture.Viewer)!.Value;
+        var center = fixture.Image.TranslatePoint(new(40, 20), fixture.Viewer)!.Value;
         AssertNear(fixture.Viewer.Viewport.Width / 2, center.X);
         AssertNear(fixture.Viewer.Viewport.Height / 2, center.Y);
     }
@@ -123,10 +124,10 @@ public class ZoomViewerTests
         fixture.Viewer.Zoom = 6;
         Dispatcher.UIThread.RunJobs();
 
-        fixture.Viewer.Offset = new Vector(40, 30);
+        fixture.Viewer.Offset = new(40, 30);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(new Vector(40, 30), fixture.Viewer.Offset);
+        Assert.Equal(new(40, 30), fixture.Viewer.Offset);
         Assert.Equal(40, fixture.Viewer.ScrollHorizontalOffset);
         Assert.Equal(30, fixture.Viewer.ScrollVerticalOffset);
     }
@@ -139,14 +140,14 @@ public class ZoomViewerTests
         using var fixture = new ViewerFixture(false);
         fixture.Viewer.Zoom = 10;
         Dispatcher.UIThread.RunJobs();
-        var contentStart = fixture.Viewer.TranslatePoint(new Point(40, 40), fixture.Window)!.Value;
-        Drag(fixture.Window, contentStart, new Vector(-20, -20));
+        var contentStart = fixture.Viewer.TranslatePoint(new(40, 40), fixture.Window)!.Value;
+        Drag(fixture.Window, contentStart, new(-20, -20));
 
         var bar = fixture.Viewer.GetVisualDescendants().OfType<ScrollBar>().Single(x => x.Orientation == orientation);
         var thumb = bar.GetVisualDescendants().OfType<Thumb>().Single();
-        var start = thumb.TranslatePoint(new Point(thumb.Bounds.Width / 2, thumb.Bounds.Height / 2), fixture.Window)!.Value;
+        var start = thumb.TranslatePoint(new(thumb.Bounds.Width / 2, thumb.Bounds.Height / 2), fixture.Window)!.Value;
         var before = fixture.Viewer.Offset;
-        Drag(fixture.Window, start, orientation == Orientation.Horizontal ? new Vector(15, 0) : new Vector(0, 15));
+        Drag(fixture.Window, start, orientation == Orientation.Horizontal ? new(15, 0) : new Vector(0, 15));
 
         if (orientation == Orientation.Horizontal)
         {
@@ -167,13 +168,14 @@ public class ZoomViewerTests
         fixture.Viewer.Zoom = 10;
         Dispatcher.UIThread.RunJobs();
         var before = fixture.Viewer.Offset;
-        var start = fixture.Viewer.TranslatePoint(new Point(40, 40), fixture.Window)!.Value;
+        var start = fixture.Viewer.TranslatePoint(new(40, 40), fixture.Window)!.Value;
 
-        Drag(fixture.Window, start, new Vector(-20, -15));
-
-        Assert.Equal(before + new Vector(20, 15), fixture.Viewer.Offset);
+        Drag(fixture.Window, start, new(-20, -15));
+        var afterDrag = fixture.Viewer.Offset;
         fixture.Window.MouseMove(start + new Vector(-30, -25));
         Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(before + new Vector(20, 15), afterDrag);
         Assert.Equal(before + new Vector(20, 15), fixture.Viewer.Offset);
     }
 
@@ -182,6 +184,7 @@ public class ZoomViewerTests
     {
         using var fixture = new ViewerFixture();
         fixture.Viewer.Zoom = 10;
+
         fixture.Viewer.Reset();
         Dispatcher.UIThread.RunJobs();
 
@@ -203,14 +206,14 @@ public class ZoomViewerTests
     private sealed class ViewerFixture : IDisposable
     {
         private readonly WriteableBitmap _bitmap = new(
-            new PixelSize(80, 40), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+            new(80, 40), new(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
         private readonly IDisposable _shown;
 
         public ViewerFixture(bool autoHide = true)
         {
-            Image = new Image { Source = _bitmap, Stretch = Stretch.None };
-            Viewer = new ZoomViewer { Child = Image, AllowAutoHide = autoHide };
-            Window = new Window
+            Image = new() { Source = _bitmap, Stretch = Stretch.None };
+            Viewer = new() { Child = Image, AllowAutoHide = autoHide };
+            Window = new()
             {
                 Width = 240, Height = 200,
                 Content = new Border { Width = 200, Height = 160, Child = Viewer }

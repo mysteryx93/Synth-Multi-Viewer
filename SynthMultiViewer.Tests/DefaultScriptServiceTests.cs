@@ -31,7 +31,7 @@ public class DefaultScriptServiceTests
         Assert.Contains("BlankClip", script, StringComparison.Ordinal);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task New_Executed_UsesDefaultVapourSynthScript()
     {
         var defaults = new TestSupport.MemoryDefaultScripts();
@@ -46,7 +46,7 @@ public class DefaultScriptServiceTests
         Assert.Equal(ScriptKind.VapourSynth, editor.Kind);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task NewAviSynth_Executed_UsesDefaultAviSynthScript()
     {
         var defaults = new TestSupport.MemoryDefaultScripts();

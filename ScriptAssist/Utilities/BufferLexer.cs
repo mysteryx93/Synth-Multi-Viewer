@@ -155,7 +155,7 @@ internal static partial class BufferLexer
         }
 
         literal[text.Length] = quote != '\0' || line || block.Count > 0;
-        return new LexedBuffer(new string(code), literal[text.Length]) { LiteralAt = literal };
+        return new(new(code), literal[text.Length]) { LiteralAt = literal };
 
         void Consume()
         {
@@ -192,7 +192,7 @@ internal static partial class BufferLexer
     /// Turns AviSynth <c>\</c> line continuations into spaces of the same length.
     /// </summary>
     public static string JoinBackslashLines(string text) =>
-        BackslashLine().Replace(text, static match => new string(' ', match.Length));
+        BackslashLine().Replace(text, static match => new(' ', match.Length));
 
     private static bool TryPythonContinuation(string text, int backslash, out int last)
     {

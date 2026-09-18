@@ -91,7 +91,7 @@ internal static class VapourSynthMembers
 
         foreach (var pair in bindings.Names)
         {
-            items.Add(new Symbol(pair.Key, null, SymbolKind.Local,
+            items.Add(new(pair.Key, null, SymbolKind.Local,
                 ReturnType: VapourSynthTypes.Display(pair.Value) ?? pair.Value.Id));
         }
         return items;

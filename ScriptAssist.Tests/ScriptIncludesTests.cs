@@ -20,8 +20,12 @@ public class ScriptIncludesTests
     [InlineData("any", null)]
     [InlineData("*args", null)]
     [InlineData("", null)]
-    public void AviSynthParameterNames(string parameter, string? expected) =>
-        Assert.Equal(expected, ParameterNames.OfAviSynth(parameter));
+    public void Parse_AviSynthParameter_ReturnsName(string parameter, string? expected)
+    {
+        var name = ParameterNames.OfAviSynth(parameter);
+
+        Assert.Equal(expected, name);
+    }
 
     [Theory]
     [InlineData("*", false, "Separator", true)]
@@ -30,10 +34,13 @@ public class ScriptIncludesTests
     [InlineData("**kwargs", false, "Kwargs", false)]
     [InlineData("radius=2", false, "Positional", false)]
     [InlineData("radius=2", true, "KeywordOnly", true)]
-    public void PythonParameterKinds(string parameter, bool keywordOnly, string expected, bool after)
+    public void Parse_PythonParameter_ClassifiesKind(string parameter, bool keywordOnly, string expected, bool after)
     {
         var flag = keywordOnly;
-        Assert.Equal(expected, ParameterNames.Classify(parameter, ref flag).ToString());
+
+        var kind = ParameterNames.Classify(parameter, ref flag);
+
+        Assert.Equal(expected, kind.ToString());
         Assert.Equal(after, flag);
     }
 
@@ -49,8 +56,12 @@ public class ScriptIncludesTests
     [InlineData("from:int:opt", "from_")]
     [InlineData("*args", null)]
     [InlineData("", null)]
-    public void PythonParameterNames(string parameter, string? expected) =>
-        Assert.Equal(expected, ParameterNames.OfPython(parameter));
+    public void Parse_PythonParameter_ReturnsName(string parameter, string? expected)
+    {
+        var name = ParameterNames.OfPython(parameter);
+
+        Assert.Equal(expected, name);
+    }
 
     [Theory]
     [InlineData("left:int:opt", "int")]
@@ -62,8 +73,12 @@ public class ScriptIncludesTests
     [InlineData("offsets:int[]", "int")]
     [InlineData("planes=[0, 1]", null)]
     [InlineData("clip", null)]
-    public void PythonParameterTypes(string parameter, string? expected) =>
-        Assert.Equal(expected, ParameterNames.PythonType(parameter));
+    public void Parse_PythonParameter_ReturnsType(string parameter, string? expected)
+    {
+        var type = ParameterNames.PythonType(parameter);
+
+        Assert.Equal(expected, type);
+    }
 
     [Theory]
     [InlineData("int [height]", "int")]
@@ -74,26 +89,33 @@ public class ScriptIncludesTests
     [InlineData("string \"Preset\"", "string")]
     [InlineData("clip", "clip")]
     [InlineData("*args", null)]
-    public void AviSynthParameterTypes(string parameter, string? expected) =>
-        Assert.Equal(expected, ParameterNames.AviSynthType(parameter));
+    public void Parse_AviSynthParameter_ReturnsType(string parameter, string? expected)
+    {
+        var type = ParameterNames.AviSynthType(parameter);
+
+        Assert.Equal(expected, type);
+    }
 
     [Fact]
-    public void ParameterSplitKeepsNestedCommas()
+    public void Parse_NestedCommas_KeepsParts()
     {
         var parts = ParameterNames.Split("clip c, int [left], val \"a, b\", radius: int = (1, 2)");
+
         Assert.Equal(["clip c", "int [left]", "val \"a, b\"", "radius: int = (1, 2)"], parts);
     }
 
     [Fact]
-    public void AviSynthParseReadsQuotedAndTypedHeaders()
+    public void Parse_QuotedAndTypedHeaders_ReadsParameters()
     {
-        var text = """
+        const string text = """
             # function Hidden() { }
             function QTGMC(clip Input, int "TR0", string "Preset") {
                 return Input
             }
             """;
+
         var symbols = AviSynthFunctions.Parse(text, new AviSynthLanguage().Lexer);
+
         var qtgmc = Assert.Single(symbols);
         Assert.Equal("QTGMC", qtgmc.Name);
         Assert.Equal(["clip Input", "int \"TR0\"", "string \"Preset\""], qtgmc.Parameters!);
@@ -103,7 +125,7 @@ public class ScriptIncludesTests
     }
 
     [Fact]
-    public void AviSynthUnionPrefersParsedWhenNativeHasNoNames()
+    public void Parse_Union_PrefersParsedWhenNativeHasNoNames()
     {
         var native = new[]
         {
@@ -115,7 +137,9 @@ public class ScriptIncludesTests
             new Symbol("QTGMC", ["clip Input", "int \"TR0\""]),
             new Symbol("Crop", ["clip c"])
         };
+
         var merged = AviSynthFunctions.UnionByName(native, parsed);
+
         var qtgmc = Assert.Single(merged, x => x.Name == "QTGMC");
         Assert.Equal(["clip Input", "int \"TR0\""], qtgmc.Parameters!);
         var crop = Assert.Single(merged, x => x.Name == "Crop");
@@ -123,19 +147,21 @@ public class ScriptIncludesTests
     }
 
     [Fact]
-    public void AviSynthUnionKeepsNativeOverloads()
+    public void Parse_Union_KeepsNativeOverloads()
     {
         var native = new[]
         {
             new Symbol("Foo", ["clip", "int [a]"]),
             new Symbol("Foo", ["clip", "float [a]"])
         };
+
         var merged = AviSynthFunctions.UnionByName(native, []);
+
         Assert.Equal(2, merged.Count(x => x.Name == "Foo"));
     }
 
     [Fact]
-    public void AviSynthUnionEnrichesMatchingSignaturesAndKeepsUnmatched()
+    public void Parse_Union_EnrichesMatchingAndKeepsUnmatched()
     {
         var native = new[]
         {
@@ -146,55 +172,64 @@ public class ScriptIncludesTests
         {
             new Symbol("Foo", ["clip c"])
         };
+
         var merged = AviSynthFunctions.UnionByName(native, parsed);
+
         Assert.Equal(2, merged.Count(x => x.Name == "Foo"));
-        Assert.Contains(merged, x => x.Name == "Foo" && x.Parameters is ["clip c"]);
-        Assert.Contains(merged, x => x.Name == "Foo" && x.Parameters is ["int"]);
+        Assert.Contains(merged, x => x is { Name: "Foo", Parameters: ["clip c"] });
+        Assert.Contains(merged, x => x is { Name: "Foo", Parameters: ["int"] });
     }
 
     [Fact]
-    public void AviSynthUnionKeepsRepeatingNativeWhenParsedDropsModifier()
+    public void Parse_Union_KeepsRepeatingNativeWhenParsedDropsModifier()
     {
         var native = new[] { new Symbol("Foo", ["clip", "int+"]) };
         var parsed = new[] { new Symbol("Foo", ["clip c", "int count"]) };
+
         var merged = AviSynthFunctions.UnionByName(native, parsed);
+
         var foo = Assert.Single(merged, x => x.Name == "Foo");
         Assert.Equal(["clip", "int+"], foo.Parameters!);
     }
 
     [Fact]
-    public void AviSynthUnionKeepsIncompatibleSingleNativeSignature()
+    public void Parse_Union_KeepsIncompatibleSingleNativeSignature()
     {
         var native = new[] { new Symbol("Foo", ["int"]) };
         var parsed = new[] { new Symbol("Foo", ["clip c"]) };
+
         var merged = AviSynthFunctions.UnionByName(native, parsed);
+
         var foo = Assert.Single(merged, x => x.Name == "Foo");
         Assert.Equal(["int"], foo.Parameters!);
     }
 
     [Fact]
-    public void VapourSynthParseIgnoresNestedDefs()
+    public void Parse_NestedDefs_IgnoresClassMethods()
     {
-        var text = """
+        const string text = """
             def QTGMC(clip, Preset='Slow'):
                 return clip
-
             class Wrapper:
                 def method(self, clip):
                     return clip
             """;
+
         var symbols = VapourSynthFunctions.Parse(text, new VapourSynthLanguage().Lexer);
+
         var qtgmc = Assert.Single(symbols);
         Assert.Equal("QTGMC", qtgmc.Name);
         Assert.Equal(["clip", "Preset='Slow'"], qtgmc.Parameters!);
     }
 
     [Fact]
-    public void IncludePathsPythonPrefersBufferThenPluginRoots()
+    public void Parse_PythonIncludePaths_PrefersBufferThenPluginRoots()
     {
         var fromPath = Path.Combine("/scripts", "job.vpy");
         var roots = new[] { "/plugins" };
+
         var paths = IncludePaths.PythonModule("havsfunc", fromPath, roots).ToArray();
+
         Assert.Contains(Path.Combine("/scripts", "havsfunc.py"), paths);
         Assert.Contains(Path.Combine("/scripts", "havsfunc", "__init__.py"), paths);
         Assert.Contains(Path.Combine("/plugins", "havsfunc.py"), paths);
@@ -202,21 +237,62 @@ public class ScriptIncludesTests
     }
 
     [Fact]
-    public void IncludePathsPythonRelativeUsesFileDirectory()
+    public void Parse_PythonRelativeInclude_UsesFileDirectory()
     {
         var fromPath = Path.Combine("/plugins", "havsfunc", "__init__.py");
+
         var paths = IncludePaths.PythonModule(".qtgmc", fromPath, ["/unused"]).ToArray();
+
         Assert.Equal(Path.Combine("/plugins", "havsfunc", "qtgmc.py"), paths[0]);
         Assert.Equal(Path.Combine("/plugins", "havsfunc", "qtgmc", "__init__.py"), paths[1]);
         Assert.DoesNotContain(paths, path => path.Contains("unused", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void IncludePathsAviSynthUsesSpecifierNextToDocument()
+    public void Parse_AviSynthIncludePaths_UsesSpecifierNextToDocument()
     {
         var fromPath = Path.Combine("/scripts", "job.avs");
+
         var paths = IncludePaths.AviSynth("helpers.avsi", fromPath, ["/plugins"]).ToArray();
+
         Assert.Equal(Path.Combine("/scripts", "helpers.avsi"), paths[0]);
         Assert.Contains(Path.Combine("/plugins", "helpers.avsi"), paths);
+    }
+
+    [Theory]
+    [InlineData("ci[left]i[top]i", "clip,int,int [left],int [top]")]
+    [InlineData("c[planes]i*", "clip,int* [planes]")]
+    [InlineData("c[items]a", "clip,array [items]")]
+    [InlineData("", "")]
+    public void Parse_AviSynthParameterFormat_ExpandsTokens(string format, string expected)
+    {
+        var parsed = AviSynthParameters.Parse(format)!;
+
+        Assert.Equal(expected, string.Join(",", parsed));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("c[broken")]
+    [InlineData("z")]
+    public void Parse_UnknownAviSynthParameters_StayUnknown(string? format)
+    {
+        var parsed = AviSynthParameters.Parse(format);
+
+        Assert.Null(parsed);
+    }
+
+    [Fact]
+    public void Parse_LoadImports_ReturnsImportedFunctions()
+    {
+        const string avsi = "function Helper(clip c) { }\n";
+        var lexer = new AviSynthLanguage().Lexer;
+        IncludeFile? Read(string specifier, string? _) => specifier is "helper.avsi" or "/h.avsi"
+            ? new IncludeFile("/h.avsi", avsi)
+            : null;
+
+        var symbols = AviSynthFunctions.LoadImports("Import(\"helper.avsi\")", null, Read, lexer);
+
+        Assert.Contains(symbols, x => x.Name.Equals("Helper", StringComparison.OrdinalIgnoreCase));
     }
 }

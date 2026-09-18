@@ -92,7 +92,7 @@ public sealed class DocumentBindings
         }
 
         Overlay(caret, merged, functions);
-        return new DocumentBindings
+        return new()
         {
             Names = merged,
             BufferSymbols = [..functions.Values],

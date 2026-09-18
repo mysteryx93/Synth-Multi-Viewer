@@ -145,7 +145,7 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
 
             matches.AddRange(extra);
         }
-        return new CallResolution { Overloads = matches, ImplicitReceiver = implicitClip };
+        return new() { Overloads = matches, ImplicitReceiver = implicitClip };
     }
 
     /// <inheritdoc />
@@ -184,7 +184,7 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
                 return null;
             }
 
-            return new HoverInfo(type, path.Start, path.End - path.Start);
+            return new(type, path.Start, path.End - path.Start);
         }
 
         if (bindings.InFunctionHeader(path.Start) && !IsFunctionName(name, path.Start, bindings))
@@ -196,14 +196,14 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
             bindings.Names.TryGetValue(name, out var local) && !local.IsUnknown &&
             !local.Id.Equals(name, StringComparison.OrdinalIgnoreCase))
         {
-            return new HoverInfo(local.Id, path.Start, path.End - path.Start);
+            return new(local.Id, path.Start, path.End - path.Start);
         }
 
         foreach (var symbol in catalog)
         {
             if (symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison))
             {
-                return new HoverInfo(symbol.Signature, path.Start, path.End - path.Start);
+                return new(symbol.Signature, path.Start, path.End - path.Start);
             }
         }
 
@@ -211,14 +211,14 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
         {
             if (symbol.Name.Equals(name, Comparison))
             {
-                return new HoverInfo(symbol.Signature, path.Start, path.End - path.Start);
+                return new(symbol.Signature, path.Start, path.End - path.Start);
             }
         }
 
         if (bindings.Names.TryGetValue(name, out var typed) && !typed.IsUnknown &&
             !typed.Id.Equals(name, StringComparison.OrdinalIgnoreCase))
         {
-            return new HoverInfo(typed.Id, path.Start, path.End - path.Start);
+            return new(typed.Id, path.Start, path.End - path.Start);
         }
         return null;
     }
@@ -276,7 +276,7 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
 
         foreach (var pair in bindings.Names)
         {
-            items.Add(new Symbol(pair.Key, null, SymbolKind.Local, ReturnType: pair.Value.Id));
+            items.Add(new(pair.Key, null, SymbolKind.Local, ReturnType: pair.Value.Id));
         }
 
         return items;

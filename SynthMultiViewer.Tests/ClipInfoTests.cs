@@ -44,7 +44,7 @@ public class ClipInfoTests
             NumFrames = 10,
             FpsNum = 24000,
             FpsDen = 1001,
-            Format = new VsFormat
+            Format = new()
             {
                 ColorFamily = VsColorFamily.YUV,
                 SampleType = VsSampleType.Integer,

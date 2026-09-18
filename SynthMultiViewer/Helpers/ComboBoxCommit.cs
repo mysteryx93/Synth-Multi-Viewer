@@ -34,7 +34,7 @@ public static class ComboBoxCommit
             }
             if (change.NewValue is true)
             {
-                Subscriptions.Add(combo, new Subscription(combo));
+                Subscriptions.Add(combo, new(combo));
             }
         });
     }

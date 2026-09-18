@@ -395,9 +395,9 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         {
             Filters =
             {
-                new FileFilter("VapourSynth Script", ScriptKindLookup.FileFilterExtensions(ScriptKind.VapourSynth)),
-                new FileFilter("AviSynth Script", ScriptKindLookup.FileFilterExtensions(ScriptKind.AviSynth)),
-                new FileFilter("All files", "*")
+                new("VapourSynth Script", ScriptKindLookup.FileFilterExtensions(ScriptKind.VapourSynth)),
+                new("AviSynth Script", ScriptKindLookup.FileFilterExtensions(ScriptKind.AviSynth)),
+                new("All files", "*")
             }
         };
         var file = await _dialogService.ShowOpenFileDialogAsync(this, settings);
@@ -837,7 +837,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         Recents.Clear();
         foreach (var path in files)
         {
-            Recents.Add(new RecentFileItem(path));
+            Recents.Add(new(path));
         }
 
         this.RaisePropertyChanged(nameof(HasRecents));

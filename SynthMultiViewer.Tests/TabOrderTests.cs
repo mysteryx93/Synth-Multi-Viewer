@@ -11,7 +11,9 @@ public class TabOrderTests
     {
         var items = new ObservableCollection<string> { "a", "b", "c" };
 
-        Assert.True(TabOrder.TryMove(items, "a", 1));
+        var moved = TabOrder.TryMove(items, "a", 1);
+
+        Assert.True(moved);
         Assert.Equal(["b", "a", "c"], items);
     }
 
@@ -20,8 +22,21 @@ public class TabOrderTests
     {
         var items = new ObservableCollection<string> { "a", "b", "c" };
 
-        Assert.True(TabOrder.TryMove(items, "c", -1));
+        var moved = TabOrder.TryMove(items, "c", -1);
+
+        Assert.True(moved);
         Assert.Equal(["a", "c", "b"], items);
+    }
+
+    [Fact]
+    public void TryMove_PastStart_LeavesOrderUnchanged()
+    {
+        var items = new ObservableCollection<string> { "a", "b" };
+
+        var moved = TabOrder.TryMove(items, "a", -1);
+
+        Assert.False(moved);
+        Assert.Equal(["a", "b"], items);
     }
 
     [Fact]
@@ -29,8 +44,9 @@ public class TabOrderTests
     {
         var items = new ObservableCollection<string> { "a", "b" };
 
-        Assert.False(TabOrder.TryMove(items, "a", -1));
-        Assert.False(TabOrder.TryMove(items, "b", 1));
+        var moved = TabOrder.TryMove(items, "b", 1);
+
+        Assert.False(moved);
         Assert.Equal(["a", "b"], items);
     }
 
@@ -39,7 +55,18 @@ public class TabOrderTests
     {
         var items = new ObservableCollection<string> { "a" };
 
-        Assert.False(TabOrder.TryMove(items, "missing", 1));
-        Assert.False(TabOrder.TryMove<string>(items, null, 1));
+        var moved = TabOrder.TryMove(items, "missing", 1);
+
+        Assert.False(moved);
+    }
+
+    [Fact]
+    public void TryMove_NullItem_ReturnsFalse()
+    {
+        var items = new ObservableCollection<string> { "a" };
+
+        var moved = TabOrder.TryMove(items, null, 1);
+
+        Assert.False(moved);
     }
 }

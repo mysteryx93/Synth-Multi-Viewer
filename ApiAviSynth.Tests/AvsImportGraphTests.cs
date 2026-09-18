@@ -23,7 +23,9 @@ public class AvsImportGraphTests
         var a = files.Write("a.avs", "Import(\"b.avs\")\n");
         files.Write("b.avs", "Import(\"a.avs\")\nBlankClip()\n");
 
-        Assert.Throws<AvsException>(() => AvsImportGraph.ThrowIfRecursive(File.ReadAllText(a), a));
+        var act = () => AvsImportGraph.ThrowIfRecursive(File.ReadAllText(a), a);
+
+        Assert.Throws<AvsException>(act);
     }
 
     [Fact]
@@ -33,7 +35,9 @@ public class AvsImportGraphTests
         var a = files.Write("a.avs", "Import(\"b.avs\")\n");
         files.Write("b.avs", "BlankClip()\n");
 
-        AvsImportGraph.ThrowIfRecursive(File.ReadAllText(a), a);
+        var error = Record.Exception(() => AvsImportGraph.ThrowIfRecursive(File.ReadAllText(a), a));
+
+        Assert.Null(error);
     }
 
     private sealed class TempScripts : IDisposable

@@ -35,9 +35,9 @@ public sealed class EditorAssist : IDisposable
     {
         _editor = editor;
         _options = options;
-        _completion = new CompletionPresenter(editor);
-        _insight = new InsightPresenter(editor);
-        _hover = new HoverPresenter(editor);
+        _completion = new(editor);
+        _insight = new(editor);
+        _hover = new(editor);
     }
 
     /// <summary>
@@ -54,7 +54,7 @@ public sealed class EditorAssist : IDisposable
     {
         factory.CheckNotNull();
         language.CheckNotNull();
-        return new EditorAssistOptions
+        return new()
         {
             ResolveService = () => factory.Create(language()),
             IsEnabled = () => factory.IsEnabled,

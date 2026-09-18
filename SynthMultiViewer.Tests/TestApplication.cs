@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Headless;
 using ReactiveUI.Avalonia;
@@ -9,12 +10,13 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 
 public static class TestApplication
 {
-    public static AppBuilder BuildAvaloniaApp()
-    {
-        RxAppBuilder.CreateReactiveUIBuilder().WithAvalonia().WithCoreServices().BuildApp();
-        return AppBuilder.Configure<App>()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
+    [ModuleInitializer]
+    internal static void InitReactiveUI() =>
+        RxAppBuilder.CreateReactiveUIBuilder().WithCoreServices().BuildApp();
+
+    public static AppBuilder BuildAvaloniaApp() =>
+        AppBuilder.Configure<App>()
+            .UseHeadless(new() { UseHeadlessDrawing = false })
             .UseSkia()
             .UseReactiveUI(_ => { });
-    }
 }

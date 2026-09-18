@@ -31,7 +31,7 @@ internal sealed class VapourSynthCatalogIndex
         var index = new VapourSynthCatalogIndex();
         foreach (var symbol in catalog)
         {
-            if (!TrySplit(symbol.Name, out var ns, out _))
+            if (!TrySplit(symbol.Name, out var ns))
             {
                 continue;
             }
@@ -40,7 +40,7 @@ internal sealed class VapourSynthCatalogIndex
             {
                 functions = [];
                 index._functions[ns] = functions;
-                index._namespaces.Add(new Symbol(ns, null, SymbolKind.Namespace));
+                index._namespaces.Add(new(ns, null, SymbolKind.Namespace));
             }
 
             functions.Add(symbol);
@@ -90,16 +90,15 @@ internal sealed class VapourSynthCatalogIndex
         {
             bound = [];
             map[ns] = bound;
-            namespaces.Add(new Symbol(ns, null, SymbolKind.Namespace));
+            namespaces.Add(new(ns, null, SymbolKind.Namespace));
         }
 
         bound.Add(symbol);
     }
 
-    private static bool TrySplit(string name, out string ns, out string function)
+    private static bool TrySplit(string name, out string ns)
     {
         ns = "";
-        function = "";
         const string prefix = "core.";
         if (!name.StartsWith(prefix, StringComparison.Ordinal))
         {
@@ -114,7 +113,7 @@ internal sealed class VapourSynthCatalogIndex
         }
 
         ns = rest[..dot];
-        function = rest[(dot + 1)..];
+        var function = rest[(dot + 1)..];
         return function.Length > 0 && !function.Contains('.', StringComparison.Ordinal);
     }
 }

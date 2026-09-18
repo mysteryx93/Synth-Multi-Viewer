@@ -98,11 +98,11 @@ public partial class VideoPropertiesViewModel : WorkspaceViewModel, IViewClosed
         Items.Clear();
         if (viewer?.ClipInfo is not { } clip || viewer.ErrorMessage != null)
         {
-            Items.Add(new PropertyItem("No clip loaded", "", true));
+            Items.Add(new("No clip loaded", "", true));
             return;
         }
 
-        Items.Add(new PropertyItem("Clip", "", true));
+        Items.Add(new("Clip", "", true));
         Add("Host", clip.Host == ScriptKind.AviSynth ? "AviSynth" : "VapourSynth");
         Add("Size", clip.Width + "×" + clip.Height);
         Add("Frames", clip.FrameCount.ToString(CultureInfo.InvariantCulture));
@@ -119,7 +119,7 @@ public partial class VideoPropertiesViewModel : WorkspaceViewModel, IViewClosed
 
         Add("Planes", clip.Planes.ToString(CultureInfo.InvariantCulture));
 
-        Items.Add(new PropertyItem("Frame", "", true));
+        Items.Add(new("Frame", "", true));
         Add("Index", ((int)viewer.Position.TotalSeconds + 1).ToString(CultureInfo.InvariantCulture));
         if (viewer.FrameProperties.Count == 0)
         {
@@ -133,7 +133,7 @@ public partial class VideoPropertiesViewModel : WorkspaceViewModel, IViewClosed
         }
     }
 
-    private void Add(string name, string value) => Items.Add(new PropertyItem(name, value));
+    private void Add(string name, string value) => Items.Add(new(name, value));
 
     /// <summary>
     /// Formats a rational frame rate for display.

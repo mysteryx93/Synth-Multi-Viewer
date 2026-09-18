@@ -1,7 +1,6 @@
 using System.Net;
 using System.Reactive.Linq;
 using System.Text;
-using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using Xunit;
 
@@ -14,14 +13,14 @@ public class AppVersionClientTests
     {
         var handler = new StubHandler
         {
-            Response = new HttpResponseMessage(HttpStatusCode.OK)
+            Response = new(HttpStatusCode.OK)
             {
                 Content = new StringContent(
                     """{"LatestVersion":"1.3","DownloadUrl":"https://example/download"}""",
                     Encoding.UTF8, "application/json")
             }
         };
-        var client = new AppVersionClient(new HttpClient(handler));
+        var client = new AppVersionClient(new(handler));
 
         var version = await client.QueryVersionAsync();
 
@@ -31,7 +30,7 @@ public class AppVersionClientTests
         Assert.Contains("app=synthmultiviewer", handler.LastRequest.Query, StringComparison.Ordinal);
         Assert.Contains("os=" + AppVersionClient.GetRuntimeIdentifier(), handler.LastRequest.Query,
             StringComparison.Ordinal);
-        Assert.Equal(new Version(1, 3), version!.LatestVersion);
+        Assert.Equal(new(1, 3), version!.LatestVersion);
         Assert.Equal("https://example/download", version.DownloadUrl);
     }
 
@@ -40,11 +39,13 @@ public class AppVersionClientTests
     {
         var handler = new StubHandler
         {
-            Response = new HttpResponseMessage(HttpStatusCode.NotFound)
+            Response = new(HttpStatusCode.NotFound)
         };
-        var client = new AppVersionClient(new HttpClient(handler));
+        var client = new AppVersionClient(new(handler));
 
-        Assert.Null(await client.QueryVersionAsync());
+        var version = await client.QueryVersionAsync();
+
+        Assert.Null(version);
     }
 
     [Fact]
@@ -52,14 +53,16 @@ public class AppVersionClientTests
     {
         var handler = new StubHandler
         {
-            Response = new HttpResponseMessage(HttpStatusCode.OK)
+            Response = new(HttpStatusCode.OK)
             {
                 Content = new StringContent("not-json", Encoding.UTF8, "application/json")
             }
         };
-        var client = new AppVersionClient(new HttpClient(handler));
+        var client = new AppVersionClient(new(handler));
 
-        Assert.Null(await client.QueryVersionAsync());
+        var version = await client.QueryVersionAsync();
+
+        Assert.Null(version);
     }
 
     [Fact]
@@ -67,7 +70,7 @@ public class AppVersionClientTests
     {
         var versions = new TestSupport.MemoryAppVersionClient
         {
-            Result = new AppVersionInfo { LatestVersion = new Version(2, 0, 0) }
+            Result = new(new(2, 0, 0))
         };
         var model = TestSupport.CreateHelp(versions: versions);
 
@@ -81,7 +84,7 @@ public class AppVersionClientTests
     {
         var versions = new TestSupport.MemoryAppVersionClient
         {
-            Result = new AppVersionInfo { LatestVersion = new Version(1, 2, 3) }
+            Result = new(new(1, 2, 3))
         };
         var model = TestSupport.CreateHelp(versions: versions);
 

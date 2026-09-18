@@ -47,6 +47,8 @@ VapourSynth and AviSynth must match that architecture. On Apple Silicon, Homebre
 
 This repo also contains .NET API wrapper for [VapourSynth](ApiVapourSynth/) and [AviSynth](ApiAviSynth/).
 
+Test conventions: [AGENTS.md](AGENTS.md).
+
 ### ScriptAssist
 
 [ScriptAssist](ScriptAssist/README.md) provides completion, call insight, and hover for VapourSynth and AviSynth, with AvaloniaEdit and headless APIs. It analyzes text and supplied catalogs without executing scripts or requiring Python.

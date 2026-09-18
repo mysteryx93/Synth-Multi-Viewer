@@ -26,7 +26,7 @@ internal static class AviSynthBinder
             buffer.Add(span.Symbol);
         }
 
-        AviSynthFunctions.AddImports(text, documentPath, read, buffer, new HashSet<string>(StringComparer.Ordinal),
+        AviSynthFunctions.AddImports(text, documentPath, read, buffer, new(StringComparer.Ordinal),
             lexer, token, includes);
         var scopes = FunctionScopes(joined, spans);
         Dictionary<string, TypeRef>? visible = null;
@@ -59,7 +59,7 @@ internal static class AviSynthBinder
         }
 
         names.Remove("");
-        return new DocumentBindings
+        return new()
         {
             Names = names,
             BufferSymbols = buffer,
@@ -93,7 +93,7 @@ internal static class AviSynthBinder
             }
             var names = new Dictionary<string, TypeRef>(StringComparer.OrdinalIgnoreCase);
             BindParameters(span.Symbol, names);
-            scopes.Add(new BindingScope
+            scopes.Add(new()
             {
                 Start = span.Start,
                 End = end,
@@ -190,7 +190,7 @@ internal static class AviSynthBinder
 
         if (!ReferenceEquals(visibleScope, inner) || visible == null)
         {
-            visible = new Dictionary<string, TypeRef>(global, global.Comparer);
+            visible = new(global, global.Comparer);
             foreach (var scope in scopes)
             {
                 if (offset < scope.Start || offset > scope.End)
@@ -312,6 +312,6 @@ internal static class AviSynthBinder
             return TypeRef.Unknown;
         }
 
-        return AviSynthTypeWalker.TypeOf(segments, new DocumentBindings { Names = names }, catalog);
+        return AviSynthTypeWalker.TypeOf(segments, new() { Names = names }, catalog);
     }
 }

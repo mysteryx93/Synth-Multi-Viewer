@@ -20,7 +20,7 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
         set
         {
             _selected = value.Clamp(0, Math.Max(0, Count - 1));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
+            PropertyChanged?.Invoke(this, new(null));
         }
     }
 

@@ -36,7 +36,7 @@ internal sealed class VsPlayback : ISynthPlayback
     {
         var loaded = script != null ? VsScript.LoadScript(script, file) : VsScript.LoadFile(file!);
         var output = loaded.GetOutput(0);
-        return new VsPlayback(sink, loaded, output, output.VideoInfo);
+        return new(sink, loaded, output, output.VideoInfo);
     }
 
     public int Width { get; }
@@ -346,7 +346,7 @@ internal sealed class VsPlayback : ISynthPlayback
         var mapped = new FrameProperty[properties.Count];
         for (var i = 0; i < properties.Count; i++)
         {
-            mapped[i] = new FrameProperty(properties[i].Name, properties[i].Value);
+            mapped[i] = new(properties[i].Name, properties[i].Value);
         }
 
         return mapped;

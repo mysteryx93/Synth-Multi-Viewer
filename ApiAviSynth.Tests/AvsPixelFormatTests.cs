@@ -22,10 +22,12 @@ public class AvsPixelFormatTests
     [InlineData(GenericYuv420 | SampleBits10, "YUV420P10", "YUV", 10, "Integer", "4:2:0", 3)]
     [InlineData(GenericYuv420 | SampleBits32, "YUV420PS", "YUV", 32, "Float", "4:2:0", 3)]
     [InlineData(GenericY, "Y8", "Gray", 8, "Integer", null, 1)]
-    public void Decode_KnownPixelType_ReturnsLayout(
+    public void GetName_KnownPixelType_ReturnsLayout(
         int pixelType, string name, string family, int depth, string sample, string? sub, int planes)
     {
-        Assert.Equal(name, AvsPixelFormat.GetName(pixelType));
+        var actualName = AvsPixelFormat.GetName(pixelType);
+
+        Assert.Equal(name, actualName);
         Assert.Equal(family, AvsPixelFormat.GetColorFamily(pixelType));
         Assert.Equal(depth, AvsPixelFormat.GetBitDepth(pixelType));
         Assert.Equal(sample, AvsPixelFormat.GetSampleType(pixelType));
@@ -36,6 +38,10 @@ public class AvsPixelFormatTests
     [Fact]
     public void GetName_Unknown_ReturnsUnknown()
     {
-        Assert.Equal("Unknown", AvsPixelFormat.GetName(0));
+        const int pixelType = 0;
+
+        var name = AvsPixelFormat.GetName(pixelType);
+
+        Assert.Equal("Unknown", name);
     }
 }

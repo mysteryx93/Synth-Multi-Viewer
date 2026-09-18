@@ -354,7 +354,7 @@ internal static class VapourSynthBinder
         {
             if (symbol.Name.Equals(child, StringComparison.Ordinal))
             {
-                return VapourSynthTypes.ScriptOf(new TypeRef(symbol.ReturnType ?? "")) ?? fallback;
+                return VapourSynthTypes.ScriptOf(new(symbol.ReturnType ?? "")) ?? fallback;
             }
         }
 
@@ -410,12 +410,6 @@ internal static class VapourSynthBinder
         {
             return right;
         }
-
-        if (rightSynthetic && !leftSynthetic)
-        {
-            return left;
-        }
-
         return left;
     }
 
@@ -439,7 +433,7 @@ internal static class VapourSynthBinder
         string child, string childId)
     {
         UpsertMember(members, scriptModules,
-            new Symbol(child, null, SymbolKind.Namespace, ReturnType: VapourSynthTypes.Script(childId).Id));
+            new(child, null, SymbolKind.Namespace, ReturnType: VapourSynthTypes.Script(childId).Id));
     }
 
     private static void UpsertMember(List<Symbol> members, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
@@ -453,10 +447,10 @@ internal static class VapourSynthBinder
             }
 
             var existingId = members[i].ReturnType is { } existingReturn
-                ? VapourSynthTypes.ScriptOf(new TypeRef(existingReturn))
+                ? VapourSynthTypes.ScriptOf(new(existingReturn))
                 : null;
             var incomingId = incoming.ReturnType is { } incomingReturn
-                ? VapourSynthTypes.ScriptOf(new TypeRef(incomingReturn))
+                ? VapourSynthTypes.ScriptOf(new(incomingReturn))
                 : null;
             if (existingId != null && incomingId != null && existingId != incomingId)
             {
@@ -1041,7 +1035,7 @@ internal static class VapourSynthBinder
         }
 
         var parameters = self.Parameters as string[] ?? [..self.Parameters];
-        BindFunction(new Symbol(self.Name, parameters, ReturnType: returnType), self.Enclosing, buffer, names,
+        BindFunction(new(self.Name, parameters, ReturnType: returnType), self.Enclosing, buffer, names,
             visible);
     }
 
@@ -1136,7 +1130,7 @@ internal static class VapourSynthBinder
                 headerEnd = end;
             }
 
-            scopes.Add(new BindingScope
+            scopes.Add(new()
             {
                 Start = span.Start,
                 End = end,
@@ -1524,7 +1518,7 @@ internal static class VapourSynthBinder
     private sealed class VisibleCache
     {
         public OverlayNames? Names;
-        public BindingScope? Scope;
+        private BindingScope? _scope;
         private HashSet<string>? _moduleNames;
         private Dictionary<string, Symbol>? _local;
         private HashSet<string>? _hidden;
@@ -1533,7 +1527,7 @@ internal static class VapourSynthBinder
         public void Reset()
         {
             Names = null;
-            Scope = null;
+            _scope = null;
             _local = null;
             _hidden = null;
             _symbols = null;
@@ -1541,7 +1535,7 @@ internal static class VapourSynthBinder
 
         public void Ensure(BindingScope inner, Dictionary<string, TypeRef> globals, List<Symbol> buffer)
         {
-            if (ReferenceEquals(Scope, inner) && Names != null)
+            if (ReferenceEquals(_scope, inner) && Names != null)
             {
                 return;
             }
@@ -1552,7 +1546,7 @@ internal static class VapourSynthBinder
             _hidden = null;
             OverlayChain(inner, overlay);
             Names = overlay;
-            Scope = inner;
+            _scope = inner;
             _symbols = null;
         }
 
@@ -1605,7 +1599,7 @@ internal static class VapourSynthBinder
             var listChanged = _local != null && _local.Remove(name);
             if (_moduleNames != null && _moduleNames.Contains(name))
             {
-                _hidden ??= new HashSet<string>(StringComparer.Ordinal);
+                _hidden ??= new(StringComparer.Ordinal);
                 listChanged |= _hidden.Add(name);
             }
 
@@ -1619,7 +1613,7 @@ internal static class VapourSynthBinder
         {
             if (changed == null)
             {
-                _moduleNames ??= new HashSet<string>(StringComparer.Ordinal);
+                _moduleNames ??= new(StringComparer.Ordinal);
                 _moduleNames.Add(symbol.Name);
             }
 
@@ -1632,7 +1626,7 @@ internal static class VapourSynthBinder
             {
                 if (_moduleNames != null && _moduleNames.Contains(symbol.Name))
                 {
-                    _hidden ??= new HashSet<string>(StringComparer.Ordinal);
+                    _hidden ??= new(StringComparer.Ordinal);
                     if (_hidden.Add(symbol.Name))
                     {
                         _symbols = null;
@@ -1655,7 +1649,7 @@ internal static class VapourSynthBinder
                 return;
             }
 
-            _local ??= new Dictionary<string, Symbol>(StringComparer.Ordinal);
+            _local ??= new(StringComparer.Ordinal);
             _local[symbol.Name] = symbol;
             _hidden?.Remove(symbol.Name);
             _symbols = null;
@@ -1668,7 +1662,7 @@ internal static class VapourSynthBinder
                 return;
             }
 
-            _moduleNames = new HashSet<string>(StringComparer.Ordinal);
+            _moduleNames = new(StringComparer.Ordinal);
             foreach (var symbol in buffer)
             {
                 _moduleNames.Add(symbol.Name);
@@ -1694,14 +1688,14 @@ internal static class VapourSynthBinder
                         continue;
                     }
 
-                    _hidden ??= new HashSet<string>(StringComparer.Ordinal);
+                    _hidden ??= new(StringComparer.Ordinal);
                     _hidden.Add(pair.Key);
                     _local?.Remove(pair.Key);
                 }
 
                 foreach (var symbol in scope.Symbols)
                 {
-                    _local ??= new Dictionary<string, Symbol>(StringComparer.Ordinal);
+                    _local ??= new(StringComparer.Ordinal);
                     _local[symbol.Name] = symbol;
                     _hidden?.Remove(symbol.Name);
                     if (symbol.Parameters != null)
@@ -1713,7 +1707,7 @@ internal static class VapourSynthBinder
         }
 
         private bool Shadowed(BindingScope? changed, string name) =>
-            Scope != null && !ReferenceEquals(changed, Scope) && Scope.Names.ContainsKey(name);
+            _scope != null && !ReferenceEquals(changed, _scope) && _scope.Names.ContainsKey(name);
 
         private bool Tracks(BindingScope? changed)
         {
@@ -1722,12 +1716,12 @@ internal static class VapourSynthBinder
                 return false;
             }
 
-            if (Scope == null)
+            if (_scope == null)
             {
                 return changed == null;
             }
 
-            return changed == null || changed.Start <= Scope.Start && changed.End >= Scope.End;
+            return changed == null || changed.Start <= _scope.Start && changed.End >= _scope.End;
         }
     }
 
@@ -1796,7 +1790,7 @@ internal static class VapourSynthBinder
             return;
         }
 
-        Export(new Symbol(alias, null, SymbolKind.Namespace, ReturnType: VapourSynthTypes.Script(script.Value.Id).Id),
+        Export(new(alias, null, SymbolKind.Namespace, ReturnType: VapourSynthTypes.Script(script.Value.Id).Id),
             target, names, visible, scope);
     }
 
@@ -1804,7 +1798,7 @@ internal static class VapourSynthBinder
         VisibleCache? visible = null, BindingScope? scope = null)
     {
         ReplaceSymbol(target, symbol);
-        var script = symbol.ReturnType != null ? VapourSynthTypes.ScriptOf(new TypeRef(symbol.ReturnType)) : null;
+        var script = symbol.ReturnType != null ? VapourSynthTypes.ScriptOf(new(symbol.ReturnType)) : null;
         if (script != null && names != null)
         {
             var type = VapourSynthTypes.Script(script);
@@ -1850,9 +1844,8 @@ internal static class VapourSynthBinder
             return null;
         }
 
-        string? path = null;
         string? text = null;
-        if (includes.TryPath(imported, documentPath, out path))
+        if (includes.TryPath(imported, documentPath, out var path))
         {
             if (path == null)
             {
@@ -1924,7 +1917,7 @@ internal static class VapourSynthBinder
         foreach (var symbol in copy)
         {
             var nested = symbol.ReturnType != null
-                ? VapourSynthTypes.ScriptOf(new TypeRef(symbol.ReturnType))
+                ? VapourSynthTypes.ScriptOf(new(symbol.ReturnType))
                 : null;
             if (nested == null || nested == path)
             {
@@ -1977,7 +1970,7 @@ internal static class VapourSynthBinder
         foreach (var symbol in members)
         {
             var nested = symbol.ReturnType != null
-                ? VapourSynthTypes.ScriptOf(new TypeRef(symbol.ReturnType))
+                ? VapourSynthTypes.ScriptOf(new(symbol.ReturnType))
                 : null;
             if (nested == null || nested == path)
             {
@@ -2044,7 +2037,7 @@ internal static class VapourSynthBinder
                     ? VapourSynthFunctions.ReturnId(quoted, inner.ParenClose,
                         Current(dummy, scriptModules, members, scopes))
                     : null;
-                ReplaceSymbol(members, new Symbol(inner.Name, parameters, ReturnType: returnType));
+                ReplaceSymbol(members, new(inner.Name, parameters, ReturnType: returnType));
                 continue;
             }
 

@@ -30,11 +30,11 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
         IncludeReader? avisynthIncludes = null)
         : this(
         [
-            new LanguageProfile(
+            new(
                 VapourSynth,
                 new VapourSynthLanguage(vapoursynthIncludes),
                 new CatalogCache(vapoursynthCatalog.CheckNotNull())),
-            new LanguageProfile(
+            new(
                 AviSynth,
                 new AviSynthLanguage(avisynthIncludes),
                 new CatalogCache(avisynthCatalog.CheckNotNull()))
@@ -48,7 +48,7 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
     public ScriptLanguageFactory(IReadOnlyList<LanguageProfile> profiles)
     {
         profiles.CheckNotNull();
-        _profiles = new Dictionary<string, LanguageProfile>(StringComparer.Ordinal);
+        _profiles = new(StringComparer.Ordinal);
         foreach (var profile in profiles)
         {
             profile.CheckNotNull();
