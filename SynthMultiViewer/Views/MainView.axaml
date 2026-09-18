@@ -55,7 +55,9 @@
     </Window.KeyBindings>
     <DockPanel>
         <DockPanel DockPanel.Dock="Top">
-            <StackPanel DockPanel.Dock="Right" Classes="toolbar">
+            <StackPanel DockPanel.Dock="Right" Classes="toolbar"
+                        Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
+                        Height="40" Margin="0,0,4,0">
                 <Button ToolTip.Tip="Run script (F5)" Command="{Binding Run}"
                         IsVisible="{Binding IsEditorSelected}">
                     <Image Source="/Assets/Icons/Run.png" Classes="enabled" />
@@ -127,9 +129,11 @@
                     <DataTemplate x:DataType="vm:IScriptViewModel">
                         <Grid ColumnDefinitions="Auto,Auto">
                             <Grid Grid.Column="0" h:EventCommands.SingleClick="{Binding BeginHeaderEdit}">
-                                <TextBlock Text="{Binding DisplayName}" Classes="tab-header" Opacity="{Binding !IsEditingHeader}" />
+                                <TextBlock Text="{Binding DisplayName}" FontSize="16" Margin="2,1"
+                                           VerticalAlignment="Center" Opacity="{Binding !IsEditingHeader}" />
                                 <Canvas IsHitTestVisible="{Binding IsEditingHeader}">
-                                    <TextBox Classes="tab-header-edit" Text="{Binding DisplayName, Mode=TwoWay,
+                                    <TextBox Classes="tab-header-edit"
+                                             Text="{Binding DisplayName, Mode=TwoWay,
                                              UpdateSourceTrigger=PropertyChanged}"
                                              Width="{Binding $parent[Grid].Bounds.Width}"
                                              Height="{Binding $parent[Grid].Bounds.Height}"
@@ -168,34 +172,51 @@
             </ItemsControl>
             <ScrollViewer x:Name="StartCanvas" IsVisible="{Binding IsStartVisible}"
                           HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                <StackPanel Classes="start-canvas">
-                    <TextBlock Text="VapourSynth/AviSynth Editor and Viewer" Classes="start-title" />
-                    <TextBlock Text="Drop a script here" Classes="start-hint" />
-                    <StackPanel Classes="start-column">
-                        <StackPanel x:Name="StartActions" Classes="start-actions">
-                            <Button x:Name="StartNewVapourSynth" Content="New VapourSynth Script" Command="{Binding New}" />
-                            <Button x:Name="StartNewAviSynth" Content="New AviSynth Script" Command="{Binding NewAviSynth}" />
-                            <Button x:Name="StartOpen" Content="Open Existing" Command="{Binding Open}" />
-                        </StackPanel>
-                        <StackPanel x:Name="StartRecentsPanel" Classes="start-recents"
-                                    IsVisible="{Binding HasRecents}"
-                                    Width="{Binding #StartActions.Bounds.Width}">
-                            <TextBlock Text="Recent:" Classes="start-recents-heading" />
-                            <ItemsControl x:Name="StartRecents" ItemsSource="{Binding Recents}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:RecentFileItem">
-                                        <Button Classes="start-recent"
-                                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).OpenRecent}"
-                                                CommandParameter="{Binding Path}" ToolTip.Tip="{Binding Path}">
-                                            <TextBlock Text="{Binding Name}" TextWrapping="NoWrap"
-                                                       TextTrimming="CharacterEllipsis" />
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                <Panel MinHeight="{Binding #StartCanvas.Bounds.Height}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Spacing="16" Margin="0,0,0,24" MaxWidth="560">
+                        <TextBlock Text="VapourSynth/AviSynth Editor and Viewer"
+                                   HorizontalAlignment="Center" TextAlignment="Center"
+                                   TextWrapping="Wrap" FontSize="26" FontWeight="SemiBold" />
+                        <TextBlock Text="Drop a script here" HorizontalAlignment="Center"
+                                   Opacity="0.7" Margin="0,-4,0,0" />
+                        <StackPanel HorizontalAlignment="Center" Spacing="16" Width="210">
+                            <StackPanel x:Name="StartActions" Spacing="6">
+                                <Button x:Name="StartNewVapourSynth" Content="New VapourSynth Script"
+                                        Command="{Binding New}"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                        MinHeight="0" Padding="10,3" />
+                                <Button x:Name="StartNewAviSynth" Content="New AviSynth Script"
+                                        Command="{Binding NewAviSynth}"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                        MinHeight="0" Padding="10,3" />
+                                <Button x:Name="StartOpen" Content="Open Existing" Command="{Binding Open}"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                        MinHeight="0" Padding="10,3" />
+                            </StackPanel>
+                            <StackPanel x:Name="StartRecentsPanel" Spacing="0" ClipToBounds="True"
+                                        IsVisible="{Binding HasRecents}"
+                                        Width="{Binding #StartActions.Bounds.Width}">
+                                <TextBlock Text="Recent:" Opacity="0.8" />
+                                <ItemsControl x:Name="StartRecents" ItemsSource="{Binding Recents}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:RecentFileItem">
+                                            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                    Background="Transparent" BorderBrush="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="0,3" ClipToBounds="True"
+                                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).OpenRecent}"
+                                                    CommandParameter="{Binding Path}" ToolTip.Tip="{Binding Path}">
+                                                <TextBlock Text="{Binding Name}" TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </Panel>
             </ScrollViewer>
         </Grid>
     </DockPanel>

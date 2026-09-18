@@ -1,4 +1,5 @@
 using System.Reactive.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media;
@@ -45,6 +46,9 @@ public class StartScreenTests
         Assert.Contains("VapourSynth/AviSynth Editor and Viewer", texts);
         Assert.Contains("Drop a script here", texts);
         Assert.DoesNotContain(texts, x => x?.Contains("not detected") == true);
+        var canvas = start.GetVisualDescendants().OfType<StackPanel>().First(x => x.MaxWidth == 560);
+        var origin = canvas.TranslatePoint(default, start)!.Value;
+        Assert.InRange(origin.Y + canvas.Bounds.Height / 2, start.Bounds.Height / 2 - 8, start.Bounds.Height / 2 + 8);
 
         var toolbar = view.GetVisualDescendants().OfType<StackPanel>().First(x => x.Classes.Contains("toolbar"));
         Assert.Contains(toolbar.Children.OfType<Button>(), x => x.Command == model.New);
@@ -94,7 +98,7 @@ public class StartScreenTests
         Assert.True(panel.IsVisible);
         Assert.Contains("Recent:", view.FindControl<ScrollViewer>("StartCanvas")!.GetVisualDescendants()
             .OfType<TextBlock>().Where(x => x.IsVisible).Select(x => x.Text));
-        var recent = recents.GetVisualDescendants().OfType<Button>().Single(x => x.Classes.Contains("start-recent"));
+        var recent = recents.GetVisualDescendants().OfType<Button>().Single();
         Assert.Equal(Path.GetFileName(file.Path), Assert.IsType<TextBlock>(recent.Content).Text);
         Assert.Equal(file.Path, recent.CommandParameter);
         var actions = view.FindControl<StackPanel>("StartActions")!;
@@ -122,7 +126,7 @@ public class StartScreenTests
             var actions = view.FindControl<StackPanel>("StartActions")!;
             var panel = view.FindControl<StackPanel>("StartRecentsPanel")!;
             var recent = view.FindControl<ItemsControl>("StartRecents")!
-                .GetVisualDescendants().OfType<Button>().Single(x => x.Classes.Contains("start-recent"));
+                .GetVisualDescendants().OfType<Button>().Single();
             var label = Assert.Single(recent.GetVisualDescendants().OfType<TextBlock>());
 
             Assert.Equal(actions.Bounds.Width, panel.Bounds.Width);

@@ -27,10 +27,11 @@
                                  FontSize="14" Padding="0" VerticalAlignment="Center" />
                 <TextBlock FontSize="14" Text=" — Coherence programming" VerticalAlignment="Center" />
             </StackPanel>
-            <Grid x:Name="ShortcutColumns" Classes="help-shortcuts" ColumnDefinitions="Auto,Auto,Auto,Auto">
-                <StackPanel Grid.Column="0" Classes="help-column">
-                    <TextBlock Classes="help-heading" Text="File" />
-                    <TextBlock Classes="help-list">
+            <Grid x:Name="ShortcutColumns" ColumnDefinitions="Auto,Auto,Auto"
+                  ColumnSpacing="16" Margin="0,10,0,0">
+                <StackPanel Grid.Column="0" Spacing="6">
+                    <TextBlock FontWeight="SemiBold" Text="File" />
+                    <TextBlock LineHeight="20" TextWrapping="NoWrap">
                         <Run Text="F1: Help" /><LineBreak />
                         <Run Text="Ctrl+,: Settings" /><LineBreak />
                         <Run Text="Ctrl+N: New VapourSynth" /><LineBreak />
@@ -41,26 +42,35 @@
                         <Run Text="F5: Run" /><LineBreak />
                         <Run Text="Ctrl+F4: Close tab" />
                     </TextBlock>
-                    <TextBlock Classes="help-heading" Text="Tabs" />
-                    <TextBlock Classes="help-list">
+                    <TextBlock FontWeight="SemiBold" Text="Tabs" />
+                    <TextBlock LineHeight="20" TextWrapping="NoWrap">
                         <Run Text="F2 / Click: Rename" /><LineBreak />
                         <Run Text="Ctrl+T: Tab color" /><LineBreak />
                         <Run Text="Ctrl+Tab: Next" /><LineBreak />
                         <Run Text="Ctrl+Shift+Tab: Previous" /><LineBreak />
                         <Run Text="Ctrl+1-9: Select tab" /><LineBreak />
-                        <Run Text="Alt+Left / Alt+Right: Move tab" /><LineBreak />
+                        <Run Text="Alt+Left: Move tab left" /><LineBreak />
+                        <Run Text="Alt+Right: Move tab right" /><LineBreak />
                         <Run Text="Drag: Reorder" />
                     </TextBlock>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Classes="help-column">
-                    <TextBlock Classes="help-heading" Text="Viewer" />
-                    <TextBlock Classes="help-list">
+                <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock FontWeight="SemiBold" Text="Editor" />
+                    <TextBlock LineHeight="20" TextWrapping="NoWrap">
+                        <Run Text="Ctrl+Space: Completion" /><LineBreak />
+                        <Run Text="Ctrl+Shift+Space: Parameter info" /><LineBreak />
+                        <Run Text="Ctrl+Shift+R: Refresh catalogs" /><LineBreak />
+                        <Run Text="Esc: Dismiss popups" />
+                    </TextBlock>
+                    <TextBlock FontWeight="SemiBold" Text="Viewer" />
+                    <TextBlock LineHeight="20" TextWrapping="NoWrap">
                         <Run Text="Left-drag: Pan" /><LineBreak />
-                        <Run Text="Scroll / +/-: Zoom in / out" /><LineBreak />
+                        <Run Text="Scroll, +/-: Zoom in / out" /><LineBreak />
                         <Run Text="Right click: Reset zoom" /><LineBreak />
                         <Run Text="Space: Play/Pause" /><LineBreak />
                         <Run Text="Left / Right: Seek 1 frame" /><LineBreak />
-                        <Run Text="Ctrl+Left / Ctrl+Right: Seek 10 frames" /><LineBreak />
+                        <Run Text="Ctrl+Left: Back 10 frames" /><LineBreak />
+                        <Run Text="Ctrl+Right: Forward 10 frames" /><LineBreak />
                         <Run Text="Ctrl+G: Go to frame" /><LineBreak />
                         <Run Text="Ctrl+C: Copy frame" /><LineBreak />
                         <Run Text="Ctrl+I: Video properties" /><LineBreak />
@@ -69,36 +79,24 @@
                         <Run Text="F9: Square pixels" />
                     </TextBlock>
                 </StackPanel>
-                <StackPanel Grid.Column="2" Classes="help-column">
-                    <TextBlock Classes="help-heading" Text="Editor" />
-                    <TextBlock Classes="help-list">
-                        <Run Text="Ctrl+Space: Completion" /><LineBreak />
-                        <Run Text="Ctrl+Shift+Space: Parameter info" /><LineBreak />
-                        <Run Text="Ctrl+Shift+R: Refresh catalogs" /><LineBreak />
-                        <Run Text="Esc: Dismiss popups" />
+                <StackPanel Grid.Column="2" Spacing="6">
+                    <TextBlock FontWeight="SemiBold" Text="Edit" />
+                    <TextBlock LineHeight="20" TextWrapping="NoWrap">
+                        <Run Text="Ctrl+Z / Ctrl+Y: Undo, Redo" /><LineBreak />
+                        <Run Text="Ctrl+D: Delete line" /><LineBreak />
+                        <Run Text="Tab: Indent" /><LineBreak />
+                        <Run Text="Shift+Tab: Unindent" /><LineBreak />
+                        <Run Text="Ctrl+Backspace: Delete word left" /><LineBreak />
+                        <Run Text="Ctrl+Delete: Delete word right" />
                     </TextBlock>
-                    <TextBlock Classes="help-heading" Text="Search" />
-                    <TextBlock Classes="help-list">
+                    <TextBlock FontWeight="SemiBold" Text="Search" />
+                    <TextBlock LineHeight="20" TextWrapping="NoWrap">
                         <Run Text="Ctrl+F: Find" /><LineBreak />
                         <Run Text="Ctrl+H: Replace" /><LineBreak />
                         <Run Text="F3: Find next" /><LineBreak />
                         <Run Text="Shift+F3: Find previous" /><LineBreak />
                         <Run Text="Alt+R: Replace next" /><LineBreak />
                         <Run Text="Alt+A: Replace all" />
-                    </TextBlock>
-                </StackPanel>
-                <StackPanel Grid.Column="3" Classes="help-column">
-                    <TextBlock Classes="help-heading" Text="Edit" />
-                    <TextBlock Classes="help-list">
-                        <Run Text="Ctrl+Z / Ctrl+Y: Undo / Redo" /><LineBreak />
-                        <Run Text="Ctrl+X / Ctrl+C / Ctrl+V: Cut / Copy / Paste" /><LineBreak />
-                        <Run Text="Ctrl+A: Select all" /><LineBreak />
-                        <Run Text="Ctrl+D: Delete line" /><LineBreak />
-                        <Run Text="Tab / Shift+Tab: Indent / unindent" /><LineBreak />
-                        <Run Text="Ctrl+Backspace / Ctrl+Delete: Delete word" /><LineBreak />
-                        <Run Text="Home / End: Line start / end" /><LineBreak />
-                        <Run Text="Ctrl+Home / Ctrl+End: Document start / end" /><LineBreak />
-                        <Run Text="Ctrl+Left / Ctrl+Right: Word left / right" />
                     </TextBlock>
                 </StackPanel>
             </Grid>

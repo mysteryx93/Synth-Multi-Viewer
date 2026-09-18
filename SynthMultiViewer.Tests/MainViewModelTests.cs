@@ -1092,13 +1092,13 @@ public class MainViewModelTests
             .Select(run => run.Text));
 
         Assert.Contains("Ctrl+1-9: Select tab", text, StringComparison.Ordinal);
-        Assert.Contains("Alt+Left / Alt+Right: Move tab", text, StringComparison.Ordinal);
+        Assert.Contains("Alt+Left: Move tab left", text, StringComparison.Ordinal);
+        Assert.Contains("Alt+Right: Move tab right", text, StringComparison.Ordinal);
         Assert.Contains("Drag: Reorder", text, StringComparison.Ordinal);
         Assert.Contains("F2 / Click: Rename", text, StringComparison.Ordinal);
         Assert.Contains("Ctrl+T: Tab color", text, StringComparison.Ordinal);
         Assert.Contains("Ctrl+Tab: Next", text, StringComparison.Ordinal);
         Assert.Contains("Ctrl+Shift+Tab: Previous", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("Ctrl+Tab / Ctrl+Shift+Tab", text, StringComparison.Ordinal);
         Assert.Contains("Ctrl+I: Video properties", text, StringComparison.Ordinal);
         Assert.Contains("Ctrl+O: Open", text, StringComparison.Ordinal);
         Assert.Contains("Ctrl+S: Save", text, StringComparison.Ordinal);
@@ -1109,9 +1109,24 @@ public class MainViewModelTests
         Assert.Contains("F3: Find next", text, StringComparison.Ordinal);
         Assert.DoesNotContain("F3: Settings", text, StringComparison.Ordinal);
         Assert.Contains("Ctrl+D: Delete line", text, StringComparison.Ordinal);
-        Assert.Contains("Tab / Shift+Tab: Indent / unindent", text, StringComparison.Ordinal);
+        Assert.Contains("Tab: Indent", text, StringComparison.Ordinal);
+        Assert.Contains("Shift+Tab: Unindent", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Indent selection", text, StringComparison.Ordinal);
         Assert.Contains("Scroll / +/-: Zoom in / out", text, StringComparison.Ordinal);
+        Assert.Contains("Left / Right: Seek 1 frame", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+Z / Ctrl+Y: Undo / Redo", text, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+X / Ctrl+C / Ctrl+V: Cut, Copy, Paste", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Home / End", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ctrl+Home", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ctrl+End", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Word left", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Word right", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ctrl+Tab / Ctrl+Shift+Tab", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Alt+Left / Alt+Right", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ctrl+Left / Ctrl+Right", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Tab / Shift+Tab", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ctrl+Backspace / Ctrl+Delete", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ctrl+Home / Ctrl+End", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Alt+Enter", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Alt+Shift+arrows", text, StringComparison.Ordinal);
         Assert.DoesNotContain("Wheel click on tab", text, StringComparison.Ordinal);
@@ -1130,7 +1145,7 @@ public class MainViewModelTests
 
         var columns = Assert.Single(help.GetVisualDescendants().OfType<Grid>(),
             grid => grid.Name == "ShortcutColumns");
-        Assert.Equal(4, columns.ColumnDefinitions.Count);
+        Assert.Equal(3, columns.ColumnDefinitions.Count);
         Assert.All(columns.ColumnDefinitions, column => Assert.True(column.Width.IsAuto));
         Assert.Contains(columns.GetVisualDescendants().OfType<TextBlock>(),
             block => block.Text == "Editor");
@@ -1138,7 +1153,8 @@ public class MainViewModelTests
             block => block.Text == "Search");
         Assert.Contains(columns.GetVisualDescendants().OfType<TextBlock>(),
             block => block.Text == "Edit");
-        foreach (var list in help.GetVisualDescendants().OfType<TextBlock>().Where(block => block.Classes.Contains("help-list")))
+        foreach (var list in columns.GetVisualDescendants().OfType<TextBlock>()
+            .Where(block => block.Inlines?.OfType<Avalonia.Controls.Documents.LineBreak>().Any() == true))
         {
             Assert.Equal(TextWrapping.NoWrap, list.TextWrapping);
             var lines = 1 + (list.Inlines?.OfType<Avalonia.Controls.Documents.LineBreak>().Count() ?? 0);
