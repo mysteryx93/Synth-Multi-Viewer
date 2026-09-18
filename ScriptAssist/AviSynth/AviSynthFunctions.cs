@@ -30,15 +30,28 @@ public static class AviSynthFunctions
         var clean = AviSynthPatterns.Clean(text, lexer, token: token);
         var quoted = AviSynthPatterns.Clean(text, lexer, maskStrings: false, token: token);
         var buffer = new List<AviSynthFunctionSpan>();
-        foreach (Match match in AviSynthPatterns.Functions().Matches(clean))
+        var matches = AviSynthPatterns.Functions().Matches(clean);
+        for (var i = 0; i < matches.Count; i++)
         {
             token.ThrowIfCancellationRequested();
+            var match = matches[i];
             var open = match.Index + match.Length - 1;
             var close = FunctionHeaders.MatchingClose(clean, open);
-            var end = close < 0 ? clean.Length : close;
+            var limit = i + 1 < matches.Count ? matches[i + 1].Index : clean.Length;
+            if (close < 0 || close >= limit)
+            {
+                close = -1;
+            }
+
+            var end = close < 0 ? limit : close;
+            if (end <= open)
+            {
+                continue;
+            }
+
             var inside = AviSynthPatterns.Whitespace().Replace(quoted[(open + 1)..end], " ");
             buffer.Add(new AviSynthFunctionSpan(new Symbol(match.Groups[1].Value, ParameterNames.Split(inside)),
-                match.Index, close < 0 ? Math.Max(open, clean.Length - 1) : close));
+                match.Index, close < 0 ? Math.Max(open, end - 1) : close));
         }
 
         return buffer;

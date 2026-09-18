@@ -667,17 +667,29 @@ internal static class VapourSynthBinder
             }
 
             var close = FunctionHeaders.MatchingClose(clean, open);
-            if (close < 0)
+            if (close >= span.End)
+            {
+                close = -1;
+            }
+
+            var listEnd = close < 0 ? span.End : close;
+            if (listEnd <= open)
             {
                 continue;
             }
 
-            var parameters = ParameterNames.Split(quoted[(open + 1)..close]);
-            var headerEnd = HeaderColon(clean, close);
+            var parameters = ParameterNames.Split(quoted[(open + 1)..listEnd]);
+            var headerEnd = close < 0 ? span.End : HeaderColon(clean, close);
+            var end = BlockEnd(clean, statements, i, span, headerEnd);
+            if (headerEnd > end)
+            {
+                headerEnd = end;
+            }
+
             scopes.Add(new BindingScope
             {
                 Start = span.Start,
-                End = BlockEnd(clean, statements, i, span, headerEnd),
+                End = end,
                 Name = name,
                 HeaderEnd = headerEnd,
                 ParenClose = close,
@@ -1103,11 +1115,17 @@ internal static class VapourSynthBinder
         var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token).Code;
         var statements = StatementScanner.Scan(clean, token);
         var scopes = FunctionScopes(clean, quoted, statements);
+        var classes = ClassRanges(clean, quoted, statements);
         var extras = new List<Symbol>();
         var dummy = new Dictionary<string, TypeRef>(StringComparer.Ordinal);
         foreach (var span in statements)
         {
             token.ThrowIfCancellationRequested();
+            if (DirectlyInClass(span.Start, classes, scopes))
+            {
+                continue;
+            }
+
             var inner = Innermost(scopes, span.Start);
             if (inner != null && span.Start != inner.Start)
             {

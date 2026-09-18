@@ -78,6 +78,10 @@ internal static class AviSynthBinder
                 : i + 1 < spans.Count
                     ? spans[i + 1].Start - 1
                     : joined.Length;
+            if (headerEnd > end)
+            {
+                headerEnd = end;
+            }
             var names = new Dictionary<string, TypeRef>(StringComparer.OrdinalIgnoreCase);
             BindParameters(span.Symbol, names);
             scopes.Add(new BindingScope

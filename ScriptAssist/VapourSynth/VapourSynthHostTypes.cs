@@ -43,8 +43,10 @@ public static class VapourSynthHostTypes
         new("used_cache_size", null, SymbolKind.Property, ReturnType: "int"),
         new("clear_cache", [], ReturnType: ""),
         new("plugins", []),
-        new("get_video_format", ["id:int"]),
-        new("query_video_format", ["color_family:int", "sample_type:int", "bits_per_sample:int"])
+        new("get_video_format", ["id:int"], ReturnType: "format"),
+        new("query_video_format",
+            ["color_family:int", "sample_type:int", "bits_per_sample:int", "subsampling_w:int:opt",
+                "subsampling_h:int:opt"], ReturnType: "format")
     ];
 
     /// <summary>
@@ -110,7 +112,7 @@ public static class VapourSynthHostTypes
         new("width", null, SymbolKind.Property, ReturnType: "int"),
         new("height", null, SymbolKind.Property, ReturnType: "int"),
         new("props", null, SymbolKind.Property),
-        new("copy", []),
+        new("copy", [], ReturnType: "vframe"),
         new("close", [])
     ];
 }

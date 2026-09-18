@@ -31,6 +31,8 @@ public class ScriptIncludesTests
     [InlineData("planes=[0, 1]", "planes")]
     [InlineData("Preset='Slow'", "Preset")]
     [InlineData("clip", "clip")]
+    [InlineData("lambda:float:opt", "lambda_")]
+    [InlineData("from:int:opt", "from_")]
     [InlineData("*args", null)]
     [InlineData("", null)]
     public void PythonParameterNames(string parameter, string? expected) =>

@@ -41,13 +41,17 @@ internal static class StatementScanner
                 Add(spans, code, start, i);
                 start = i + 1;
             }
-            else if (depth == 0 && (c == '\n' || c == '\r'))
+            else if (c == '\n' || c == '\r')
             {
                 var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
                 if (!Continues(code, i))
                 {
-                    Add(spans, code, start, i);
-                    start = last + 1;
+                    if (depth == 0 || Recovers(code, last + 1))
+                    {
+                        Add(spans, code, start, i);
+                        start = last + 1;
+                        depth = 0;
+                    }
                 }
 
                 i = last;
@@ -60,7 +64,31 @@ internal static class StatementScanner
         return spans;
     }
 
-    private static bool Continues(string code, int newline)
+    /// <summary>
+    /// Gets whether a line at <paramref name="lineStart"/> begins a <c>def</c>, <c>class</c>, or
+    /// <c>function</c> declaration after indentation.
+    /// </summary>
+    public static bool Recovers(string code, int lineStart)
+    {
+        if (lineStart < 0 || lineStart >= code.Length)
+        {
+            return false;
+        }
+
+        var i = lineStart;
+        while (i < code.Length && code[i] is ' ' or '\t')
+        {
+            i++;
+        }
+
+        return StartsKeyword(code, i, "def") || StartsKeyword(code, i, "class") ||
+            StartsKeyword(code, i, "function");
+    }
+
+    /// <summary>
+    /// Gets whether <paramref name="newline"/> is a backslash line continuation.
+    /// </summary>
+    public static bool Continues(string code, int newline)
     {
         var i = newline;
         while (i > 0 && code[i - 1] is ' ' or '\t')
@@ -69,6 +97,33 @@ internal static class StatementScanner
         }
 
         return i > 0 && code[i - 1] == '\\';
+    }
+
+    /// <summary>
+    /// Maps a closer to its opener, or <c>\0</c>.
+    /// </summary>
+    public static char Opening(char close) => close switch
+    {
+        ')' => '(',
+        ']' => '[',
+        '}' => '{',
+        _ => '\0'
+    };
+
+    private static bool StartsKeyword(string code, int offset, string word)
+    {
+        if (offset < 0 || offset + word.Length > code.Length)
+        {
+            return false;
+        }
+
+        if (!code.AsSpan(offset, word.Length).Equals(word, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var after = offset + word.Length;
+        return after == code.Length || !BufferLexer.IsIdentifier(code[after]);
     }
 
     private static void Add(List<Span> spans, string code, int start, int end)

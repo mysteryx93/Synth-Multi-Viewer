@@ -903,4 +903,230 @@ public class ReviewRegressionTests
         var boolHover = VsService().Analyze(text, text.IndexOf("b =", StringComparison.Ordinal) + 1, Vs).Hover;
         Assert.Equal("bool", boolHover?.Text);
     }
+
+    [Fact]
+    public void AviSynthAssignmentAfterStringOrEmptyRhsStillBinds()
+    {
+        var crop = new Symbol("Crop", ["clip", "int [left]"]);
+        var blank = new Symbol("BlankClip", ["int [width]"]);
+        var text = """
+            path = "movie.mkv"
+            clip = BlankClip()
+            clip.
+            """;
+        var reply = AvsService().Analyze(text, text.Length, [crop, blank]);
+        Assert.Contains(reply.Items, x => x.InsertionText == "Crop");
+
+        var unfinished = """
+            path =
+            clip = BlankClip()
+            clip.
+            """;
+        var next = AvsService().Analyze(unfinished, unfinished.Length, [crop, blank]);
+        Assert.Contains(next.Items, x => x.InsertionText == "Crop");
+    }
+
+    [Fact]
+    public void UnclosedVapourSynthHeaderDoesNotHideLaterFunction()
+    {
+        var text = """
+            def broken(clip
+            def good(clip, radius=2):
+                return clip
+            good(
+            """;
+        var insight = VsService().Analyze(text, text.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("good", insight.Overloads[0].Name);
+        Assert.Contains("radius=2", insight.Overloads[0].Signature);
+
+        var helper = """
+            def broken(clip
+            def Filter(clip, radius=2):
+                return clip
+            """;
+        var imported = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+        var call = "from helper import Filter\nFilter(";
+        var fromImport = imported.Analyze(call, call.Length, Vs).Insight;
+        Assert.NotNull(fromImport);
+        Assert.Equal("Filter", fromImport.Overloads[0].Name);
+    }
+
+    [Fact]
+    public void UnclosedAviSynthHeaderDoesNotHideLaterCall()
+    {
+        var text = """
+            function Broken(clip c,
+            function Good(clip c) {
+                return c
+            }
+            Good(
+            """;
+        var insight = AvsService().Analyze(text, text.Length, []).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("Good", insight.Overloads[0].Name);
+    }
+
+    [Fact]
+    public void MismatchedDelimitersDoNotStealLaterCallOrAssignment()
+    {
+        var text = "core.std.Crop([0),\n";
+        var closed = VsService().Analyze(text, text.Length, Vs);
+        Assert.Null(closed.Insight);
+
+        var later = """
+            core.std.Crop([0)
+            x = 1
+            """;
+        var assignment = VsService().Analyze(later, later.Length, Vs);
+        Assert.Null(assignment.Insight);
+
+        var crop = new Symbol("Crop", ["clip", "int [left]", "int [top]"]);
+        var avs = "Crop([0),\n";
+        var avsClosed = AvsService().Analyze(avs, avs.Length, [crop]);
+        Assert.Null(avsClosed.Insight);
+
+        var avsLater = """
+            Crop([0)
+            x = 1
+            """;
+        var avsAssignment = AvsService().Analyze(avsLater, avsLater.Length, [crop]);
+        Assert.Null(avsAssignment.Insight);
+    }
+
+    [Fact]
+    public void CallInsightUsesCommentMaskedStringsKeptSource()
+    {
+        var text = """
+            core.std.Crop(
+            # margins
+            right=2
+            """;
+        var insight = VsService().Analyze(text, text.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal(2, insight.ActiveParameter);
+
+        var empty = "core.std.Crop(\n# comment\n";
+        var names = VsService().Analyze(empty, empty.Length, Vs);
+        Assert.Contains(names.Items, x => x.InsertionText == "left=");
+        Assert.Contains(names.Items, x => x.InsertionText == "right=");
+
+        var avsCrop = new Symbol("Crop", ["clip", "int [left]", "int [right]"]);
+        var avs = """
+            Crop(
+            # margins
+            right=2
+            """;
+        var avsInsight = AvsService().Analyze(avs, avs.Length, [avsCrop]).Insight;
+        Assert.NotNull(avsInsight);
+        Assert.Equal(2, avsInsight.ActiveParameter);
+
+        var avsEmpty = "Crop(\n# comment\n";
+        var avsNames = AvsService().Analyze(avsEmpty, avsEmpty.Length, [avsCrop]);
+        Assert.Contains(avsNames.Items, x => x.InsertionText == "left=");
+        Assert.Contains(avsNames.Items, x => x.InsertionText == "right=");
+    }
+
+    [Fact]
+    public void ImportedClassBodyImportsDoNotLeakIntoModuleExports()
+    {
+        var helper = "def Filter():\n    return 1\n";
+        var wrapper = """
+            class C:
+                from helper import Filter
+            def Keep():
+                return 1
+            """;
+        IncludeReader read = (specifier, _) => specifier switch
+        {
+            "helper" => new IncludeFile("/plugins/helper.py", helper),
+            "wrapper" => new IncludeFile("/plugins/wrapper.py", wrapper),
+            _ => null
+        };
+        var text = "import wrapper\nwrapper.";
+        var reply = VsService(read).Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "Keep");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Filter");
+    }
+
+    [Fact]
+    public void AnnotationWhitelistMapsQuotedOptionalAndNullableUnions()
+    {
+        foreach (var header in new[]
+                 {
+                     "def f(clip: 'vs.VideoNode'):",
+                     "def f(clip: typing.Optional[vs.VideoNode]):",
+                     "def f(clip: None | vs.VideoNode):",
+                     "def f(clip: vs.VideoNode | None):"
+                 })
+        {
+            var text = header + "\n    clip.";
+            var reply = VsService().Analyze(text, text.Length, Vs);
+            Assert.Contains(reply.Items, x => x.InsertionText == "std");
+            Assert.Contains(reply.Items, x => x.InsertionText == "width");
+        }
+
+        var core = "def f(c: Core):\n    c.";
+        Assert.Contains(VsService().Analyze(core, core.Length, Vs).Items, x => x.InsertionText == "num_threads");
+
+        var frame = "def f(f: vs.VideoFrame):\n    f.";
+        Assert.Contains(VsService().Analyze(frame, frame.Length, Vs).Items, x => x.InsertionText == "copy");
+    }
+
+    [Fact]
+    public void HostMetadataCompletesFormatAndCopiedFrame()
+    {
+        var query = "core.query_video_format(";
+        var insight = VsService().Analyze(query, query.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Contains(insight.Overloads[0].Parameters!, x => x.Contains("subsampling_w", StringComparison.Ordinal));
+
+        var fmt = "fmt = core.query_video_format(vs.YUV, vs.INTEGER, 8)\nfmt.";
+        var format = VsService().Analyze(fmt, fmt.Length, Vs);
+        Assert.Contains(format.Items, x => x.InsertionText == "subsampling_w");
+        Assert.Contains(format.Items, x => x.InsertionText == "name");
+
+        var copied = "frame = core.std.BlankClip().get_frame(0).copy()\nframe.";
+        var members = VsService().Analyze(copied, copied.Length, Vs);
+        Assert.Contains(members.Items, x => x.InsertionText == "copy");
+        Assert.Contains(members.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void KeywordParameterOffersTrailingUnderscore()
+    {
+        var expr = new Symbol("core.std.Expr", ["clip:vnode", "lambda:float:opt"], ReturnType: "clip:vnode;");
+        var text = "core.std.Expr(";
+        var reply = VsService().Analyze(text, text.Length, [expr]);
+        Assert.Contains(reply.Items, x => x.InsertionText == "lambda_=");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "lambda=");
+
+        var named = "core.std.Expr(lambda_=";
+        var insight = VsService().Analyze(named, named.Length, [expr]).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal(1, insight.ActiveParameter);
+    }
+
+    [Fact]
+    public void DirectFunctionAliasKeepsInsightAndReturn()
+    {
+        var text = """
+            crop = core.std.Crop
+            crop(
+            """;
+        var insight = VsService().Analyze(text, text.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("core.std.Crop", insight.Overloads[0].Name);
+
+        var result = """
+            crop = core.std.Crop
+            clip = crop(core.std.BlankClip(), 0, 0, 0, 0)
+            clip.
+            """;
+        var members = VsService().Analyze(result, result.Length, Vs);
+        Assert.Contains(members.Items, x => x.InsertionText == "std");
+        Assert.Contains(members.Items, x => x.InsertionText == "width");
+    }
 }

@@ -183,7 +183,22 @@ public static class VapourSynthTypes
         }
 
         var script = ScriptOf(type);
-        return script != null ? "module " + script : type.Id;
+        if (script != null)
+        {
+            return "module " + script;
+        }
+
+        var function = FunctionOf(type);
+        if (function != null)
+        {
+            var local = function.StartsWith("local:", StringComparison.Ordinal)
+                ? function["local:".Length..]
+                : function;
+            var dot = local.LastIndexOf('.');
+            return dot >= 0 ? local[(dot + 1)..] : local;
+        }
+
+        return type.Id;
     }
 
     /// <summary>Display name for a catalog return string such as <c>vnode</c> or <c>Fraction</c>.</summary>
@@ -203,6 +218,25 @@ public static class VapourSynthTypes
         return returnType == "format" ? "VideoFormat" : returnType;
     }
 
+    /// <summary>A resolved plugin, host, or local function not yet called.</summary>
+    public static TypeRef Function(string id, bool bound = false) =>
+        new((bound ? "fn-bound:" : "fn:") + id);
+
+    /// <summary>Gets the function identity stored by <see cref="Function"/>.</summary>
+    public static string? FunctionOf(TypeRef type)
+    {
+        if (type.Id.StartsWith("fn-bound:", StringComparison.Ordinal))
+        {
+            return type.Id["fn-bound:".Length..];
+        }
+
+        return type.Id.StartsWith("fn:", StringComparison.Ordinal) ? type.Id["fn:".Length..] : null;
+    }
+
+    /// <summary>Gets whether a function alias was taken from a bound plugin.</summary>
+    public static bool IsBoundFunction(TypeRef type) =>
+        type.Id.StartsWith("fn-bound:", StringComparison.Ordinal);
+
     /// <summary>Maps a Python annotation or last identifier to a type.</summary>
     public static TypeRef FromAnnotation(string? annotation)
     {
@@ -211,18 +245,7 @@ public static class VapourSynthTypes
             return TypeRef.Unknown;
         }
 
-        var text = annotation.Trim();
-        var pipe = text.IndexOf('|');
-        if (pipe > 0)
-        {
-            text = text[..pipe].Trim();
-        }
-
-        if (text.StartsWith("Optional[", StringComparison.Ordinal) && text.EndsWith(']'))
-        {
-            text = text["Optional[".Length..^1].Trim();
-        }
-
+        var text = UnwrapAnnotation(annotation.Trim());
         var last = text.LastIndexOf('.');
         if (last >= 0)
         {
@@ -233,11 +256,109 @@ public static class VapourSynthTypes
         {
             "VideoNode" => VideoNode,
             "AudioNode" => AudioNode,
+            "VideoFrame" => VideoFrame,
+            "VideoFormat" or "Format" => Format,
+            "Core" => Core,
             "int" => Int,
             "float" => Float,
             "bool" => Bool,
             "str" or "string" => String,
             _ => TypeRef.Unknown
         };
+    }
+
+    private static string UnwrapAnnotation(string text)
+    {
+        for (var n = 0; n < 4; n++)
+        {
+            text = StripQuotes(text.Trim());
+            var union = UnionMember(text);
+            if (union != text)
+            {
+                text = union;
+                continue;
+            }
+
+            var inner = OptionalInner(text);
+            if (inner == null)
+            {
+                return text;
+            }
+
+            text = inner;
+        }
+
+        return text;
+    }
+
+    private static string StripQuotes(string text)
+    {
+        if (text.Length >= 2 && text[0] is '"' or '\'' && text[^1] == text[0])
+        {
+            return text[1..^1].Trim();
+        }
+
+        return text;
+    }
+
+    private static string UnionMember(string text)
+    {
+        string? kept = null;
+        var start = 0;
+        var depth = 0;
+        for (var i = 0; i <= text.Length; i++)
+        {
+            var c = i < text.Length ? text[i] : '|';
+            if (c is '[' or '(')
+            {
+                depth++;
+            }
+            else if (c is ']' or ')' && depth > 0)
+            {
+                depth--;
+            }
+            else if (c == '|' && depth == 0)
+            {
+                var part = text[start..i].Trim();
+                start = i + 1;
+                if (part.Length == 0 || part == "None")
+                {
+                    continue;
+                }
+
+                if (kept != null)
+                {
+                    return text;
+                }
+
+                kept = part;
+            }
+        }
+
+        return kept ?? text;
+    }
+
+    private static string? OptionalInner(string text)
+    {
+        const string optional = "Optional[";
+        var start = text.StartsWith(optional, StringComparison.Ordinal) ? 0
+            : text.EndsWith(']') ? text.LastIndexOf('.' + optional, StringComparison.Ordinal)
+            : -1;
+        if (start < 0)
+        {
+            return null;
+        }
+
+        if (start > 0)
+        {
+            start++;
+        }
+
+        if (start + optional.Length >= text.Length || text[^1] != ']')
+        {
+            return null;
+        }
+
+        return text[(start + optional.Length)..^1].Trim();
     }
 }

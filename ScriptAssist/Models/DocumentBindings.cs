@@ -86,6 +86,11 @@ public sealed class DocumentBindings
     {
         foreach (var scope in Scopes)
         {
+            if (caret < scope.Start || caret > scope.End)
+            {
+                continue;
+            }
+
             if (caret >= scope.Start && caret < scope.HeaderEnd)
             {
                 return true;

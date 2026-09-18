@@ -27,9 +27,9 @@ internal static class CallScanner
             {
                 stack.Push(new CallFrame(c, i, i + 1, comparer));
             }
-            else if (c is ')' or ']' or '}' && stack.Count > 0)
+            else if (c is ')' or ']' or '}')
             {
-                stack.Pop();
+                Close(stack, c);
             }
             else if (c == ',' && stack.Count > 0)
             {
@@ -37,7 +37,17 @@ internal static class CallScanner
             }
             else if (c == '=' && stack.Count > 0 && ParameterNames.IsKeywordAssign(code, i))
             {
-                stack.Peek().Keyword(code, i);
+                stack.Peek().Keyword(source ?? code, i);
+            }
+            else if (c is '\n' or '\r')
+            {
+                var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
+                if (!StatementScanner.Continues(code, i) && StatementScanner.Recovers(code, last + 1))
+                {
+                    stack.Clear();
+                }
+
+                i = last;
             }
         }
 
@@ -95,13 +105,46 @@ internal static class CallScanner
             {
                 stack.Push(c);
             }
-            else if (c is ')' or ']' or '}' && stack.Count > 0)
+            else if (c is ')' or ']' or '}')
             {
-                stack.Pop();
+                var open = StatementScanner.Opening(c);
+                while (stack.Count > 0 && stack.Peek() != open)
+                {
+                    stack.Pop();
+                }
+
+                if (stack.Count > 0)
+                {
+                    stack.Pop();
+                }
+            }
+            else if (c is '\n' or '\r')
+            {
+                var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
+                if (!StatementScanner.Continues(code, i) && StatementScanner.Recovers(code, last + 1))
+                {
+                    stack.Clear();
+                }
+
+                i = last;
             }
         }
 
         return stack.Count == 0 ? null : stack.Peek();
+    }
+
+    private static void Close(Stack<CallFrame> stack, char close)
+    {
+        var open = StatementScanner.Opening(close);
+        while (stack.Count > 0 && stack.Peek().Delimiter != open)
+        {
+            stack.Pop();
+        }
+
+        if (stack.Count > 0)
+        {
+            stack.Pop();
+        }
     }
 
     private static int? NamedVisibleIndex(CallResolution resolved, string argument, ILanguage language)
@@ -135,7 +178,9 @@ internal static class CallScanner
                 }
 
                 var parameterName = language.ParameterName(parameter);
-                if (parameterName != null && parameterName.Equals(name, language.Comparison))
+                if (parameterName != null &&
+                    (parameterName.Equals(name, language.Comparison) ||
+                     parameterName.Equals(name + "_", language.Comparison)))
                 {
                     var mapped = visible - skip;
                     return mapped >= 0 ? mapped : null;
@@ -173,6 +218,11 @@ internal static class CallScanner
         public void Keyword(string code, int equals)
         {
             if (Delimiter != '(' || _keyword)
+            {
+                return;
+            }
+
+            if (equals < ArgumentStart || equals > code.Length)
             {
                 return;
             }

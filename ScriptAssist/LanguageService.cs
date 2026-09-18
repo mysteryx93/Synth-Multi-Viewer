@@ -63,9 +63,10 @@ public sealed class LanguageService : ILanguageService
         var bindings = snapshot.Bindings.At(caret);
         var path = ExpressionReader.Read(snapshot.Masked.Code, caret);
         var receiver = _language.TypeOf(path.Segments, bindings, snapshot.Catalog);
+        var classified = BufferLexer.Mask(rawPrefix, _language.Lexer, maskStrings: false, token: token).Code;
         var scan = bindings.InFunctionHeader(caret)
             ? null
-            : CallScanner.Find(prefix.Code, _language, bindings, snapshot.Catalog, token, rawPrefix);
+            : CallScanner.Find(prefix.Code, _language, bindings, snapshot.Catalog, token, classified);
         var insight = scan?.Insight;
         var items = CallScanner.InnermostUnclosed(prefix.Code, token) == '[' && path.Segments.Count == 0
             ? new List<CompletionItem>()

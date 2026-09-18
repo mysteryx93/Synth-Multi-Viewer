@@ -23,7 +23,7 @@ internal static class ParameterNames
             text = text[..colon].Trim();
         }
 
-        return Identifier(text);
+        return EscapeKeyword(Identifier(text));
     }
 
     /// <summary>
@@ -349,6 +349,16 @@ internal static class ParameterNames
         text.Equals("function", StringComparison.OrdinalIgnoreCase) ||
         text.Equals("any", StringComparison.OrdinalIgnoreCase) ||
         text.Equals("array", StringComparison.OrdinalIgnoreCase);
+
+    private static readonly HashSet<string> PythonKeywords = new(StringComparer.Ordinal)
+    {
+        "False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue",
+        "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in",
+        "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield"
+    };
+
+    private static string? EscapeKeyword(string? name) =>
+        name != null && PythonKeywords.Contains(name) ? name + "_" : name;
 
     private static string? Identifier(string text)
     {
