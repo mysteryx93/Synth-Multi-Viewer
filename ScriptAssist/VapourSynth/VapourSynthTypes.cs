@@ -113,6 +113,8 @@ public static class VapourSynthTypes
             "bool" => Bool,
             "data" or "string" or "str" => String,
             "vframe" or "VideoFrame" => VideoFrame,
+            "format" or "VideoFormat" or "Format" => Format,
+            "core" or "Core" => Core,
             "func" => new("func"),
             _ => TypeRef.Unknown
         };
@@ -267,19 +269,7 @@ public static class VapourSynthTypes
             return TypeRef.Unknown;
         }
 
-        var text = UnwrapAnnotation(annotation.Trim());
-        if (text == null)
-        {
-            return TypeRef.Unknown;
-        }
-
-        var last = text.LastIndexOf('.');
-        if (last >= 0)
-        {
-            text = text[(last + 1)..];
-        }
-
-        return text switch
+        return AnnotationName(annotation) switch
         {
             "VideoNode" => VideoNode,
             "AudioNode" => AudioNode,
@@ -292,6 +282,29 @@ public static class VapourSynthTypes
             "str" or "string" => String,
             _ => TypeRef.Unknown
         };
+    }
+
+    /// <summary>Last identifier of a Python annotation after unwrapping quotes, <c>Optional</c>, and <c>| None</c>.</summary>
+    internal static string? AnnotationName(string? annotation)
+    {
+        if (!annotation.HasValue())
+        {
+            return null;
+        }
+
+        var text = UnwrapAnnotation(annotation.Trim());
+        if (text == null)
+        {
+            return null;
+        }
+
+        var last = text.LastIndexOf('.');
+        if (last >= 0)
+        {
+            text = text[(last + 1)..];
+        }
+
+        return text.Length == 0 ? null : text;
     }
 
     private static string? UnwrapAnnotation(string text)

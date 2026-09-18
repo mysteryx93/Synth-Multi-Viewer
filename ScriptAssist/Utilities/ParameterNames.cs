@@ -90,6 +90,131 @@ internal static class ParameterNames
     }
 
     /// <summary>
+    /// Gets whether <paramref name="written"/> names <paramref name="parameterName"/>, including a
+    /// native VapourSynth trailing <c>_</c> alias when the catalog name has none.
+    /// </summary>
+    public static bool ArgumentEquals(string parameterName, string written, StringComparison comparison)
+    {
+        if (parameterName.Equals(written, comparison))
+        {
+            return true;
+        }
+
+        return !parameterName.EndsWith('_') && written.Length == parameterName.Length + 1 &&
+            written.EndsWith('_') &&
+            parameterName.AsSpan().Equals(written.AsSpan(0, parameterName.Length), comparison);
+    }
+
+    /// <summary>
+    /// Maps a positional argument index onto a physical parameter slot, absorbing <c>*args</c>.
+    /// </summary>
+    public static int MapPositional(string[] parameters, int positional)
+    {
+        var seen = 0;
+        var varargs = -1;
+        var keywordOnly = false;
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            var kind = Classify(parameters[i], ref keywordOnly);
+            if (kind is ParameterKind.Separator or ParameterKind.Kwargs)
+            {
+                continue;
+            }
+
+            if (kind == ParameterKind.Varargs)
+            {
+                varargs = i;
+                continue;
+            }
+
+            if (kind == ParameterKind.KeywordOnly && varargs >= 0)
+            {
+                continue;
+            }
+
+            if (seen == positional)
+            {
+                return i;
+            }
+
+            seen++;
+        }
+
+        return varargs >= 0 && positional >= seen ? varargs : parameters.Length;
+    }
+
+    /// <summary>
+    /// Maps a keyword argument onto a physical parameter slot, falling back to <c>**kwargs</c>.
+    /// </summary>
+    public static int MapNamed(string[] parameters, string written, Func<string, string?> nameOf,
+        StringComparison comparison)
+    {
+        var kwargs = -1;
+        var keywordOnly = false;
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            var kind = Classify(parameters[i], ref keywordOnly);
+            if (kind == ParameterKind.Kwargs)
+            {
+                kwargs = i;
+                continue;
+            }
+
+            var name = nameOf(parameters[i]);
+            if (name != null && ArgumentEquals(name, written, comparison))
+            {
+                return i;
+            }
+        }
+
+        return kwargs >= 0 ? kwargs : parameters.Length;
+    }
+
+    /// <summary>
+    /// Splits a trailing <c>as</c> alias, accepting any whitespace around the keyword.
+    /// </summary>
+    public static bool TryAlias(string text, out string source, out string alias)
+    {
+        var asAt = LastAsKeyword(text);
+        if (asAt < 0)
+        {
+            source = text.Trim();
+            alias = source;
+            return false;
+        }
+
+        source = text[..asAt].Trim();
+        alias = text[(asAt + 2)..].Trim();
+        return source.Length > 0 && alias.Length > 0;
+    }
+
+    private static int LastAsKeyword(string text)
+    {
+        var last = -1;
+        for (var i = 0; i + 2 <= text.Length; i++)
+        {
+            if (text[i] != 'a' || text[i + 1] != 's')
+            {
+                continue;
+            }
+
+            if (i > 0 && !char.IsWhiteSpace(text[i - 1]))
+            {
+                continue;
+            }
+
+            if (i + 2 < text.Length && !char.IsWhiteSpace(text[i + 2]))
+            {
+                continue;
+            }
+
+            last = i;
+        }
+
+        return last;
+    }
+
+    /// <summary>
     /// Returns the argument name for AviSynth <c>int [left]</c> / <c>int "left"</c> / <c>clip c</c>.
     /// </summary>
     public static string? OfAviSynth(string parameter)

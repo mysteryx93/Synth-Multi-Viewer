@@ -100,7 +100,9 @@ public static class VapourSynthHostTypes
         new("subsampling_w", null, SymbolKind.Property, ReturnType: "int"),
         new("subsampling_h", null, SymbolKind.Property, ReturnType: "int"),
         new("num_planes", null, SymbolKind.Property, ReturnType: "int"),
-        new("replace", ["**kwargs"])
+        new("replace",
+            ["color_family:int:opt", "sample_type:int:opt", "bits_per_sample:int:opt", "subsampling_w:int:opt",
+                "subsampling_h:int:opt"], ReturnType: "format")
     ];
 
     /// <summary>

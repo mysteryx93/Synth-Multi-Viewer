@@ -42,7 +42,7 @@ internal static class NamedArgumentHover
             foreach (var candidate in overload.Parameters)
             {
                 var parameterName = language.ParameterName(candidate);
-                if (parameterName != null && parameterName.Equals(name, comparison))
+                if (parameterName != null && ParameterNames.ArgumentEquals(parameterName, name, comparison))
                 {
                     parameter = candidate;
                     return true;

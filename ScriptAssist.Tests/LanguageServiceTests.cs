@@ -355,7 +355,7 @@ public class LanguageServiceTests
         var text = "clip = core.std.BlankClip()\nclip.std.Crop(";
         var insight = VsService().Analyze(text, text.Length, Vs).Insight!;
         Assert.True(insight.ImplicitClip);
-        Assert.Equal(0, insight.ActiveParameter);
+        Assert.Equal(1, insight.ActiveParameter);
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public class LanguageServiceTests
         const string text = "clip = core.std.BlankClip()\nclip.std.Crop(left=";
         var insight = VsService().Analyze(text, text.Length, Vs).Insight!;
         Assert.True(insight.ImplicitClip);
-        Assert.Equal(0, insight.ActiveParameter);
+        Assert.Equal(1, insight.ActiveParameter);
     }
 
     [Theory]
@@ -736,7 +736,7 @@ public class LanguageServiceTests
     [InlineData("Crop(10, ", 1)]
     [InlineData("Crop(10, 20,", 2)]
     [InlineData("Crop(10, 20, ", 2)]
-    [InlineData("last.Crop(10, ", 1)]
+    [InlineData("last.Crop(10, ", 2)]
     public void AviSynthCommaAdvancesParameterIncludingTrailingSpace(string text, int parameter)
     {
         var crop = new Symbol("Crop", ["clip", "int [left]", "int [top]", "int [right]", "int [bottom]"]);
@@ -831,7 +831,7 @@ public class LanguageServiceTests
         var reply = VsService().Analyze(text, text.Length, Vs);
         Assert.NotNull(reply.Insight);
         Assert.Equal("core.std.SelectEvery", reply.Insight.Overloads[0].Name);
-        Assert.Equal(1, reply.Insight.ActiveParameter);
+        Assert.Equal(2, reply.Insight.ActiveParameter);
         Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
         Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Crop");
         Assert.DoesNotContain(reply.Items, x => x.InsertionText == "import");

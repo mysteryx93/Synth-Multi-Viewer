@@ -40,7 +40,7 @@ internal static partial class BufferLexer
             var next = i + 1 < text.Length ? text[i + 1] : '\0';
             if (line)
             {
-                if (c == '\n')
+                if (c is '\n' or '\r')
                 {
                     line = false;
                 }

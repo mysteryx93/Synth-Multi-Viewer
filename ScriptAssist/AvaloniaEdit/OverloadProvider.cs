@@ -58,15 +58,9 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
         }
 
         var index = insight.ActiveParameter;
-        if (insight.ImplicitClip && IsImplicitFirst(parameters[0]))
+        if (index >= 0 && index < parameters.Length && !ParameterNames.IsSeparator(parameters[index]))
         {
-            index++;
-        }
-
-        var physical = PhysicalIndex(parameters, index);
-        if (physical < parameters.Length)
-        {
-            return "Parameter " + (index + 1) + ": " + parameters[physical];
+            return "Parameter " + SlotNumber(parameters, index) + ": " + parameters[index];
         }
 
         if (Repeats(parameters[^1]))
@@ -88,13 +82,7 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
             }
 
             var index = insight.ActiveParameter;
-            if (insight.ImplicitClip && parameters.Length > 0 && IsImplicitFirst(parameters[0]))
-            {
-                index++;
-            }
-
-            var physical = PhysicalIndex(parameters, index);
-            if (physical < parameters.Length || (parameters.Length > 0 && Repeats(parameters[^1])))
+            if (index >= 0 && index < parameters.Length || (parameters.Length > 0 && Repeats(parameters[^1])))
             {
                 return i;
             }
@@ -103,45 +91,19 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
         return 0;
     }
 
-    private static int PhysicalIndex(string[] parameters, int visibleIndex)
+    private static int SlotNumber(string[] parameters, int physical)
     {
-        var seen = 0;
-        var varargs = -1;
-        var keywordOnly = false;
-        for (var i = 0; i < parameters.Length; i++)
+        var n = 0;
+        for (var i = 0; i <= physical && i < parameters.Length; i++)
         {
-            var kind = ParameterNames.Classify(parameters[i], ref keywordOnly);
-            if (kind is ParameterKind.Separator or ParameterKind.Kwargs)
+            if (!ParameterNames.IsSeparator(parameters[i]))
             {
-                continue;
+                n++;
             }
-
-            if (kind == ParameterKind.Varargs)
-            {
-                varargs = i;
-                continue;
-            }
-
-            if (kind == ParameterKind.KeywordOnly && varargs >= 0)
-            {
-                continue;
-            }
-
-            if (seen == visibleIndex)
-            {
-                return i;
-            }
-
-            seen++;
         }
 
-        return varargs >= 0 && visibleIndex >= seen ? varargs : parameters.Length;
+        return Math.Max(n, 1);
     }
-
-    private static bool IsImplicitFirst(string parameter) =>
-        parameter.StartsWith("clip", StringComparison.OrdinalIgnoreCase) ||
-        parameter.Contains(":vnode", StringComparison.Ordinal) ||
-        parameter.Contains(":anode", StringComparison.Ordinal);
 
     private static bool Repeats(string parameter)
     {

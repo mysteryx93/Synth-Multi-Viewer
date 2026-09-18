@@ -25,16 +25,17 @@ internal sealed class VapourSynthCatalogIndex
     /// </summary>
     public static VapourSynthCatalogIndex Build(IReadOnlyList<Symbol> catalog)
     {
+        var snapshot = catalog as Symbol[] ?? catalog.ToArray();
         lock (CacheGate)
         {
-            if (ReferenceEquals(CachedCatalog, catalog) && CachedIndex != null)
+            if (ReferenceEquals(CachedCatalog, snapshot) && CachedIndex != null)
             {
                 return CachedIndex;
             }
         }
 
         var index = new VapourSynthCatalogIndex();
-        foreach (var symbol in catalog)
+        foreach (var symbol in snapshot)
         {
             if (!TrySplit(symbol.Name, out var ns, out _))
             {
@@ -62,7 +63,7 @@ internal sealed class VapourSynthCatalogIndex
 
         lock (CacheGate)
         {
-            CachedCatalog = catalog;
+            CachedCatalog = snapshot;
             CachedIndex = index;
         }
 
@@ -92,41 +93,6 @@ internal sealed class VapourSynthCatalogIndex
 
         var map = node == VapourSynthTypes.AudioNode ? _boundAudio : _boundVideo;
         return map.TryGetValue(ns, out var bound) ? bound : [];
-    }
-
-    /// <summary>
-    /// Finds <c>core.namespace.function</c>.
-    /// </summary>
-    public Symbol? Find(string ns, string name)
-    {
-        if (!_functions.TryGetValue(ns, out var list))
-        {
-            return null;
-        }
-
-        foreach (var symbol in list)
-        {
-            if (symbol.Name.EndsWith('.' + name, StringComparison.Ordinal))
-            {
-                return symbol;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Gets whether <paramref name="ns"/> is a plugin namespace on the core.
-    /// </summary>
-    public bool HasNamespace(string ns) => _functions.ContainsKey(ns);
-
-    /// <summary>
-    /// Gets whether <paramref name="ns"/> binds to <paramref name="node"/>.
-    /// </summary>
-    public bool HasBoundNamespace(string ns, TypeRef node)
-    {
-        var map = node == VapourSynthTypes.AudioNode ? _boundAudio : _boundVideo;
-        return map.ContainsKey(ns);
     }
 
     private static void AddBound(Dictionary<string, List<Symbol>> map, List<Symbol> namespaces, string ns,

@@ -67,7 +67,7 @@ internal static class VapourSynthTypeWalker
                 continue;
             }
 
-            last = InferPart(part, bindings, index);
+            last = InferPart(ExpressionParts.GroupOperand(expression, part), bindings, index);
             if (VapourSynthTypes.IsNode(last))
             {
                 node = last;
@@ -153,14 +153,6 @@ internal static class VapourSynthTypeWalker
         {
             return typed;
         }
-        if (name == "core")
-        {
-            return VapourSynthTypes.Core;
-        }
-        if (name is "vs" or "vapoursynth")
-        {
-            return VapourSynthTypes.Module;
-        }
 
         foreach (var symbol in bindings.BufferSymbols)
         {
@@ -235,15 +227,6 @@ internal static class VapourSynthTypeWalker
             return ReturnOf(snapshot);
         }
 
-        if (current.IsUnknown || current.IsRoot)
-        {
-            var local = FindFunction(segment.Name, bindings);
-            if (local != null)
-            {
-                return VapourSynthTypes.FromReturn(local.ReturnType);
-            }
-        }
-
         if (current == VapourSynthTypes.Module)
         {
             return VapourSynthTypes.Core;
@@ -258,29 +241,7 @@ internal static class VapourSynthTypeWalker
         return current;
     }
 
-    private static TypeRef ReturnOf(Symbol symbol)
-    {
-        var mapped = VapourSynthTypes.FromReturn(symbol.ReturnType);
-        return mapped.IsUnknown && symbol.ReturnType is "format" ? VapourSynthTypes.Format : mapped;
-    }
-
-    private static Symbol? FindFunction(string name, DocumentBindings bindings)
-    {
-        if (bindings.Names.ContainsKey(name))
-        {
-            return null;
-        }
-
-        foreach (var symbol in bindings.BufferSymbols)
-        {
-            if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
-            {
-                return symbol;
-            }
-        }
-
-        return null;
-    }
+    private static TypeRef ReturnOf(Symbol symbol) => VapourSynthTypes.FromReturn(symbol.ReturnType);
 
     private static TypeRef ApplyMember(Symbol symbol, PathSegment segment, bool bound)
     {

@@ -267,7 +267,7 @@ internal static class AviSynthBinder
                 continue;
             }
 
-            last = InferPart(part, names, catalog);
+            last = InferPart(ExpressionParts.GroupOperand(expression, part), names, catalog);
             if (last == AviSynthTypes.Clip)
             {
                 clip = last;

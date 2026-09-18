@@ -71,9 +71,10 @@ internal static class CallScanner
             if (resolved is { Overloads.Count: > 0 })
             {
                 var current = (source ?? code)[frame.ArgumentStart..];
-                var parameter = NamedVisibleIndex(resolved, current, language) ?? frame.Parameter;
+                var used = CanonicalNames(frame.UsedNames, resolved, language);
+                var parameter = ActivePhysical(resolved, current, frame.Positional, language);
                 return new CallScan(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested,
-                    current, frame.UsedNames, frame.Positional);
+                    current, used, frame.Positional);
             }
 
             if (callee[^1].Name.Length > 0)
@@ -139,20 +140,9 @@ internal static class CallScanner
         }
     }
 
-    private static int? NamedVisibleIndex(CallResolution resolved, string argument, ILanguage language)
+    private static int ActivePhysical(CallResolution resolved, string argument, int positional, ILanguage language)
     {
-        var eq = ParameterNames.TopLevelKeywordEquals(argument);
-        if (eq <= 0)
-        {
-            return null;
-        }
-
-        var name = argument[..eq].Trim();
-        if (name.Length == 0)
-        {
-            return null;
-        }
-
+        var keyword = KeywordName(argument);
         var skip = resolved.ImplicitReceiver ? 1 : 0;
         foreach (var overload in resolved.Overloads)
         {
@@ -161,28 +151,66 @@ internal static class CallScanner
                 continue;
             }
 
-            var visible = 0;
-            foreach (var parameter in overload.Parameters)
+            if (keyword != null)
             {
-                if (ParameterNames.IsSeparator(parameter))
+                return ParameterNames.MapNamed(overload.Parameters, keyword, language.ParameterName,
+                    language.Comparison);
+            }
+
+            return ParameterNames.MapPositional(overload.Parameters, positional + skip);
+        }
+
+        return positional + skip;
+    }
+
+    private static string? KeywordName(string argument)
+    {
+        var eq = ParameterNames.TopLevelKeywordEquals(argument);
+        if (eq <= 0)
+        {
+            return null;
+        }
+
+        var name = argument[..eq].Trim();
+        return name.Length == 0 ? null : name;
+    }
+
+    private static IReadOnlySet<string> CanonicalNames(IReadOnlySet<string> used, CallResolution resolved,
+        ILanguage language)
+    {
+        var names = new HashSet<string>(language.Comparison == StringComparison.OrdinalIgnoreCase
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal);
+        foreach (var written in used)
+        {
+            var matched = false;
+            foreach (var overload in resolved.Overloads)
+            {
+                if (overload.Parameters == null)
                 {
                     continue;
                 }
 
-                var parameterName = language.ParameterName(parameter);
-                if (parameterName != null &&
-                    (parameterName.Equals(name, language.Comparison) ||
-                     parameterName.Equals(name + "_", language.Comparison)))
+                foreach (var parameter in overload.Parameters)
                 {
-                    var mapped = visible - skip;
-                    return mapped >= 0 ? mapped : null;
-                }
+                    var name = language.ParameterName(parameter);
+                    if (name == null || !ParameterNames.ArgumentEquals(name, written, language.Comparison))
+                    {
+                        continue;
+                    }
 
-                visible++;
+                    names.Add(name);
+                    matched = true;
+                }
+            }
+
+            if (!matched)
+            {
+                names.Add(written);
             }
         }
 
-        return null;
+        return names;
     }
 
     private sealed class CallFrame(char delimiter, int offset, int argumentStart, StringComparer comparer)

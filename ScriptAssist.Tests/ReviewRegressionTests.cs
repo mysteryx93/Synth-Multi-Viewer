@@ -1462,4 +1462,348 @@ public class ReviewRegressionTests
         Assert.DoesNotContain("No more parameters", active, StringComparison.Ordinal);
         Assert.DoesNotContain("radius=2", active, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void NamedArgumentAfterVarargsSelectsKeywordParameter()
+    {
+        var named = """
+            def f(*args, radius=2):
+                return args
+            f(1, radius=3
+            """;
+        var insight = VsService().Analyze(named, named.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("Parameter 2: radius=2", OverloadProvider.ActiveParameterText(insight));
+
+        var kwargs = """
+            def g(**kwargs):
+                return kwargs
+            g(radius=
+            """;
+        var extra = VsService().Analyze(kwargs, kwargs.Length, Vs).Insight;
+        Assert.NotNull(extra);
+        var text = OverloadProvider.ActiveParameterText(extra);
+        Assert.Contains("**kwargs", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("No more parameters", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GroupedMultilineArithmeticKeepsNodeType()
+    {
+        var text = """
+            source = (core.std
+            .BlankClip() * 2)
+            source.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void FromImportResolvesSubmoduleAndPackageMembers()
+    {
+        IncludeReader read = (specifier, _) => specifier switch
+        {
+            "pkg" => new IncludeFile("/plugins/pkg/__init__.py", "# package\n"),
+            "pkg.helper" => new IncludeFile("/plugins/pkg/helper.py",
+                "def Filter(clip) -> vs.VideoNode:\n    return clip\n"),
+            "." => new IncludeFile("/pkg/__init__.py", "def Filter(clip) -> vs.VideoNode:\n    return clip\n"),
+            _ => null
+        };
+        var service = VsService(read);
+        var submodule = "from pkg import helper\nhelper.";
+        var nested = service.Analyze(submodule, submodule.Length, Vs);
+        Assert.Contains(nested.Items, x => x.InsertionText == "Filter");
+
+        var relative = "from . import Filter\nclip = Filter()\nclip.";
+        var members = service.Analyze(relative, relative.Length, Vs, documentPath: "/pkg/script.py");
+        Assert.Contains(members.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void WildcardImportSkipsPrivateAndKeepsLocals()
+    {
+        var helper = """
+            def Filter(clip) -> vs.VideoNode:
+                return clip
+            def _private(clip):
+                return clip
+            """;
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+
+        var star = "from helper import *\n";
+        var imported = service.Analyze(star + "Fil", (star + "Fil").Length, Vs);
+        Assert.Contains(imported.Items, x => x.InsertionText == "Filter");
+        var priv = service.Analyze(star + "_pri", (star + "_pri").Length, Vs);
+        Assert.DoesNotContain(priv.Items, x => x.InsertionText == "_private");
+
+        var explicitPrivate = "from helper import _private\n_pri";
+        var allowed = service.Analyze(explicitPrivate, explicitPrivate.Length, Vs);
+        Assert.Contains(allowed.Items, x => x.InsertionText == "_private");
+
+        var local = """
+            def Filter(clip, radius=2):
+                return clip
+            from helper import *
+            Filter(
+            """;
+        var insight = service.Analyze(local, local.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Contains("radius=2", insight.Overloads[0].Signature, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ImportedModuleAssignmentInvalidatesExport()
+    {
+        var helper = """
+            def Filter(clip) -> vs.VideoNode:
+                return clip
+            Filter = None
+            """;
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+        var text = "from helper import Filter\nFilter(";
+        var insight = service.Analyze(text, text.Length, Vs).Insight;
+        Assert.True(insight == null || insight.Overloads.All(x => x.Name != "Filter"));
+
+        var typed = "from helper import Filter\nclip = Filter()\nclip.";
+        var reply = service.Analyze(typed, typed.Length, Vs);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void RebindingsInvalidatePreviousNodeAndFunctionTypes()
+    {
+        var chained = """
+            source = core.std.BlankClip()
+            other = source
+            source = other = 3
+            other.
+            """;
+        var reply = VsService().Analyze(chained, chained.Length, Vs);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+
+        var deleted = """
+            source = core.std.BlankClip()
+            del source
+            source.
+            """;
+        var gone = VsService().Analyze(deleted, deleted.Length, Vs);
+        Assert.DoesNotContain(gone.Items, x => x.InsertionText == "std");
+
+        var looped = """
+            source = core.std.BlankClip()
+            for source in items:
+                pass
+            source.
+            """;
+        var loop = VsService().Analyze(looped, looped.Length, Vs);
+        Assert.DoesNotContain(loop.Items, x => x.InsertionText == "std");
+
+        var classified = """
+            def Filter(clip) -> vs.VideoNode:
+                return clip
+            class Filter:
+                pass
+            Filter(
+            """;
+        var insight = VsService().Analyze(classified, classified.Length, Vs).Insight;
+        Assert.True(insight == null || insight.Overloads.All(x => x.Name != "Filter"));
+    }
+
+    [Fact]
+    public void UserFunctionNamedCoreShadowsPredefinedAlias()
+    {
+        var text = """
+            def core() -> vs.VideoNode:
+                return None
+            source = core()
+            source.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "num_threads");
+
+        var aliased = """
+            def core() -> vs.VideoNode:
+                return None
+            make = core
+            make(
+            """;
+        var insight = VsService().Analyze(aliased, aliased.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("core", insight.Overloads[0].Name);
+    }
+
+    [Fact]
+    public async Task FactoryRefreshSnapshotsReusedCatalogList()
+    {
+        var symbols = new List<Symbol>
+        {
+            new("core.std.Before", ["clip:vnode"], ReturnType: "clip:vnode;")
+        };
+        var factory = new ScriptLanguageFactory(() => symbols, () => []);
+        var service = factory.Create(ScriptLanguageFactory.VapourSynth)!;
+        const string text = "core.std.";
+        var first = await service.GetAsync(text, text.Length, CancellationToken.None);
+        Assert.Contains(first.Items, x => x.InsertionText == "Before");
+
+        symbols.Clear();
+        symbols.Add(new("core.std.After", ["clip:vnode"], ReturnType: "clip:vnode;"));
+        factory.Refresh();
+        var second = await service.GetAsync(text, text.Length, CancellationToken.None);
+        Assert.Contains(second.Items, x => x.InsertionText == "After");
+        Assert.DoesNotContain(second.Items, x => x.InsertionText == "Before");
+    }
+
+    [Fact]
+    public void AviSynthAssignsImmediatelyAfterOpeningBrace()
+    {
+        var crop = new Symbol("Crop", ["clip", "int [left]"]);
+        var text = """
+            function F(clip c) { source = c
+            source.
+            """;
+        var reply = AvsService().Analyze(text, text.Length, [crop]);
+        Assert.Contains(reply.Items, x => x.InsertionText == "Crop");
+    }
+
+    [Fact]
+    public void NativeTrailingUnderscoreAliasIsNormalized()
+    {
+        var text = "core.std.Crop(source, right_=2";
+        var insight = VsService().Analyze(text, text.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal(2, insight.ActiveParameter);
+        Assert.Equal("right:int:opt", insight.Overloads[0].Parameters![2]);
+
+        var complete = text + ", ";
+        var reply = VsService().Analyze(complete, complete.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "left=");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "right=");
+
+        var helper = """
+            def Crop(clip, right_=0):
+                return clip
+            Crop(source, right_=
+            """;
+        var python = VsService().Analyze(helper, helper.Length, Vs).Insight;
+        Assert.NotNull(python);
+        Assert.Contains("right_=0", OverloadProvider.ActiveParameterText(python), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ImportAliasesAllowAnyWhitespaceAroundAs()
+    {
+        var helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+
+        var module = "import helper\tas h\nh.";
+        var imported = service.Analyze(module, module.Length, Vs);
+        Assert.Contains(imported.Items, x => x.InsertionText == "Filter");
+
+        var member = "from helper import Filter as\tF\nclip = F()\nclip.";
+        var typed = service.Analyze(member, member.Length, Vs);
+        Assert.Contains(typed.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void CarriageReturnLineCommentDoesNotSuppressRestOfDocument()
+    {
+        var text = "source = core.std.BlankClip()\r# comment\rother = source\rother.";
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void CoreReturnAndFormatReplaceKeepKnownTypes()
+    {
+        var core = """
+            def make() -> vs.Core:
+                return core
+            c = make()
+            c.
+            """;
+        var reply = VsService().Analyze(core, core.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "num_threads");
+
+        var replace = """
+            fmt = core.query_video_format(vs.YUV, vs.INTEGER, 8)
+            out = fmt.replace(bits_per_sample=10)
+            out.
+            """;
+        var format = VsService().Analyze(replace, replace.Length, Vs);
+        Assert.Contains(format.Items, x => x.InsertionText == "name");
+        Assert.Contains(format.Items, x => x.InsertionText == "replace");
+
+        var call = "fmt = core.query_video_format(vs.YUV, vs.INTEGER, 8)\nfmt.replace(";
+        var insight = VsService().Analyze(call, call.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Contains(insight.Overloads[0].Parameters!, x => x.Contains("color_family", StringComparison.Ordinal));
+        Assert.Contains(insight.Overloads[0].Parameters!, x => x.Contains("bits_per_sample", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void VideoNodeAliasAndFrameWithBindKnownTypes()
+    {
+        var aliased = """
+            from vapoursynth import VideoNode as Node
+            def f(clip: Node):
+                clip.
+            """;
+        var reply = VsService().Analyze(aliased, aliased.LastIndexOf('.') + 1, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+
+        var frame = """
+            source = core.std.BlankClip()
+            with source.get_frame(0) as frame:
+                frame.
+            """;
+        var members = VsService().Analyze(frame, frame.Length, Vs);
+        Assert.Contains(members.Items, x => x.InsertionText == "copy");
+        Assert.Contains(members.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void CombinedImportRebindMultilineAndVarargs()
+    {
+        var helper = """
+            def Filter(clip, *args, radius=2) -> vs.VideoNode:
+                return clip
+            Filter = None
+            def Keep(clip) -> vs.VideoNode:
+                return clip
+            """;
+        var service = VsService((specifier, _) => specifier == "helper"
+            ? new IncludeFile("/plugins/helper.py", helper)
+            : null);
+        var rebound = "from helper import Filter, Keep\nFilter(";
+        var gone = service.Analyze(rebound, rebound.Length, Vs).Insight;
+        Assert.True(gone == null || gone.Overloads.All(x => x.Name != "Filter"));
+
+        var keep = """
+            from helper import Keep
+            source = (Keep(core.std.BlankClip())
+            * 2)
+            source.
+            """;
+        var members = service.Analyze(keep, keep.Length, Vs);
+        Assert.Contains(members.Items, x => x.InsertionText == "std");
+
+        var named = """
+            def f(*args, radius=2):
+                return args
+            f(1, radius=
+            """;
+        var insight = VsService().Analyze(named, named.Length, Vs).Insight;
+        Assert.NotNull(insight);
+        Assert.Equal("Parameter 2: radius=2", OverloadProvider.ActiveParameterText(insight));
+    }
 }

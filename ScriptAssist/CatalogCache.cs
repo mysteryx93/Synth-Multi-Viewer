@@ -24,7 +24,7 @@ public sealed class CatalogCache(Func<IReadOnlyList<Symbol>> enumerate) : ISymbo
             {
                 try
                 {
-                    return enumerate();
+                    return enumerate().ToArray();
                 }
                 catch (Exception)
                 {

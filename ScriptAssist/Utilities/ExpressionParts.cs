@@ -86,6 +86,21 @@ internal static class ExpressionParts
     }
 
     /// <summary>
+    /// Gets whether matching outer parentheses wrap <paramref name="expression"/>.
+    /// </summary>
+    public static bool IsGrouped(string expression)
+    {
+        var trimmed = expression.Trim();
+        return trimmed.Length >= 2 && trimmed[0] == '(' && UnwrapParentheses(trimmed) != trimmed;
+    }
+
+    /// <summary>
+    /// Re-wraps an operand so continuation context from the original grouping is preserved.
+    /// </summary>
+    public static string GroupOperand(string expression, string part) =>
+        IsGrouped(expression) ? "(" + part + ")" : part;
+
+    /// <summary>
     /// Strips matching outer parentheses so <c>(cond ? a : b)</c> is a ternary.
     /// </summary>
     public static string UnwrapParentheses(string expression) => UnwrapSpan(expression).Text;
