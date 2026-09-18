@@ -141,6 +141,13 @@ public sealed class AviSynthLanguage : ILanguage
             return null;
         }
 
+        if (path.Segments.Count == 0 && !Invoked(code, path.End) &&
+            bindings.Names.TryGetValue(name, out var local) && !local.IsUnknown &&
+            !local.Id.Equals(name, StringComparison.OrdinalIgnoreCase))
+        {
+            return new HoverInfo(local.Id, path.Start, path.End - path.Start);
+        }
+
         foreach (var symbol in catalog)
         {
             if (symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison))
@@ -177,6 +184,17 @@ public sealed class AviSynthLanguage : ILanguage
         }
 
         return false;
+    }
+
+    private static bool Invoked(string code, int end)
+    {
+        var i = end;
+        while (i < code.Length && code[i] is ' ' or '\t')
+        {
+            i++;
+        }
+
+        return i < code.Length && code[i] == '(';
     }
 
     private List<Symbol> Root(IReadOnlyList<Symbol> catalog, DocumentBindings bindings)

@@ -1263,4 +1263,128 @@ public class ReviewRegressionTests
         var insight = VsService().Analyze(text, text.Length, Vs).Insight;
         Assert.True(insight == null || insight.Overloads.All(x => x.Name != "get_number"));
     }
+
+    [Fact]
+    public void StringParenthesesDoNotBreakAssignmentInference()
+    {
+        var catalog = Vs.Concat([new Symbol("core.demo.Source", ["file:str"], ReturnType: "clip:vnode;")])
+            .ToArray();
+        foreach (var file in new[] { "\"movie).mkv\"", "\"movie.mkv\"" })
+        {
+            var text = $"""
+                source = core.demo.Source({file})
+                source.
+                """;
+            var reply = VsService().Analyze(text, text.Length, catalog);
+            Assert.Contains(reply.Items, x => x.InsertionText == "std");
+            Assert.Contains(reply.Items, x => x.InsertionText == "width");
+        }
+    }
+
+    [Fact]
+    public void UnsupportedBooleanExpressionIsNotAVideoNode()
+    {
+        var text = """
+            source = core.std.BlankClip()
+            result = not source
+            result.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
+
+        var same = """
+            source = core.std.BlankClip()
+            result = source is source
+            result.
+            """;
+        var identity = VsService().Analyze(same, same.Length, Vs);
+        Assert.DoesNotContain(identity.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(identity.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void UnfinishedMemberDoesNotCaptureTheNextStatement()
+    {
+        var text = """
+            source.
+            core.std.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "Crop");
+        Assert.Contains(reply.Items, x => x.InsertionText == "BlankClip");
+    }
+
+    [Fact]
+    public void BoundCallUsesReceiverAwareCatalogFilter()
+    {
+        var call = """
+            clip = core.std.BlankClip()
+            clip.std.AudioTrim(
+            """;
+        var insight = VsService().Analyze(call, call.Length, Vs).Insight;
+        Assert.True(insight == null || insight.Overloads.All(x => x.Name != "core.std.AudioTrim"));
+
+        var assigned = """
+            clip = core.std.BlankClip()
+            out = clip.std.AudioTrim()
+            out.
+            """;
+        var members = VsService().Analyze(assigned, assigned.Length, Vs);
+        Assert.DoesNotContain(members.Items, x => x.InsertionText == "sample_rate");
+        Assert.DoesNotContain(members.Items, x => x.InsertionText == "width");
+
+        var alias = """
+            clip = core.std.BlankClip()
+            fn = clip.std.AudioTrim
+            fn(
+            """;
+        var aliased = VsService().Analyze(alias, alias.Length, Vs).Insight;
+        Assert.True(aliased == null || aliased.Overloads.All(x => x.Name != "core.std.AudioTrim"));
+    }
+
+    [Fact]
+    public void FrameAndFormatMethodsHaveCallInsight()
+    {
+        var copy = """
+            frame = core.std.BlankClip().get_frame(0)
+            frame.copy(
+            """;
+        var copyInsight = VsService().Analyze(copy, copy.Length, Vs).Insight;
+        Assert.NotNull(copyInsight);
+        Assert.Equal("copy", copyInsight.Overloads[0].Name);
+
+        var replace = """
+            fmt = core.query_video_format(vs.YUV, vs.INTEGER, 8)
+            fmt.replace(
+            """;
+        var replaceInsight = VsService().Analyze(replace, replace.Length, Vs).Insight;
+        Assert.NotNull(replaceInsight);
+        Assert.Equal("replace", replaceInsight.Overloads[0].Name);
+    }
+
+    [Fact]
+    public void AviSynthBareParameterHoverPrefersLocalType()
+    {
+        var width = new Symbol("Width", ["clip"]);
+        var text = """
+            function F(int width) {
+                return width
+            }
+            """;
+        var hover = AvsService().Analyze(text, text.LastIndexOf("width", StringComparison.OrdinalIgnoreCase) + 1,
+            [width]).Hover;
+        Assert.NotNull(hover);
+        Assert.Equal("int", hover.Text);
+
+        var called = """
+            function F(int width) {
+                n = Width()
+            }
+            """;
+        var signature = AvsService().Analyze(called, called.IndexOf("Width()", StringComparison.Ordinal) + 1,
+            [width]).Hover;
+        Assert.NotNull(signature);
+        Assert.Equal(width.Signature, signature.Text);
+    }
 }

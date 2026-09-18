@@ -53,6 +53,30 @@ internal static class VapourSynthMembers
         return [];
     }
 
+    /// <summary>
+    /// Finds a member of <paramref name="receiver"/> by the identifier used in source.
+    /// Bound plugin lookups stay filtered to the receiver node.
+    /// </summary>
+    public static Symbol? Find(TypeRef receiver, string name, DocumentBindings bindings,
+        VapourSynthCatalogIndex index)
+    {
+        if (name.Length == 0)
+        {
+            return null;
+        }
+
+        foreach (var symbol in Of(receiver, [], bindings, index))
+        {
+            if (symbol.Name.Equals(name, StringComparison.Ordinal) ||
+                symbol.Name.EndsWith('.' + name, StringComparison.Ordinal))
+            {
+                return symbol;
+            }
+        }
+
+        return null;
+    }
+
     private static IReadOnlyList<Symbol> Root(IReadOnlyList<Symbol> keywords, DocumentBindings bindings)
     {
         var items = new List<Symbol>(keywords.Count + bindings.Names.Count + bindings.BufferSymbols.Count);

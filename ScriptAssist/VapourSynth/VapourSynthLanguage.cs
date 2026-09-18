@@ -93,57 +93,22 @@ public sealed class VapourSynthLanguage : ILanguage
         }
 
         var receiver = VapourSynthTypeWalker.TypeOf(prefix, bindings, index);
-        var script = VapourSynthTypes.ScriptOf(receiver);
-        if (script != null)
+        if (callee.Count > 1)
         {
-            if (!bindings.ScriptModules.TryGetValue(script, out var members))
-            {
-                return null;
-            }
-
-            foreach (var symbol in members)
-            {
-                if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
-                {
-                    return new CallResolution { Overloads = [symbol] };
-                }
-            }
-
-            return null;
-        }
-
-        var ns = VapourSynthTypes.NamespaceOf(receiver);
-        if (ns != null)
-        {
-            var symbol = index.Find(ns, name);
-            if (symbol == null)
+            var member = VapourSynthMembers.Find(receiver, name, bindings, index);
+            if (member?.Parameters == null)
             {
                 return null;
             }
 
             return new CallResolution
             {
-                Overloads = [symbol],
+                Overloads = [member],
                 ImplicitReceiver = VapourSynthTypes.IsBound(receiver)
             };
         }
 
-        var host = receiver == VapourSynthTypes.VideoNode
-            ? VapourSynthHostTypes.VideoNodeMembers
-            : receiver == VapourSynthTypes.AudioNode
-                ? VapourSynthHostTypes.AudioNodeMembers
-                : receiver == VapourSynthTypes.Core
-                    ? VapourSynthHostTypes.CoreMembers
-                    : [];
-        foreach (var symbol in host)
-        {
-            if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
-            {
-                return new CallResolution { Overloads = [symbol] };
-            }
-        }
-
-        if (callee.Count == 1 && bindings.Names.TryGetValue(name, out var aliased))
+        if (bindings.Names.TryGetValue(name, out var aliased))
         {
             var symbol = VapourSynthTypes.FunctionSymbol(aliased);
             if (symbol != null)

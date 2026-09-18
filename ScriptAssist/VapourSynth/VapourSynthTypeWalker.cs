@@ -179,43 +179,32 @@ internal static class VapourSynthTypeWalker
         {
             return VapourSynthTypes.IsNode(current) ? current : TypeRef.Unknown;
         }
-        var script = VapourSynthTypes.ScriptOf(current);
-        if (script != null)
+
+        if (current == VapourSynthTypes.Module && segment.Name is "core" or "get_core")
         {
-            return bindings.ScriptModules.TryGetValue(script, out var members)
-                ? HostMember(segment, members)
-                : TypeRef.Unknown;
+            return VapourSynthTypes.Core;
         }
-        if (current == VapourSynthTypes.Module)
+
+        var symbol = VapourSynthMembers.Find(current, segment.Name, bindings, index);
+        if (symbol == null)
         {
-            return ModuleMember(segment);
+            return TypeRef.Unknown;
         }
-        if (current == VapourSynthTypes.Core)
+
+        if (symbol.Kind == SymbolKind.Namespace)
         {
-            return CoreMember(segment, index);
+            if (current == VapourSynthTypes.Core)
+            {
+                return VapourSynthTypes.Plugin(segment.Name);
+            }
+
+            if (VapourSynthTypes.IsNode(current))
+            {
+                return VapourSynthTypes.Bound(segment.Name, current);
+            }
         }
-        var plugin = VapourSynthTypes.NamespaceOf(current);
-        if (plugin != null)
-        {
-            return PluginMember(plugin, VapourSynthTypes.IsBound(current), segment, index);
-        }
-        if (current == VapourSynthTypes.VideoNode)
-        {
-            return NodeMember(segment, VapourSynthHostTypes.VideoNodeMembers, current, index);
-        }
-        if (current == VapourSynthTypes.AudioNode)
-        {
-            return NodeMember(segment, VapourSynthHostTypes.AudioNodeMembers, current, index);
-        }
-        if (current == VapourSynthTypes.Format)
-        {
-            return HostMember(segment, VapourSynthHostTypes.FormatMembers);
-        }
-        if (current == VapourSynthTypes.VideoFrame)
-        {
-            return HostMember(segment, VapourSynthHostTypes.VideoFrameMembers);
-        }
-        return TypeRef.Unknown;
+
+        return ApplyMember(symbol, segment, VapourSynthTypes.IsBound(current));
     }
 
     private static TypeRef ApplyUse(TypeRef current, PathSegment segment, DocumentBindings bindings)
@@ -282,72 +271,21 @@ internal static class VapourSynthTypeWalker
         return null;
     }
 
-    private static TypeRef ModuleMember(PathSegment segment)
+    private static TypeRef ApplyMember(Symbol symbol, PathSegment segment, bool bound)
     {
-        if (segment.Name is "core" or "get_core")
+        var nested = symbol.ReturnType != null
+            ? VapourSynthTypes.ScriptOf(new TypeRef(symbol.ReturnType))
+            : null;
+        if (nested != null)
         {
-            return VapourSynthTypes.Core;
-        }
-        return HostMember(segment, VapourSynthHostTypes.ModuleMembers);
-    }
-
-    private static TypeRef CoreMember(PathSegment segment, VapourSynthCatalogIndex index)
-    {
-        if (index.HasNamespace(segment.Name))
-        {
-            return VapourSynthTypes.Plugin(segment.Name);
-        }
-        return HostMember(segment, VapourSynthHostTypes.CoreMembers);
-    }
-
-    private static TypeRef PluginMember(string ns, bool bound, PathSegment segment, VapourSynthCatalogIndex index)
-    {
-        var symbol = index.Find(ns, segment.Name);
-        if (symbol == null)
-        {
-            return TypeRef.Unknown;
-        }
-        if (segment.Kind != PathSegmentKind.Call)
-        {
-            return VapourSynthTypes.Function(symbol, bound);
+            return segment.Kind == PathSegmentKind.Call ? TypeRef.Unknown : VapourSynthTypes.Script(nested);
         }
 
-        return VapourSynthTypes.FromReturn(symbol.ReturnType);
-    }
-
-    private static TypeRef NodeMember(PathSegment segment, IReadOnlyList<Symbol> members, TypeRef node,
-        VapourSynthCatalogIndex index)
-    {
-        if (index.HasBoundNamespace(segment.Name, node))
+        if (segment.Kind == PathSegmentKind.Call || symbol.Parameters == null)
         {
-            return VapourSynthTypes.Bound(segment.Name, node);
+            return ReturnOf(symbol);
         }
-        return HostMember(segment, members);
-    }
 
-    private static TypeRef HostMember(PathSegment segment, IReadOnlyList<Symbol> members)
-    {
-        foreach (var symbol in members)
-        {
-            if (!symbol.Name.Equals(segment.Name, StringComparison.Ordinal))
-            {
-                continue;
-            }
-            var nested = symbol.ReturnType != null
-                ? VapourSynthTypes.ScriptOf(new TypeRef(symbol.ReturnType))
-                : null;
-            if (nested != null)
-            {
-                return segment.Kind == PathSegmentKind.Call ? TypeRef.Unknown : VapourSynthTypes.Script(nested);
-            }
-
-            if (segment.Kind == PathSegmentKind.Call || symbol.Parameters == null)
-            {
-                return ReturnOf(symbol);
-            }
-
-            return VapourSynthTypes.Function(symbol);
-        }
-        return TypeRef.Unknown;
+        return VapourSynthTypes.Function(symbol, bound);
     }
 }

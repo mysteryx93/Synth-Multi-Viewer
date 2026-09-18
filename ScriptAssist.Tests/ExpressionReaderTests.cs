@@ -75,4 +75,31 @@ public class ExpressionReaderTests
         Assert.Equal("(a) + (b)", ExpressionParts.UnwrapParentheses("(a) + (b)"));
         Assert.Equal("foo[0]", ExpressionParts.UnwrapParentheses("(foo[0])"));
     }
+
+    [Fact]
+    public void ParseIgnoresParenthesesInsideStrings()
+    {
+        var segments = ExpressionReader.Parse("core.demo.Source(\"movie).mkv\")");
+        Assert.Equal("Source", segments[^1].Name);
+        Assert.Equal(PathSegmentKind.Call, segments[^1].Kind);
+    }
+
+    [Fact]
+    public void ParseRequiresTheWholeExpression()
+    {
+        Assert.Empty(ExpressionReader.Parse("not source"));
+        Assert.Empty(ExpressionReader.Parse("source is source"));
+        Assert.Equal("source", Assert.Single(ExpressionReader.Parse("source")).Name);
+    }
+
+    [Fact]
+    public void ReadStopsAtANewStatement()
+    {
+        var code = "source.\ncore.std.";
+        var path = ExpressionReader.Read(code, code.Length);
+        Assert.Equal("", path.Typed);
+        Assert.Equal(2, path.Segments.Count);
+        Assert.Equal("core", path.Segments[0].Name);
+        Assert.Equal("std", path.Segments[1].Name);
+    }
 }
