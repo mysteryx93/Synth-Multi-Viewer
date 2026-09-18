@@ -113,6 +113,23 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="CornerRadius" Value="3" />
     </Style>
+    <Style Selector="ComboBox">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="10,0,0,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ComboBoxItem">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="10,0,4,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="8,0,6,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
     <Style Selector="HyperlinkButton">
         <Setter Property="Padding" Value="0" />
     </Style>
@@ -131,7 +148,20 @@
         <Setter Property="Padding" Value="10,5" />
     </Style>
     <Style Selector="NumericUpDown">
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="8,0,6,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="ShowButtonSpinner" Value="False" />
+        <Setter Property="ClipToBounds" Value="False" />
+    </Style>
+    <Style Selector="NumericUpDown /template/ ButtonSpinner#PART_Spinner">
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="ClipToBounds" Value="False" />
+    </Style>
+    <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Height" Value="NaN" />
     </Style>
     <Style Selector="edit|TextEditor">
         <Setter Property="FontFamily" Value="Consolas,Menlo,Monospace" />
@@ -233,6 +263,7 @@
     <Style Selector="TextBox.tab-header-edit">
         <Setter Property="MinWidth" Value="0" />
         <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Height" Value="NaN" />
         <Setter Property="Padding" Value="1,0" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="FontSize" Value="16" />
@@ -280,6 +311,7 @@
     </Style>
     <Style Selector="ComboBox.zoom /template/ TextBox#PART_EditableTextBox">
         <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Height" Value="NaN" />
         <Setter Property="MinWidth" Value="0" />
         <Setter Property="Padding" Value="4,0,1,0" />
         <Setter Property="Margin" Value="0,0,24,0" />
@@ -300,6 +332,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Padding" Value="0,1" />
         <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Height" Value="NaN" />
     </Style>
     <Style Selector="TextBox.detected-path /template/ Border#PART_BorderElement">
         <Setter Property="BorderThickness" Value="0" />
