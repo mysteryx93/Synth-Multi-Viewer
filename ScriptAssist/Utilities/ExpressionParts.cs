@@ -88,26 +88,49 @@ internal static class ExpressionParts
     /// <summary>
     /// Strips matching outer parentheses so <c>(cond ? a : b)</c> is a ternary.
     /// </summary>
-    public static string UnwrapParentheses(string expression)
+    public static string UnwrapParentheses(string expression) => UnwrapSpan(expression).Text;
+
+    /// <summary>
+    /// Strips matching outer parentheses and returns the inner text plus its offset in
+    /// <paramref name="expression"/> so continuation context can keep the grouping.
+    /// </summary>
+    public static (string Text, int Offset) UnwrapSpan(string expression)
     {
-        var trimmed = expression.Trim();
-        while (IsParenthesized(trimmed))
+        var start = 0;
+        var end = expression.Length;
+        Trim(expression, ref start, ref end);
+        while (end - start >= 2 && IsParenthesized(expression, start, end))
         {
-            trimmed = trimmed[1..^1].Trim();
+            start++;
+            end--;
+            Trim(expression, ref start, ref end);
         }
 
-        return trimmed;
+        return (expression[start..end], start);
     }
 
-    private static bool IsParenthesized(string expression)
+    private static void Trim(string expression, ref int start, ref int end)
     {
-        if (expression.Length < 2 || expression[0] != '(' || expression[^1] != ')')
+        while (start < end && char.IsWhiteSpace(expression[start]))
+        {
+            start++;
+        }
+
+        while (end > start && char.IsWhiteSpace(expression[end - 1]))
+        {
+            end--;
+        }
+    }
+
+    private static bool IsParenthesized(string expression, int start, int end)
+    {
+        if (end - start < 2 || expression[start] != '(' || expression[end - 1] != ')')
         {
             return false;
         }
 
         var depth = 0;
-        for (var i = 0; i < expression.Length; i++)
+        for (var i = start; i < end; i++)
         {
             var c = expression[i];
             if (c is '(' or '[' or '{')
@@ -119,7 +142,7 @@ internal static class ExpressionParts
                 depth--;
                 if (depth == 0)
                 {
-                    return i == expression.Length - 1;
+                    return i == end - 1;
                 }
             }
         }

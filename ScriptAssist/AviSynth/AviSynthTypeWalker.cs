@@ -21,22 +21,33 @@ internal static class AviSynthTypeWalker
         {
             current = AviSynthInternals.ReturnOf(first.Name, Find(catalog, first.Name));
         }
-        else if (first.Kind == PathSegmentKind.Index && current == AviSynthTypes.Clip)
+        else if (first.Kind == PathSegmentKind.Index)
         {
-            current = AviSynthTypes.Clip;
+            current = Index(current);
         }
 
         for (var i = 1; i < segments.Count; i++)
         {
             var segment = segments[i];
+            if (segment.Kind == PathSegmentKind.Index)
+            {
+                if (segment.Name.Length > 0)
+                {
+                    if (current != AviSynthTypes.Clip)
+                    {
+                        return TypeRef.Unknown;
+                    }
+
+                    current = AviSynthInternals.ReturnOf(segment.Name, Find(catalog, segment.Name));
+                }
+
+                current = Index(current);
+                continue;
+            }
+
             if (current != AviSynthTypes.Clip)
             {
                 return TypeRef.Unknown;
-            }
-
-            if (segment.Kind == PathSegmentKind.Index)
-            {
-                continue;
             }
 
             current = AviSynthInternals.ReturnOf(segment.Name, Find(catalog, segment.Name));
@@ -57,4 +68,7 @@ internal static class AviSynthTypeWalker
 
     private static Symbol? Find(IReadOnlyList<Symbol> catalog, string name) =>
         catalog.FirstOrDefault(symbol => symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    private static TypeRef Index(TypeRef current) =>
+        current == AviSynthTypes.Clip ? AviSynthTypes.Clip : TypeRef.Unknown;
 }

@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using Xunit;
 
 namespace HanumanInstitute.ScriptAssist.Tests;
 
+[SuppressMessage("Usage", "xUnit1051:Calls to methods which accept CancellationToken should use TestContext.Current.CancellationToken")]
 public class ExpressionReaderTests
 {
     [Fact]
@@ -101,5 +103,39 @@ public class ExpressionReaderTests
         Assert.Equal(2, path.Segments.Count);
         Assert.Equal("core", path.Segments[0].Name);
         Assert.Equal("std", path.Segments[1].Name);
+    }
+
+    [Fact]
+    public void ParseKeepsGroupedMultilineMemberChain()
+    {
+        var segments = ExpressionReader.Parse("""
+            (core.std.BlankClip()
+            .std.Crop(left=2))
+            """);
+        Assert.Equal("core", segments[0].Name);
+        Assert.Equal("BlankClip", segments[2].Name);
+        Assert.Equal(PathSegmentKind.Call, segments[2].Kind);
+        Assert.Equal("Crop", segments[4].Name);
+        Assert.Equal(PathSegmentKind.Call, segments[4].Kind);
+    }
+
+    [Fact]
+    public void ReadDoesNotCrossRecoveredBracketMismatch()
+    {
+        var code = "broken = ([0)\nsource.\ncore.std.";
+        var path = ExpressionReader.Read(code, code.Length);
+        Assert.Equal("core", path.Segments[0].Name);
+        Assert.Equal("std", path.Segments[1].Name);
+        Assert.DoesNotContain(path.Segments, x => x.Name == "source");
+    }
+
+    [Fact]
+    public void ParseWalksLongContinuationWithoutQuadraticRescan()
+    {
+        var text = "(core" + string.Concat(Enumerable.Repeat("\n.std", 1000)) + ".BlankClip())";
+        var segments = ExpressionReader.Parse(text);
+        Assert.Equal("core", segments[0].Name);
+        Assert.Equal("BlankClip", segments[^1].Name);
+        Assert.Equal(PathSegmentKind.Call, segments[^1].Kind);
     }
 }

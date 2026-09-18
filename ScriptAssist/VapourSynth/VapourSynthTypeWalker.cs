@@ -31,28 +31,33 @@ internal static class VapourSynthTypeWalker
     /// </summary>
     public static TypeRef Infer(string expression, DocumentBindings bindings, VapourSynthCatalogIndex index)
     {
-        expression = ExpressionParts.UnwrapParentheses(expression);
-        if (IsInteger(expression))
+        var unwrapped = ExpressionParts.UnwrapParentheses(expression);
+        if (IsInteger(unwrapped))
         {
             return VapourSynthTypes.Int;
         }
 
-        if (IsFloat(expression))
+        if (IsFloat(unwrapped))
         {
             return VapourSynthTypes.Float;
         }
 
-        if (expression is "True" or "False")
+        if (unwrapped is "True" or "False")
         {
             return VapourSynthTypes.Bool;
         }
 
-        if (IsStringLiteral(expression))
+        if (IsStringLiteral(unwrapped))
         {
             return VapourSynthTypes.String;
         }
 
-        var parts = ExpressionParts.SplitAddMul(expression);
+        var parts = ExpressionParts.SplitAddMul(unwrapped);
+        if (parts.Count == 1)
+        {
+            return InferPart(expression, bindings, index);
+        }
+
         var node = TypeRef.Unknown;
         var last = TypeRef.Unknown;
         foreach (var part in parts)
@@ -74,7 +79,7 @@ internal static class VapourSynthTypeWalker
             return node;
         }
 
-        return parts.Count == 1 ? last : TypeRef.Unknown;
+        return TypeRef.Unknown;
     }
 
     private static TypeRef InferPart(string part, DocumentBindings bindings, VapourSynthCatalogIndex index)
@@ -177,7 +182,13 @@ internal static class VapourSynthTypeWalker
         }
         if (segment.Kind == PathSegmentKind.Index)
         {
-            return VapourSynthTypes.IsNode(current) ? current : TypeRef.Unknown;
+            if (segment.Name.Length > 0)
+            {
+                current = Step(current, new PathSegment { Name = segment.Name, Kind = PathSegmentKind.Name },
+                    index, bindings);
+            }
+
+            return Index(current);
         }
 
         if (current == VapourSynthTypes.Module && segment.Name is "core" or "get_core")
@@ -211,7 +222,7 @@ internal static class VapourSynthTypeWalker
     {
         if (segment.Kind == PathSegmentKind.Index)
         {
-            return VapourSynthTypes.IsNode(current) ? current : TypeRef.Unknown;
+            return Index(current);
         }
         if (segment.Kind != PathSegmentKind.Call)
         {
@@ -288,4 +299,7 @@ internal static class VapourSynthTypeWalker
 
         return VapourSynthTypes.Function(symbol, bound);
     }
+
+    private static TypeRef Index(TypeRef current) =>
+        VapourSynthTypes.IsNode(current) ? current : TypeRef.Unknown;
 }

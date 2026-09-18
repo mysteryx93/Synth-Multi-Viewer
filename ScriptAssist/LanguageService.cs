@@ -61,7 +61,7 @@ public sealed class LanguageService : ILanguageService
 
         token.ThrowIfCancellationRequested();
         var bindings = snapshot.Bindings.At(caret);
-        var path = ExpressionReader.Read(snapshot.Masked.Code, caret);
+        var path = ExpressionReader.Read(snapshot.Masked.Code, caret, _language, token);
         var receiver = _language.TypeOf(path.Segments, bindings, snapshot.Catalog);
         var classified = BufferLexer.Mask(rawPrefix, _language.Lexer, maskStrings: false, token: token).Code;
         var scan = bindings.InFunctionHeader(caret)
@@ -163,10 +163,12 @@ public sealed class LanguageService : ILanguageService
             }
 
             var seenSlash = false;
+            var keywordOnly = false;
             var index = 0;
             foreach (var parameter in overload.Parameters)
             {
-                if (ParameterNames.IsSeparator(parameter))
+                var kind = ParameterNames.Classify(parameter, ref keywordOnly);
+                if (kind is ParameterKind.Separator or ParameterKind.Kwargs or ParameterKind.Varargs)
                 {
                     if (parameter.Trim() == "/")
                     {
@@ -176,15 +178,18 @@ public sealed class LanguageService : ILanguageService
                     continue;
                 }
 
-                var slot = index++;
-                if (slot < skip)
+                if (kind != ParameterKind.KeywordOnly)
                 {
-                    continue;
-                }
+                    var slot = index++;
+                    if (slot < skip)
+                    {
+                        continue;
+                    }
 
-                if (slot - skip < consumed || hasSlash && !seenSlash)
-                {
-                    continue;
+                    if (slot - skip < consumed || hasSlash && !seenSlash)
+                    {
+                        continue;
+                    }
                 }
 
                 var name = _language.ParameterName(parameter);

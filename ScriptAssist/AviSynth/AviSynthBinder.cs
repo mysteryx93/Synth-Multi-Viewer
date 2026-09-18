@@ -253,6 +253,11 @@ internal static class AviSynthBinder
         }
 
         var parts = ExpressionParts.SplitAddMul(trimmed);
+        if (parts.Count == 1)
+        {
+            return InferPart(expression, names, catalog);
+        }
+
         var clip = TypeRef.Unknown;
         var last = TypeRef.Unknown;
         foreach (var part in parts)
@@ -274,7 +279,7 @@ internal static class AviSynthBinder
             return clip;
         }
 
-        return parts.Count == 1 ? last : TypeRef.Unknown;
+        return TypeRef.Unknown;
     }
 
     private static TypeRef InferPart(string part, Dictionary<string, TypeRef> names, IReadOnlyList<Symbol> catalog)

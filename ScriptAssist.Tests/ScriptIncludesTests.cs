@@ -24,6 +24,20 @@ public class ScriptIncludesTests
         Assert.Equal(expected, ParameterNames.OfAviSynth(parameter));
 
     [Theory]
+    [InlineData("*", false, "Separator", true)]
+    [InlineData("/", false, "Separator", false)]
+    [InlineData("*args", false, "Varargs", true)]
+    [InlineData("**kwargs", false, "Kwargs", false)]
+    [InlineData("radius=2", false, "Positional", false)]
+    [InlineData("radius=2", true, "KeywordOnly", true)]
+    public void PythonParameterKinds(string parameter, bool keywordOnly, string expected, bool after)
+    {
+        var flag = keywordOnly;
+        Assert.Equal(expected, ParameterNames.Classify(parameter, ref flag).ToString());
+        Assert.Equal(after, flag);
+    }
+
+    [Theory]
     [InlineData("left:int:opt", "left")]
     [InlineData("radius=1", "radius")]
     [InlineData("radius: int = 1", "radius")]

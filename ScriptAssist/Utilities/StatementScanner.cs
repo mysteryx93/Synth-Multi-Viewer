@@ -65,6 +65,51 @@ internal static class StatementScanner
     }
 
     /// <summary>
+    /// Marks newline starts that may be crossed as implicit or explicit continuations.
+    /// </summary>
+    public static bool[] Joins(string code, ILanguage? language = null, CancellationToken token = default)
+    {
+        var joins = new bool[code.Length];
+        var stack = new Stack<char>();
+        var i = 0;
+        while (i < code.Length)
+        {
+            if ((i & 4095) == 0)
+            {
+                token.ThrowIfCancellationRequested();
+            }
+
+            var c = code[i];
+            if (c is '(' or '[' or '{')
+            {
+                stack.Push(c);
+            }
+            else if (c is ')' or ']' or '}')
+            {
+                Close(stack, c);
+            }
+            else if (c == '\n' || c == '\r')
+            {
+                var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
+                if (Continues(code, i) || stack.Count > 0 && !Recovers(code, last + 1, language))
+                {
+                    joins[i] = true;
+                }
+                else
+                {
+                    stack.Clear();
+                }
+
+                i = last;
+            }
+
+            i++;
+        }
+
+        return joins;
+    }
+
+    /// <summary>
     /// Gets whether a line at <paramref name="lineStart"/> begins a language-specific declaration.
     /// Python recovers at <c>def</c>/<c>class</c> name prefixes; AviSynth at <c>function</c> name prefixes.
     /// </summary>

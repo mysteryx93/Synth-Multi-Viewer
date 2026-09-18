@@ -1387,4 +1387,79 @@ public class ReviewRegressionTests
         Assert.NotNull(signature);
         Assert.Equal(width.Signature, signature.Text);
     }
+
+    [Fact]
+    public void GroupedMultilineExpressionKeepsNodeType()
+    {
+        var text = """
+            source = (core.std.BlankClip()
+            .std.Crop(left=2))
+            source.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void RecoveredBracketMismatchDoesNotCaptureTheNextStatement()
+    {
+        var text = """
+            broken = ([0)
+            source.
+            core.std.
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "Crop");
+        Assert.Contains(reply.Items, x => x.InsertionText == "BlankClip");
+    }
+
+    [Fact]
+    public void IndexedMemberDoesNotKeepClipType()
+    {
+        var vs = """
+            source = core.std.BlankClip()
+            result = source.width[0]
+            result.
+            """;
+        var video = VsService().Analyze(vs, vs.Length, Vs);
+        Assert.DoesNotContain(video.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(video.Items, x => x.InsertionText == "width");
+
+        var unknown = """
+            source = core.std.BlankClip()
+            result = source.unknown[0]
+            result.
+            """;
+        var missing = VsService().Analyze(unknown, unknown.Length, Vs);
+        Assert.DoesNotContain(missing.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(missing.Items, x => x.InsertionText == "width");
+
+        var crop = new Symbol("Crop", ["clip", "int [left]"]);
+        var avs = """
+            source = BlankClip()
+            result = source.Width[0]
+            result.
+            """;
+        var clip = AvsService().Analyze(avs, avs.Length, [crop]);
+        Assert.DoesNotContain(clip.Items, x => x.InsertionText == "Crop");
+    }
+
+    [Fact]
+    public void PythonVarargsDoNotConsumeKeywordOnlyParameters()
+    {
+        var text = """
+            def f(*args, radius=2):
+                return args
+            f(1, 2, 
+            """;
+        var reply = VsService().Analyze(text, text.Length, Vs);
+        Assert.Contains(reply.Items, x => x.InsertionText == "radius=");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "args=");
+        Assert.NotNull(reply.Insight);
+        var active = OverloadProvider.ActiveParameterText(reply.Insight);
+        Assert.Contains("*args", active, StringComparison.Ordinal);
+        Assert.DoesNotContain("No more parameters", active, StringComparison.Ordinal);
+        Assert.DoesNotContain("radius=2", active, StringComparison.Ordinal);
+    }
 }

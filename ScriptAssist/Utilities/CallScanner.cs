@@ -60,7 +60,7 @@ internal static class CallScanner
                 continue;
             }
 
-            var callee = ExpressionReader.Callee(code, frame.Offset);
+            var callee = ExpressionReader.Callee(code, frame.Offset, language, token);
             if (callee.Count == 0)
             {
                 nested = true;

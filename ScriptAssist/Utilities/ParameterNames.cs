@@ -59,6 +59,37 @@ internal static class ParameterNames
     }
 
     /// <summary>
+    /// Classifies a parameter in list order and updates whether later names are keyword-only.
+    /// </summary>
+    public static ParameterKind Classify(string parameter, ref bool keywordOnly)
+    {
+        var text = parameter.Trim();
+        if (text == "/")
+        {
+            return ParameterKind.Separator;
+        }
+
+        if (text == "*")
+        {
+            keywordOnly = true;
+            return ParameterKind.Separator;
+        }
+
+        if (text.StartsWith("**", StringComparison.Ordinal))
+        {
+            return ParameterKind.Kwargs;
+        }
+
+        if (text.StartsWith("*", StringComparison.Ordinal))
+        {
+            keywordOnly = true;
+            return ParameterKind.Varargs;
+        }
+
+        return keywordOnly ? ParameterKind.KeywordOnly : ParameterKind.Positional;
+    }
+
+    /// <summary>
     /// Returns the argument name for AviSynth <c>int [left]</c> / <c>int "left"</c> / <c>clip c</c>.
     /// </summary>
     public static string? OfAviSynth(string parameter)
@@ -384,4 +415,16 @@ internal static class ParameterNames
             items.Add(value);
         }
     }
+}
+
+/// <summary>
+/// How a parameter participates in positional vs keyword binding.
+/// </summary>
+internal enum ParameterKind
+{
+    Positional,
+    Varargs,
+    KeywordOnly,
+    Separator,
+    Kwargs
 }

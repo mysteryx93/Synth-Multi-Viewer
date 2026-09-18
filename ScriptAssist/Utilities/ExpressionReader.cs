@@ -16,7 +16,8 @@ internal static class ExpressionReader
     /// <summary>
     /// Reads the path at <paramref name="caret"/> for completion replacement.
     /// </summary>
-    public static CaretPath Read(string code, int caret)
+    public static CaretPath Read(string code, int caret, ILanguage? language = null,
+        CancellationToken token = default)
     {
         caret = caret.Clamp(0, code.Length);
         var start = caret;
@@ -32,12 +33,13 @@ internal static class ExpressionReader
         }
 
         var typed = start <= caret && caret <= code.Length ? code[start..caret] : "";
+        var joins = StatementScanner.Joins(code, language, token);
         return new CaretPath
         {
             Start = start,
             End = end,
             Typed = typed,
-            Segments = WalkLeft(code, start, out _)
+            Segments = WalkLeft(code, start, joins, 0, language, token, out _)
         };
     }
 
@@ -45,15 +47,17 @@ internal static class ExpressionReader
     /// Parses a whole expression, including a trailing identifier, call, or index.
     /// Returns an empty path when the expression is not fully consumed.
     /// </summary>
-    public static IReadOnlyList<PathSegment> Parse(string code)
+    public static IReadOnlyList<PathSegment> Parse(string code, ILanguage? language = null,
+        CancellationToken token = default)
     {
         if (!code.HasText())
         {
             return [];
         }
 
-        var structure = BufferLexer.Mask(code, StructureLexer).Code;
-        var trimmed = ExpressionParts.UnwrapParentheses(structure);
+        var structure = BufferLexer.Mask(code, StructureLexer, token: token).Code;
+        var joins = StatementScanner.Joins(structure, language, token);
+        var (trimmed, offset) = ExpressionParts.UnwrapSpan(structure);
         if (trimmed.Length == 0)
         {
             return [];
@@ -63,33 +67,38 @@ internal static class ExpressionReader
         int remaining;
         if (trimmed[^1] is ')' or ']')
         {
-            if (!TryParseClosed(trimmed, out segments, out remaining))
+            if (!TryParseClosed(trimmed, joins, offset, language, token, out segments, out remaining))
             {
                 return [];
             }
         }
         else
         {
-            var path = Read(trimmed, trimmed.Length);
-            if (path.Typed.Length == 0)
+            var typedStart = trimmed.Length;
+            while (typedStart > 0 && BufferLexer.IsIdentifier(trimmed[typedStart - 1]))
             {
-                segments = path.Segments;
+                typedStart--;
+            }
+
+            var prefix = WalkLeft(trimmed, typedStart, joins, offset, language, token, out remaining);
+            if (typedStart == trimmed.Length)
+            {
+                segments = prefix;
             }
             else
             {
-                var list = new List<PathSegment>(path.Segments.Count + 1);
-                list.AddRange(path.Segments);
-                list.Add(new PathSegment { Name = path.Typed, Kind = PathSegmentKind.Name });
+                var list = new List<PathSegment>(prefix.Count + 1);
+                list.AddRange(prefix);
+                list.Add(new PathSegment { Name = trimmed[typedStart..], Kind = PathSegmentKind.Name });
                 segments = list;
             }
-
-            WalkLeft(trimmed, path.Start, out remaining);
         }
 
         return Leftover(trimmed, remaining) ? [] : segments;
     }
 
-    private static bool TryParseClosed(string code, out IReadOnlyList<PathSegment> segments, out int remaining)
+    private static bool TryParseClosed(string code, bool[] joins, int offset, ILanguage? language,
+        CancellationToken token, out IReadOnlyList<PathSegment> segments, out int remaining)
     {
         segments = [];
         remaining = 0;
@@ -109,7 +118,7 @@ internal static class ExpressionReader
             return false;
         }
 
-        var prefix = WalkLeft(code, pos, out remaining);
+        var prefix = WalkLeft(code, pos, joins, offset, language, token, out remaining);
         var list = new List<PathSegment>(prefix.Count + uses.Count);
         list.AddRange(prefix);
         AppendUses(list, name, uses, reverse: false);
@@ -120,7 +129,8 @@ internal static class ExpressionReader
     /// <summary>
     /// Reads the callee to the left of an opening parenthesis.
     /// </summary>
-    public static IReadOnlyList<PathSegment> Callee(string code, int openParen)
+    public static IReadOnlyList<PathSegment> Callee(string code, int openParen, ILanguage? language = null,
+        CancellationToken token = default)
     {
         var end = openParen.Clamp(0, code.Length);
         while (end > 0 && char.IsWhiteSpace(code[end - 1]))
@@ -140,20 +150,28 @@ internal static class ExpressionReader
         }
 
         var name = code[start..end];
-        var prefix = WalkLeft(code, start, out _);
+        var joins = StatementScanner.Joins(code, language, token);
+        var prefix = WalkLeft(code, start, joins, 0, language, token, out _);
         var segments = new List<PathSegment>(prefix.Count + 1);
         segments.AddRange(prefix);
         segments.Add(new PathSegment { Name = name, Kind = PathSegmentKind.Name });
         return segments;
     }
 
-    private static IReadOnlyList<PathSegment> WalkLeft(string code, int position, out int remaining)
+    private static IReadOnlyList<PathSegment> WalkLeft(string code, int position, bool[] joins, int offset,
+        ILanguage? language, CancellationToken token, out int remaining)
     {
         var collected = new List<PathSegment>();
         var pos = position;
+        var steps = 0;
         while (pos > 0)
         {
-            if (!SkipJoin(code, ref pos))
+            if ((steps++ & 4095) == 0)
+            {
+                token.ThrowIfCancellationRequested();
+            }
+
+            if (!SkipJoin(code, ref pos, joins, offset))
             {
                 break;
             }
@@ -164,7 +182,7 @@ internal static class ExpressionReader
             }
 
             pos--;
-            if (!SkipJoin(code, ref pos))
+            if (!SkipJoin(code, ref pos, joins, offset))
             {
                 break;
             }
@@ -191,7 +209,7 @@ internal static class ExpressionReader
                     break;
                 }
 
-                var inner = Parse(code[(open + 1)..close]);
+                var inner = Parse(code[open..(close + 1)], language, token);
                 for (var i = inner.Count - 1; i >= 0; i--)
                 {
                     collected.Add(inner[i]);
@@ -221,53 +239,39 @@ internal static class ExpressionReader
         return collected;
     }
 
-    private static bool SkipJoin(string code, ref int pos)
+    private static bool SkipJoin(string code, ref int pos, bool[] joins, int offset)
     {
-        var saved = pos;
-        while (pos > 0 && code[pos - 1] is ' ' or '\t')
+        var origin = pos;
+        while (pos > 0)
         {
-            pos--;
-        }
-
-        if (pos == 0 || code[pos - 1] is not ('\n' or '\r'))
-        {
-            return true;
-        }
-
-        var last = pos - 1;
-        var newline = code[last] == '\n' && last > 0 && code[last - 1] == '\r' ? last - 1 : last;
-        if (!StatementScanner.Continues(code, newline) && Depth(code, newline) == 0)
-        {
-            pos = saved;
-            return false;
-        }
-
-        pos = newline;
-        if (pos > 0 && code[pos - 1] == '\\')
-        {
-            pos--;
-        }
-
-        return SkipJoin(code, ref pos);
-    }
-
-    private static int Depth(string code, int end)
-    {
-        var depth = 0;
-        for (var i = 0; i < end && i < code.Length; i++)
-        {
-            var c = code[i];
-            if (c is '(' or '[' or '{')
+            var saved = pos;
+            while (pos > 0 && code[pos - 1] is ' ' or '\t')
             {
-                depth++;
+                pos--;
             }
-            else if (c is ')' or ']' or '}' && depth > 0)
+
+            if (pos == 0 || code[pos - 1] is not ('\n' or '\r'))
             {
-                depth--;
+                return true;
+            }
+
+            var last = pos - 1;
+            var newline = code[last] == '\n' && last > 0 && code[last - 1] == '\r' ? last - 1 : last;
+            var at = newline + offset;
+            if (at < 0 || at >= joins.Length || !joins[at])
+            {
+                pos = saved;
+                return saved != origin;
+            }
+
+            pos = newline;
+            if (pos > 0 && code[pos - 1] == '\\')
+            {
+                pos--;
             }
         }
 
-        return depth;
+        return true;
     }
 
     private static bool Leftover(string code, int remaining)

@@ -106,9 +106,23 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
     private static int PhysicalIndex(string[] parameters, int visibleIndex)
     {
         var seen = 0;
+        var varargs = -1;
+        var keywordOnly = false;
         for (var i = 0; i < parameters.Length; i++)
         {
-            if (ParameterNames.IsSeparator(parameters[i]))
+            var kind = ParameterNames.Classify(parameters[i], ref keywordOnly);
+            if (kind is ParameterKind.Separator or ParameterKind.Kwargs)
+            {
+                continue;
+            }
+
+            if (kind == ParameterKind.Varargs)
+            {
+                varargs = i;
+                continue;
+            }
+
+            if (kind == ParameterKind.KeywordOnly && varargs >= 0)
             {
                 continue;
             }
@@ -121,7 +135,7 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
             seen++;
         }
 
-        return parameters.Length;
+        return varargs >= 0 && visibleIndex >= seen ? varargs : parameters.Length;
     }
 
     private static bool IsImplicitFirst(string parameter) =>
