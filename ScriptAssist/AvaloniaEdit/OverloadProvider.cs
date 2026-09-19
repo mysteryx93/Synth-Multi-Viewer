@@ -41,7 +41,7 @@ public sealed class OverloadProvider : IOverloadProvider
         {
             _selected = value.Clamp(0, Math.Max(0, Count - 1));
             _explicit = true;
-            PropertyChanged?.Invoke(this, new(null));
+            Notify();
         }
     }
 
@@ -76,7 +76,22 @@ public sealed class OverloadProvider : IOverloadProvider
             _explicit = false;
         }
 
-        PropertyChanged?.Invoke(this, new(null));
+        Notify();
+    }
+
+    private void Notify()
+    {
+        var handler = PropertyChanged;
+        if (handler == null)
+        {
+            return;
+        }
+
+        handler(this, new(nameof(SelectedIndex)));
+        handler(this, new(nameof(Count)));
+        handler(this, new(nameof(CurrentIndexText)));
+        handler(this, new(nameof(CurrentHeader)));
+        handler(this, new(nameof(CurrentContent)));
     }
 
     /// <summary>

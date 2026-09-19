@@ -152,10 +152,13 @@ public class CompletionDataTests
         var provider = new OverloadProvider(first);
         provider.SelectedIndex = 1;
 
+        var names = new List<string?>();
+        provider.PropertyChanged += (_, e) => names.Add(e.PropertyName);
         provider.Update(new([new Symbol("A", ["x"]), new Symbol("B", ["y"])], 0, false));
 
         Assert.Equal(1, provider.SelectedIndex);
         Assert.Equal("Parameter 1: y", provider.CurrentContent);
+        Assert.Contains(nameof(OverloadProvider.CurrentContent), names);
     }
 
     [Fact]

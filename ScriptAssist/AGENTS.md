@@ -7,7 +7,7 @@ Consumer setup and API examples: [README.md](README.md). These notes describe im
 - Keep one assembly. Never reference `ApiVapourSynth`, `ApiAviSynth`, or the app; never load a native core or execute scripts.
 - Keep language behavior here, including type inference and `clip.` completion. The host supplies catalogs and include readers; it does not assemble language rules.
 - Keep the consumer API centered on `ScriptLanguageFactory`, `GetAsync`, and `EditorAssist`. The factory owns the built-in language ids; the profile-list constructor is for tests.
-- `LanguageService` and `CatalogCache` remain language-agnostic. Ranking belongs to `ILanguage.CompletionPriority`; do not special-case clip types in the engine.
+- `LanguageService` and `CatalogCache` remain language-agnostic. Ranking belongs to `ILanguage.CompletionPriority`; do not special-case clip types in the engine. Member lists are alphabetical; named-argument completions keep a higher priority so they stay above the rest of the list. Do not demote plugin namespaces on `clip.`.
 - Unless explicitly requested, exclude full parsers/type checkers, eval/GScript scopes, stdlib/numpy/`__all__`, array/list element types, map keys, imported Python classes, nested FrameEval function environments, and `f.props`. Small static-analysis improvements remain appropriate.
 
 ## Structure
@@ -56,7 +56,7 @@ Include cache lifecycle is documented in README; parsed exports and failed path 
 ### AviSynth
 
 - Compare identifiers ordinal-ignore-case. `last` is always a clip. Unknown called names default to clip except entries in `AviSynthInternals`; clip property syntax also uses that return table.
-- Preserve explicit and implicit-first-clip call handling, including bound calls and implicit-last overloads. Native `$InternalFunctions$` lists the same filter many times with one Param$ string; insight must keep one copy of each distinct signature (BlankClip is four identical natives plus the implicit-clip variant, not eight).
+- Preserve explicit and implicit-first-clip call handling on one catalog signature. Bound `last.Crop` / `clip.Crop` skip the first clip; root `Crop(10,` and `BlankClip(length=100,` do the same when the first argument is not a clip (numbers, strings, and `name=` are not clips). Do not present implicit last as a second overload. Native `$InternalFunctions$` lists the same filter many times with one Param$ string; insight keeps one copy of each distinct signature.
 - Bind function parameters/assignments in `BindingScope`; keep `last`, top-level assignments, and `global x =` in script names. Imported AVSI headers contribute signatures, never their parameter locals.
 - A header without `{` ends before the next function, or at EOF if none follows. Retain incomplete parameter-list spans.
 - Preserve `Default(x, y)` inference, clip preference in ternaries, and current last-assignment-wins behavior. GScript/Eval are not scopes.

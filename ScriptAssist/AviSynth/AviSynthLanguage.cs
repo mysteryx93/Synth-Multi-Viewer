@@ -3,7 +3,8 @@ namespace HanumanInstitute.ScriptAssist.AviSynth;
 /// <summary>
 /// Catalog-driven AviSynth profile: <c>last</c>, implicit first clip, and internals.
 /// </summary>
-public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshableLanguage, IContextHover
+public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshableLanguage, IContextHover,
+    ICallReceiver
 {
     private readonly IncludeReader? _read;
     /// <summary>
@@ -64,10 +65,6 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
     DocumentBindings IPreparedLanguage.Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog,
         CancellationToken token, string? documentPath) =>
         AviSynthBinder.Bind(prepared, catalog, Lexer, token, documentPath, _read, Includes);
-
-    /// <inheritdoc />
-    public double CompletionPriority(Symbol symbol, TypeRef receiver) =>
-        receiver == AviSynthTypes.Clip && symbol.Kind != SymbolKind.Namespace ? 1 : 0;
 
     /// <inheritdoc />
     public string? ParameterName(string parameter) => ParameterNames.OfAviSynth(parameter);
@@ -152,19 +149,62 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
             return null;
         }
 
-        if (!implicitClip)
+        return new() { Overloads = matches, ImplicitReceiver = implicitClip };
+    }
+
+    bool ICallReceiver.OmitsFirstClip(CallResolution resolved, string firstArgument, DocumentBindings bindings,
+        IReadOnlyList<Symbol> catalog, CancellationToken token)
+    {
+        if (resolved.ImplicitReceiver)
         {
-            var extras = matches.Count;
-            for (var i = 0; i < extras; i++)
+            return true;
+        }
+
+        var takesClip = false;
+        foreach (var overload in resolved.Overloads)
+        {
+            if (AviSynthTypes.TakesClip(overload))
             {
-                var symbol = matches[i];
-                if (symbol.Parameters != null && AviSynthTypes.TakesClip(symbol))
-                {
-                    AddOverload(matches, symbol with { Parameters = symbol.Parameters[1..], ImplicitLast = true });
-                }
+                takesClip = true;
+                break;
             }
         }
-        return new() { Overloads = matches, ImplicitReceiver = implicitClip };
+
+        return takesClip && !SuppliesClip(firstArgument, bindings, catalog, token);
+    }
+
+    private bool SuppliesClip(string argument, DocumentBindings bindings, IReadOnlyList<Symbol> catalog,
+        CancellationToken token)
+    {
+        if (!argument.HasText())
+        {
+            return false;
+        }
+
+        if (ParameterNames.TopLevelKeywordEquals(argument) > 0)
+        {
+            return false;
+        }
+
+        var first = argument[0];
+        if (first is '"' or '\'' || char.IsDigit(first) || first is '-' or '.')
+        {
+            return false;
+        }
+
+        if (argument.Equals("true", Comparison) || argument.Equals("false", Comparison))
+        {
+            return false;
+        }
+
+        var path = ExpressionReader.Parse(argument, this, token);
+        if (path.Count == 0)
+        {
+            return char.IsLetter(first);
+        }
+
+        var type = TypeOf(path, bindings, catalog);
+        return type == AviSynthTypes.Clip || type.IsUnknown;
     }
 
     private static void AddOverload(List<Symbol> matches, Symbol symbol)

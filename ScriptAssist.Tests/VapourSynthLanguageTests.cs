@@ -44,6 +44,17 @@ public class VapourSynthLanguageTests
     }
 
     [Fact]
+    public void Complete_ClipMembers_SortAlphabetically()
+    {
+        const string text = "clip = core.std.BlankClip()\nclip.";
+
+        var names = VsService().Analyze(text, text.Length, Vs).Items.Select(x => x.InsertionText).ToArray();
+
+        Assert.Equal(names.Order(StringComparer.Ordinal), names);
+        Assert.True(Array.IndexOf(names, "std") < Array.IndexOf(names, "width"));
+    }
+
+    [Fact]
     public void Analyze_StatementStart_DoesNotLeakCatalogFunctions()
     {
         var reply = VsService().Analyze("Cr", 2, Vs);

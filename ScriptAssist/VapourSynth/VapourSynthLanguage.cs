@@ -72,10 +72,6 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
         VapourSynthBinder.Bind(prepared, catalog, Lexer, token, documentPath, _read, Includes);
 
     /// <inheritdoc />
-    public double CompletionPriority(Symbol symbol, TypeRef receiver) =>
-        VapourSynthTypes.IsNode(receiver) && symbol.Kind != SymbolKind.Namespace ? 1 : 0;
-
-    /// <inheritdoc />
     public string? ParameterName(string parameter) => ParameterNames.OfPython(parameter);
 
     /// <inheritdoc />

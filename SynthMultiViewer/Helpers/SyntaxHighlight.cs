@@ -1,5 +1,6 @@
 using System.Xml;
 using Avalonia;
+using Avalonia.Media;
 using Avalonia.Styling;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
@@ -13,6 +14,23 @@ namespace HanumanInstitute.SynthMultiViewer.Helpers;
 public static class SyntaxHighlight
 {
     private static readonly List<WeakReference<TextEditor>> Editors = [];
+    private static readonly Dictionary<string, Color> DarkForegrounds = new()
+    {
+        ["Comment"] = Colors.LightGreen,
+        ["String"] = Colors.Salmon,
+        ["Keyword"] = Colors.DodgerBlue,
+        ["Builtin"] = Colors.DeepSkyBlue,
+        ["BuiltIn"] = Colors.DeepSkyBlue,
+        ["Digits"] = Colors.LightSkyBlue,
+        ["Exception"] = Colors.MediumTurquoise,
+        ["Import"] = Colors.LightGreen,
+        ["Jump"] = Colors.LightSteelBlue,
+        ["Operator"] = Colors.MediumTurquoise,
+        ["Boolean"] = Colors.LightSkyBlue,
+        ["Pass"] = Colors.Silver,
+        ["With"] = Colors.Plum,
+        ["MethodName"] = Colors.DeepSkyBlue,
+    };
 
     /// <summary>
     /// Defines the highlighting asset name under the application Assets directory.
@@ -62,16 +80,6 @@ public static class SyntaxHighlight
             return;
         }
 
-        if (Application.Current?.ActualThemeVariant == ThemeVariant.Dark)
-        {
-            var darkName = Path.GetFileNameWithoutExtension(resourceName) + ".Dark" + Path.GetExtension(resourceName);
-            if (TryLoad(darkName, out var darkHighlighting))
-            {
-                editor.SyntaxHighlighting = darkHighlighting;
-                return;
-            }
-        }
-
         if (TryLoad(resourceName, out var highlighting))
         {
             editor.SyntaxHighlighting = highlighting;
@@ -85,12 +93,29 @@ public static class SyntaxHighlight
         {
             using var stream = Avalonia.Platform.AssetLoader.Open(new($"avares://SynthMultiViewer/Assets/{resourceName}"));
             using var reader = XmlReader.Create(stream);
-            highlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
+            var definition = HighlightingLoader.LoadXshd(reader);
+            if (Application.Current?.ActualThemeVariant == ThemeVariant.Dark)
+            {
+                ApplyDarkColors(definition);
+            }
+
+            highlighting = HighlightingLoader.Load(definition, HighlightingManager.Instance);
             return true;
         }
         catch
         {
             return false;
+        }
+    }
+
+    private static void ApplyDarkColors(XshdSyntaxDefinition definition)
+    {
+        foreach (var color in definition.Elements.OfType<XshdColor>())
+        {
+            if (color.Name is { } name && DarkForegrounds.TryGetValue(name, out var foreground))
+            {
+                color.Foreground = new SimpleHighlightingBrush(foreground);
+            }
         }
     }
 

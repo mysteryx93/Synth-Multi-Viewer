@@ -258,10 +258,11 @@ public class CallInsightTests
     }
 
     [Theory]
-    [InlineData("Crop(10,", 1)]
-    [InlineData("Crop(10, ", 1)]
-    [InlineData("Crop(10, 20,", 2)]
-    [InlineData("Crop(10, 20, ", 2)]
+    [InlineData("Crop(", 1)]
+    [InlineData("Crop(10,", 2)]
+    [InlineData("Crop(10, ", 2)]
+    [InlineData("Crop(10, 20,", 3)]
+    [InlineData("Crop(10, 20, ", 3)]
     [InlineData("last.Crop(10, ", 2)]
     public void Insight_AviSynthComma_AdvancesParameter(string text, int parameter)
     {
@@ -784,6 +785,24 @@ public class CallInsightTests
         Assert.Contains("right_=0", OverloadProvider.ActiveParameterText(python), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("BlankClip(", "Parameter 2: int [length]")]
+    [InlineData("BlankClip(100,", "Parameter 3: int [width]")]
+    [InlineData("BlankClip(100, 640,", "Parameter 4: int [height]")]
+    [InlineData("BlankClip(length=100,", "Parameter 3: int [width]")]
+    [InlineData("BlankClip(length=100, width=160,", "Parameter 4: int [height]")]
+    [InlineData("BlankClip(width=640, height=", "Parameter 4: int [height]")]
+    public void Insight_AviSynthBlankClip_AdvancesAfterImplicitClip(string text, string active)
+    {
+        var parsed = AviSynthParameters.Parse(
+            "[]c*[length]i[width]i[height]i[pixel_type]s[fps]f[fps_denominator]i[audio_rate]i[channels]i[sample_type]s[color]i[color_yuv]i[clip]c[colors]f+")!;
+
+        var insight = AvsService().Analyze(text, text.Length, [new Symbol("BlankClip", parsed)]).Insight;
+
+        Assert.NotNull(insight);
+        Assert.Equal(active, OverloadProvider.ActiveParameterText(insight));
+    }
+
     [Fact]
     public void Insight_DuplicateAviSynthOverloads_AreUnique()
     {
@@ -794,8 +813,19 @@ public class CallInsightTests
         var insight = AvsService().Analyze(text, text.Length, catalog).Insight;
 
         Assert.NotNull(insight);
-        Assert.Equal(2, insight.Overloads.Count);
-        Assert.Equal(2, insight.Overloads.Select(x => x.Signature).Distinct(StringComparer.Ordinal).Count());
+        Assert.Single(insight.Overloads);
+    }
+
+    [Fact]
+    public void Insight_AviSynthExplicitClip_MapsFirstArgument()
+    {
+        var crop = new Symbol("Crop", ["clip", "int [left]", "int [top]"]);
+        const string text = "src = last\nCrop(src, 10";
+
+        var insight = AvsService().Analyze(text, text.Length, [crop]).Insight!;
+
+        Assert.False(insight.ImplicitClip);
+        Assert.Equal(1, insight.ActiveParameter);
     }
 
     [Fact]

@@ -94,17 +94,21 @@ internal static class CallScanner
             if (resolved is { Overloads.Count: > 0 })
             {
                 var current = (source ?? code)[frame.ArgumentStart..caret];
+                var implicitClip = language is ICallReceiver mapping
+                    ? mapping.OmitsFirstClip(resolved, FirstArgument(code, frame.Offset, caret),
+                        bindings, catalog, token)
+                    : resolved.ImplicitReceiver;
                 var used = CanonicalNames(frame.UsedNames, resolved, language);
                 var keyword = KeywordName(current);
                 var slots = new int[resolved.Overloads.Count];
                 for (var i = 0; i < slots.Length; i++)
                 {
                     slots[i] = ActivePhysical(resolved.Overloads, keyword, frame.Positional,
-                        resolved.ImplicitReceiver, used, language, resolved.Overloads[i]);
+                        implicitClip, used, language, resolved.Overloads[i]);
                 }
 
                 var parameter = slots.Length == 0 ? frame.Positional : slots[0];
-                return new(new(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested,
+                return new(new(resolved.Overloads, parameter, implicitClip, nested,
                     current, used, frame.Positional, keyword) { OverloadSlots = slots }, unclosed);
             }
 
@@ -209,6 +213,40 @@ internal static class CallScanner
 
     internal static bool NativeAlias(Symbol overload) =>
         overload.Name.StartsWith("core.", StringComparison.Ordinal);
+
+    private static string FirstArgument(string code, int openParen, int caret)
+    {
+        var start = openParen + 1;
+        if ((uint)start >= (uint)caret)
+        {
+            return "";
+        }
+
+        var depth = 0;
+        for (var i = start; i < caret; i++)
+        {
+            var c = code[i];
+            if (c is '(' or '[' or '{')
+            {
+                depth++;
+            }
+            else if (c is ')' or ']' or '}')
+            {
+                if (depth == 0)
+                {
+                    return code[start..i].Trim();
+                }
+
+                depth--;
+            }
+            else if (c == ',' && depth == 0)
+            {
+                return code[start..i].Trim();
+            }
+        }
+
+        return code[start..caret].Trim();
+    }
 
     private static string? KeywordName(string argument)
     {
