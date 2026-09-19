@@ -10,8 +10,7 @@ internal static class NamedArgumentHover
     /// matching catalog string; a match-less <c>name=</c> still consumes the token.
     /// </summary>
     public static bool TryGet(string code, CaretPath path, string name, ILanguage language,
-        DocumentBindings bindings, IReadOnlyList<Symbol> catalog, StringComparison comparison,
-        out string? parameter, HoverContext? context = null)
+        StringComparison comparison, out string? parameter, HoverContext? context)
     {
         parameter = null;
         var i = path.End;
@@ -25,17 +24,12 @@ internal static class NamedArgumentHover
             return false;
         }
 
-        var insight = context != null
-            ? context.Scan
-            : CallScanner.Find(code, language, bindings, catalog, default, caret: path.End);
-        if (insight == null)
+        if (context?.Scan == null)
         {
-            return context != null
-                ? context.Unclosed == '('
-                : CallScanner.InnermostUnclosed(code, default, language, path.End) == '(';
+            return context?.Unclosed == '(';
         }
 
-        foreach (var overload in insight.Overloads)
+        foreach (var overload in context.Scan.Overloads)
         {
             if (overload.Parameters == null)
             {

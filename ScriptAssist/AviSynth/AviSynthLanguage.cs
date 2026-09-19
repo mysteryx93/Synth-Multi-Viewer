@@ -58,9 +58,7 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
     public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
         string? documentPath = null)
     {
-        var masked = BufferLexer.Mask(text, Lexer, token: token);
-        var quoted = BufferLexer.Mask(text, Lexer, maskStrings: false, token: token);
-        return AviSynthBinder.Bind(new PreparedDocument(masked, quoted), catalog, Lexer, token,
+        return AviSynthBinder.Bind(PreparedDocument.Create(text, Lexer, token, this), catalog, Lexer, token,
             documentPath, _read, Includes);
     }
 
@@ -247,8 +245,7 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
             return null;
         }
 
-        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var parameter,
-                context))
+        if (NamedArgumentHover.TryGet(code, path, name, this, Comparison, out var parameter, context))
         {
             if (parameter == null)
             {

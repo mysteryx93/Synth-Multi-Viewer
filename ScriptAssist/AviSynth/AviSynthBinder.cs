@@ -14,9 +14,7 @@ internal static class AviSynthBinder
         CancellationToken token, string? documentPath = null, IncludeReader? read = null,
         IncludeCache? includes = null)
     {
-        var masked = BufferLexer.Mask(text, lexer, token: token);
-        var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token);
-        return Bind(new PreparedDocument(masked, quoted), catalog, lexer, token, documentPath, read, includes);
+        return Bind(PreparedDocument.Create(text, lexer, token), catalog, lexer, token, documentPath, read, includes);
     }
 
     public static DocumentBindings Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog, LexerOptions lexer,

@@ -6,14 +6,6 @@ namespace HanumanInstitute.ScriptAssist;
 internal static class CallScanner
 {
     /// <summary>
-    /// Walks <paramref name="code"/> and returns insight when the language resolves the callee.
-    /// </summary>
-    public static CallScan? Find(string code, ILanguage language, DocumentBindings bindings,
-        IReadOnlyList<Symbol> catalog, CancellationToken token, string? source = null, int caret = -1,
-        bool[]? joins = null) =>
-        Walk(code, language, bindings, catalog, token, source, caret, joins).Scan;
-
-    /// <summary>
     /// Walks delimiters once and returns both the resolved call and the innermost unclosed delimiter.
     /// </summary>
     public static CallWalk Walk(string code, ILanguage language, DocumentBindings bindings,
@@ -127,51 +119,6 @@ internal static class CallScanner
         }
 
         return new(null, unclosed);
-    }
-
-    /// <summary>
-    /// Gets the innermost unclosed delimiter after walking <paramref name="code"/> to <paramref name="caret"/>.
-    /// </summary>
-    public static char? InnermostUnclosed(string code, CancellationToken token = default,
-        ILanguage? language = null, int caret = -1, bool[]? joins = null)
-    {
-        if (caret < 0 || caret > code.Length)
-        {
-            caret = code.Length;
-        }
-
-        joins ??= language == null ? null : StatementScanner.Joins(code, language, token);
-        var from = joins == null ? 0 : StatementScanner.StatementStart(code, joins, caret);
-        var stack = new Stack<char>();
-        for (var i = from; i < caret; i++)
-        {
-            if ((i & 4095) == 0)
-            {
-                token.ThrowIfCancellationRequested();
-            }
-
-            var c = code[i];
-            if (c is '(' or '[' or '{')
-            {
-                stack.Push(c);
-            }
-            else if (c is ')' or ']' or '}')
-            {
-                StatementScanner.Close(stack, c);
-            }
-            else if (c is '\n' or '\r')
-            {
-                var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
-                if (!StatementScanner.Continues(code, i) && StatementScanner.Recovers(code, last + 1, language))
-                {
-                    stack.Clear();
-                }
-
-                i = last;
-            }
-        }
-
-        return stack.Count == 0 ? null : stack.Peek();
     }
 
     private static void CloseFrame(Stack<CallFrame> stack, char close)

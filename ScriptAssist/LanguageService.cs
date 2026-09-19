@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 
 namespace HanumanInstitute.ScriptAssist;
 
@@ -58,8 +59,7 @@ public sealed class LanguageService : ILanguageService
             return new([], null);
         }
 
-        var snapshot = await SnapshotAsync(text, native, cancellationToken, documentPath).ConfigureAwait(false);
-        return await Task.Run(() => ReplyFrom(snapshot, caret, cancellationToken, completions),
+        return await Task.Run(() => Analyze(text, caret, native, cancellationToken, documentPath, completions),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -71,8 +71,7 @@ public sealed class LanguageService : ILanguageService
     {
         if (caret < 0 || caret > text.Length) { return new([], null); }
 
-        var snapshot = SnapshotAsync(text, native, token, documentPath).GetAwaiter().GetResult();
-        return ReplyFrom(snapshot, caret, token, completions);
+        return ReplyFrom(Snapshot(text, native, token, documentPath), caret, token, completions);
     }
 
     private Reply ReplyFrom(DocumentSnapshot snapshot, int caret, CancellationToken token, bool completions)
@@ -86,15 +85,11 @@ public sealed class LanguageService : ILanguageService
         var bindings = snapshot.Bindings.At(caret);
         var path = ExpressionReader.Read(snapshot.Masked.Code, caret, _language, token, snapshot.Joins);
         var receiver = _language.TypeOf(path.Segments, bindings, snapshot.Catalog);
-        var walk = bindings.InFunctionHeader(caret)
-            ? default
-            : CallScanner.Walk(snapshot.Masked.Code, _language, bindings, snapshot.Catalog, token,
-                snapshot.Quoted.Code, caret, snapshot.Joins);
-        var scan = walk.Scan;
+        var walk = CallScanner.Walk(snapshot.Masked.Code, _language, bindings, snapshot.Catalog, token,
+            snapshot.Quoted.Code, caret, snapshot.Joins);
+        var scan = bindings.InFunctionHeader(caret) ? null : walk.Scan;
         var insight = scan?.Insight;
-        var unclosed = bindings.InFunctionHeader(caret)
-            ? CallScanner.InnermostUnclosed(snapshot.Masked.Code, token, _language, caret, snapshot.Joins)
-            : walk.Unclosed;
+        var unclosed = walk.Unclosed;
         var items = !completions || unclosed == '[' && path.Segments.Count == 0
             ? new()
             : Complete(path, receiver, snapshot, bindings, token);
@@ -245,8 +240,8 @@ public sealed class LanguageService : ILanguageService
         return scan.ImplicitClip ? 1 : 0;
     }
 
-    private async Task<DocumentSnapshot> SnapshotAsync(string text, IReadOnlyList<Symbol> native,
-        CancellationToken token, string? documentPath)
+    private DocumentSnapshot Snapshot(string text, IReadOnlyList<Symbol> native, CancellationToken token,
+        string? documentPath)
     {
         var key = new SnapshotKey(text, documentPath, native);
         InflightBuild inflight;
@@ -273,9 +268,9 @@ public sealed class LanguageService : ILanguageService
             }
             else
             {
-                var cts = new CancellationTokenSource();
-                inflight = new InflightBuild(_generation, cts);
-                inflight.Work = Task.Run(() => Build(text, native, documentPath, cts.Token), cts.Token);
+                inflight = new InflightBuild(_generation, new CancellationTokenSource());
+                inflight.Work = Task.Run(() => Build(text, native, documentPath, inflight.Cts.Token),
+                    inflight.Cts.Token);
                 _inflight[key] = inflight;
             }
         }
@@ -283,7 +278,7 @@ public sealed class LanguageService : ILanguageService
         DocumentSnapshot? snapshot = null;
         try
         {
-            snapshot = await inflight.Work.WaitAsync(token).ConfigureAwait(false);
+            snapshot = WaitSnapshot(inflight.Work, token);
             return snapshot;
         }
         finally
@@ -314,17 +309,28 @@ public sealed class LanguageService : ILanguageService
         }
     }
 
+    private static DocumentSnapshot WaitSnapshot(Task<DocumentSnapshot> work, CancellationToken token)
+    {
+        try
+        {
+            work.Wait(token);
+        }
+        catch (AggregateException ex) when (ex.InnerException != null)
+        {
+            ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+        }
+
+        return work.GetAwaiter().GetResult();
+    }
+
     private DocumentSnapshot Build(string text, IReadOnlyList<Symbol> native, string? documentPath,
         CancellationToken token)
     {
-        var masked = BufferLexer.Mask(text, _language.Lexer, token: token);
-        var quoted = BufferLexer.Mask(text, _language.Lexer, maskStrings: false, token: token);
-        var joins = StatementScanner.Joins(masked.Code, _language, token);
-        var prepared = new PreparedDocument(masked, quoted);
+        var prepared = PreparedDocument.Create(text, _language.Lexer, token, _language);
         var bindings = _language is IPreparedLanguage preparedLanguage
             ? preparedLanguage.Bind(prepared, native, token, documentPath)
             : _language.Bind(text, native, token, documentPath);
-        return new DocumentSnapshot(masked, quoted, joins, bindings, native);
+        return new DocumentSnapshot(prepared, bindings, native);
     }
 
     private void Publish(string text, string? documentPath, IReadOnlyList<Symbol> native, DocumentSnapshot snapshot)
@@ -420,9 +426,12 @@ public sealed class LanguageService : ILanguageService
     }
 
     private sealed record DocumentSnapshot(
-        LexedBuffer Masked,
-        LexedBuffer Quoted,
-        bool[] Joins,
+        PreparedDocument Prepared,
         DocumentBindings Bindings,
-        IReadOnlyList<Symbol> Catalog);
+        IReadOnlyList<Symbol> Catalog)
+    {
+        public LexedBuffer Masked => Prepared.Masked;
+        public LexedBuffer Quoted => Prepared.Quoted;
+        public bool[] Joins => Prepared.Joins;
+    }
 }

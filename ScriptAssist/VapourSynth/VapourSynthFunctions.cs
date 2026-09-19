@@ -10,10 +10,11 @@ public static class VapourSynthFunctions
     /// </summary>
     public static IReadOnlyList<Symbol> Parse(string text, LexerOptions lexer, CancellationToken token = default)
     {
-        var clean = BufferLexer.Mask(text, lexer, token: token).Code;
-        var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token).Code;
+        var prepared = PreparedDocument.Create(text, lexer, token);
+        var clean = prepared.Masked.Code;
+        var quoted = prepared.Quoted.Code;
         var buffer = new List<Symbol>();
-        var statements = StatementScanner.Scan(clean, token);
+        var statements = prepared.Statements;
         for (var i = 0; i < statements.Count; i++)
         {
             token.ThrowIfCancellationRequested();

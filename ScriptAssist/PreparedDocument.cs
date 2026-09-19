@@ -1,6 +1,20 @@
 namespace HanumanInstitute.ScriptAssist;
 
 /// <summary>
-/// Comment-masked document text shared between snapshot analysis and language binders.
+/// Masked and quoted buffers plus the statement list from one scan of the masked text.
 /// </summary>
-internal sealed record PreparedDocument(LexedBuffer Masked, LexedBuffer Quoted);
+internal sealed record PreparedDocument(
+    LexedBuffer Masked,
+    LexedBuffer Quoted,
+    IReadOnlyList<StatementScanner.Span> Statements,
+    bool[] Joins)
+{
+    public static PreparedDocument Create(string text, LexerOptions lexer, CancellationToken token = default,
+        ILanguage? language = null)
+    {
+        var masked = BufferLexer.Mask(text, lexer, token: token);
+        var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token);
+        var statements = StatementScanner.Scan(masked.Code, token, language);
+        return new(masked, quoted, statements, StatementScanner.JoinsFrom(masked.Code, statements));
+    }
+}

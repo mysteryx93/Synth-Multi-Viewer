@@ -14,7 +14,8 @@ internal static class StatementScanner
     /// <summary>
     /// Returns non-empty statements in <paramref name="code"/>. Strings and comments must already be masked.
     /// </summary>
-    public static IReadOnlyList<Span> Scan(string code, CancellationToken token = default)
+    public static IReadOnlyList<Span> Scan(string code, CancellationToken token = default,
+        ILanguage? language = null)
     {
         var spans = new List<Span>();
         var start = 0;
@@ -46,7 +47,7 @@ internal static class StatementScanner
                 var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
                 if (!Continues(code, i))
                 {
-                    if (stack.Count == 0 || Recovers(code, last + 1))
+                    if (stack.Count == 0 || Recovers(code, last + 1, language))
                     {
                         Add(spans, code, start, i);
                         start = last + 1;
@@ -67,43 +68,33 @@ internal static class StatementScanner
     /// <summary>
     /// Marks newline starts that may be crossed as implicit or explicit continuations.
     /// </summary>
-    public static bool[] Joins(string code, ILanguage? language = null, CancellationToken token = default)
+    public static bool[] Joins(string code, ILanguage? language = null, CancellationToken token = default) =>
+        JoinsFrom(code, Scan(code, token, language));
+
+    /// <summary>
+    /// Continuation flags for newlines inside <paramref name="statements"/>.
+    /// </summary>
+    public static bool[] JoinsFrom(string code, IReadOnlyList<Span> statements)
     {
         var joins = new bool[code.Length];
-        var stack = new Stack<char>();
-        var i = 0;
-        while (i < code.Length)
+        for (var s = 0; s < statements.Count; s++)
         {
-            if ((i & 4095) == 0)
+            var span = statements[s];
+            var end = span.End < code.Length ? span.End : code.Length;
+            for (var i = span.Start; i < end; i++)
             {
-                token.ThrowIfCancellationRequested();
-            }
-
-            var c = code[i];
-            if (c is '(' or '[' or '{')
-            {
-                stack.Push(c);
-            }
-            else if (c is ')' or ']' or '}')
-            {
-                Close(stack, c);
-            }
-            else if (c == '\n' || c == '\r')
-            {
-                var last = c == '\r' && i + 1 < code.Length && code[i + 1] == '\n' ? i + 1 : i;
-                if (Continues(code, i) || stack.Count > 0 && !Recovers(code, last + 1, language))
+                var c = code[i];
+                if (c is not ('\n' or '\r'))
                 {
-                    joins[i] = true;
-                }
-                else
-                {
-                    stack.Clear();
+                    continue;
                 }
 
-                i = last;
+                joins[i] = true;
+                if (c == '\r' && i + 1 < end && code[i + 1] == '\n')
+                {
+                    i++;
+                }
             }
-
-            i++;
         }
 
         return joins;

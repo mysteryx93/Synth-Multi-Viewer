@@ -63,9 +63,7 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
     public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
         string? documentPath = null)
     {
-        var masked = BufferLexer.Mask(text, Lexer, token: token);
-        var quoted = BufferLexer.Mask(text, Lexer, maskStrings: false, token: token);
-        return VapourSynthBinder.Bind(new PreparedDocument(masked, quoted), catalog, Lexer, token,
+        return VapourSynthBinder.Bind(PreparedDocument.Create(text, Lexer, token, this), catalog, Lexer, token,
             documentPath, _read, Includes);
     }
 
@@ -175,8 +173,7 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
             return null;
         }
 
-        if (NamedArgumentHover.TryGet(code, path, name, this, bindings, catalog, Comparison, out var parameter,
-                context))
+        if (NamedArgumentHover.TryGet(code, path, name, this, Comparison, out var parameter, context))
         {
             return parameter == null ? null : TypeHover(name, path, ParameterType(parameter));
         }

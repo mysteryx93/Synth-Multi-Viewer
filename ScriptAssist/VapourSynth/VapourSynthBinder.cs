@@ -1,3 +1,6 @@
+using static HanumanInstitute.ScriptAssist.VapourSynth.VapourSynthClassRanges;
+using static HanumanInstitute.ScriptAssist.VapourSynth.VapourSynthScopeLinks;
+
 namespace HanumanInstitute.ScriptAssist.VapourSynth;
 
 /// <summary>
@@ -12,9 +15,7 @@ internal static class VapourSynthBinder
         CancellationToken token, string? documentPath = null, IncludeReader? read = null,
         IncludeCache? includes = null)
     {
-        var masked = BufferLexer.Mask(text, lexer, token: token);
-        var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token);
-        return Bind(new PreparedDocument(masked, quoted), catalog, lexer, token, documentPath, read, includes);
+        return Bind(PreparedDocument.Create(text, lexer, token), catalog, lexer, token, documentPath, read, includes);
     }
 
     public static DocumentBindings Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog, LexerOptions lexer,
@@ -33,7 +34,7 @@ internal static class VapourSynthBinder
         var modulesByPath = new Dictionary<string, SymbolList>(StringComparer.Ordinal);
         var buffer = new SymbolList();
         var index = VapourSynthCatalogIndex.Build(catalog);
-        var statements = StatementScanner.Scan(clean, token);
+        var statements = prepared.Statements;
         var scopes = FunctionScopes(clean, quoted, statements);
         LinkEnclosing(scopes);
         var innerAt = MapInnermost(statements, scopes);
@@ -1143,47 +1144,6 @@ internal static class VapourSynthBinder
         }
     }
 
-    private static void LinkEnclosing(List<BindingScope> scopes)
-    {
-        var stack = new List<BindingScope>();
-        foreach (var scope in scopes)
-        {
-            while (stack.Count > 0 && stack[^1].End < scope.Start)
-            {
-                stack.RemoveAt(stack.Count - 1);
-            }
-
-            scope.Enclosing = stack.Count == 0 ? null : stack[^1];
-            stack.Add(scope);
-        }
-    }
-
-    private static BindingScope?[] MapInnermost(IReadOnlyList<StatementScanner.Span> statements,
-        IReadOnlyList<BindingScope> scopes)
-    {
-        var inner = new BindingScope?[statements.Count];
-        var si = 0;
-        var stack = new List<BindingScope>();
-        for (var i = 0; i < statements.Count; i++)
-        {
-            var start = statements[i].Start;
-            while (si < scopes.Count && scopes[si].Start <= start)
-            {
-                stack.Add(scopes[si]);
-                si++;
-            }
-
-            while (stack.Count > 0 && stack[^1].End < start)
-            {
-                stack.RemoveAt(stack.Count - 1);
-            }
-
-            inner[i] = stack.Count == 0 ? null : stack[^1];
-        }
-
-        return inner;
-    }
-
     private static List<BindingScope> FunctionScopes(string clean, string quoted,
         IReadOnlyList<StatementScanner.Span> statements)
     {
@@ -1233,87 +1193,6 @@ internal static class VapourSynthBinder
         return scopes;
     }
 
-    private static List<(int Start, int End)> ClassRanges(string clean, string quoted,
-        IReadOnlyList<StatementScanner.Span> statements)
-    {
-        var ranges = new List<(int Start, int End)>();
-        for (var i = 0; i < statements.Count; i++)
-        {
-            var span = statements[i];
-            if (!TryClass(quoted, clean, span, out var headerEnd))
-            {
-                continue;
-            }
-
-            ranges.Add((span.Start, BlockEnd(clean, statements, i, span, headerEnd)));
-        }
-
-        return ranges;
-    }
-
-    private static bool TryClass(string quoted, string clean, StatementScanner.Span span, out int headerEnd)
-    {
-        headerEnd = span.Start;
-        if (!Keyword(quoted, span.Start, span.End, "class"))
-        {
-            return false;
-        }
-
-        var i = AfterKeyword(quoted, span.Start, span.End, "class");
-        if (!TryIdent(quoted, ref i, span.End, out _))
-        {
-            return false;
-        }
-
-        SkipWs(quoted, ref i, span.End);
-        var close = i > 0 ? i - 1 : 0;
-        if (i < span.End && quoted[i] == '(')
-        {
-            var match = FunctionHeaders.MatchingClose(clean, i, span.End);
-            if (match < 0)
-            {
-                return false;
-            }
-
-            close = match;
-        }
-
-        headerEnd = HeaderColon(clean, close);
-        return headerEnd > close;
-    }
-
-    private static bool DirectlyInClass(int offset, IReadOnlyList<(int Start, int End)> classes,
-        BindingScope? inner)
-    {
-        foreach (var range in classes)
-        {
-            if (offset <= range.Start || offset > range.End)
-            {
-                continue;
-            }
-
-            return inner == null || inner.Start <= range.Start;
-        }
-
-        return false;
-    }
-
-    private static bool EnclosedByClass(BindingScope self, IReadOnlyList<(int Start, int End)> classes)
-    {
-        var parent = self.Enclosing;
-        foreach (var range in classes)
-        {
-            if (self.Start <= range.Start || self.Start > range.End)
-            {
-                continue;
-            }
-
-            return parent == null || range.Start >= parent.Start;
-        }
-
-        return false;
-    }
-
     private static void BindParameters(IReadOnlyList<string> parameters, BindingScope scope,
         DocumentBindings bindings, VapourSynthCatalogIndex index, Dictionary<string, TypeRef> names,
         SymbolList buffer, VisibleCache visible)
@@ -1359,111 +1238,6 @@ internal static class VapourSynthBinder
         return type;
     }
 
-    private static int HeaderColon(string text, int parenClose)
-    {
-        var i = parenClose + 1;
-        while (i < text.Length && text[i] is ' ' or '\t')
-        {
-            i++;
-        }
-
-        if (i + 1 < text.Length && text[i] == '-' && text[i + 1] == '>')
-        {
-            i += 2;
-            while (i < text.Length && text[i] is not ':' and not '\n' and not '\r')
-            {
-                i++;
-            }
-        }
-
-        while (i < text.Length && text[i] is not ':' and not '\n' and not '\r')
-        {
-            i++;
-        }
-
-        return i < text.Length && text[i] == ':' ? i + 1 : parenClose + 1;
-    }
-
-    private static int BlockEnd(string text, IReadOnlyList<StatementScanner.Span> statements, int defIndex,
-        StatementScanner.Span def, int headerEnd)
-    {
-        var i = headerEnd;
-        while (i < def.End && i < text.Length && text[i] is ' ' or '\t')
-        {
-            i++;
-        }
-
-        if (i < def.End && i < text.Length && text[i] is not '\n' and not '\r' and not '#')
-        {
-            var line = LineStart(text, def.Start);
-            var end = def.End;
-            for (var n = defIndex + 1; n < statements.Count; n++)
-            {
-                if (LineStart(text, statements[n].Start) != line)
-                {
-                    break;
-                }
-
-                end = statements[n].End;
-            }
-
-            return end;
-        }
-
-        var defIndent = IndentAt(text, def.Start);
-        var bodyIndent = -1;
-        for (var n = defIndex + 1; n < statements.Count; n++)
-        {
-            var statement = statements[n];
-            var indent = IndentAt(text, statement.Start);
-            if (bodyIndent < 0)
-            {
-                if (indent <= defIndent)
-                {
-                    var start = LineStart(text, statement.Start);
-                    return start == 0 ? headerEnd : start - 1;
-                }
-
-                bodyIndent = indent;
-                continue;
-            }
-
-            if (indent < bodyIndent)
-            {
-                var start = LineStart(text, statement.Start);
-                return start == 0 ? headerEnd : start - 1;
-            }
-        }
-
-        return text.Length;
-    }
-
-    private static int IndentAt(string text, int offset) => LineIndent(text, LineStart(text, offset));
-
-    private static int LineStart(string text, int offset)
-    {
-        var i = offset;
-        while (i > 0 && text[i - 1] is not '\n' and not '\r')
-        {
-            i--;
-        }
-
-        return i;
-    }
-
-    private static int LineIndent(string text, int lineStart)
-    {
-        var n = 0;
-        var i = lineStart;
-        while (i < text.Length && text[i] is ' ' or '\t')
-        {
-            n += text[i] == '\t' ? 4 : 1;
-            i++;
-        }
-
-        return n;
-    }
-
     private static DocumentBindings ForInfer(Dictionary<string, TypeRef> names,
         Dictionary<string, IReadOnlyList<Symbol>> scriptModules, SymbolList buffer,
         IReadOnlyList<BindingScope> scopes, VisibleCache visible, BindingScope? inner)
@@ -1476,315 +1250,6 @@ internal static class VapourSynthBinder
 
         visible.Ensure(inner, names, buffer);
         return Current(visible.Names!, scriptModules, visible.Symbols(buffer), scopes);
-    }
-
-    private sealed class OverlayNames(Dictionary<string, TypeRef> globals) : IReadOnlyDictionary<string, TypeRef>
-    {
-        private readonly Dictionary<string, TypeRef> _overlay = new(StringComparer.Ordinal);
-        private readonly HashSet<string> _removed = new(StringComparer.Ordinal);
-
-        public void Set(string name, TypeRef type)
-        {
-            _removed.Remove(name);
-            _overlay[name] = type;
-        }
-
-        public void RemoveName(string name)
-        {
-            _overlay.Remove(name);
-            if (globals.ContainsKey(name))
-            {
-                _removed.Add(name);
-            }
-        }
-
-        public int Count
-        {
-            get
-            {
-                var n = _overlay.Count;
-                foreach (var key in globals.Keys)
-                {
-                    if (!_overlay.ContainsKey(key) && !_removed.Contains(key))
-                    {
-                        n++;
-                    }
-                }
-
-                return n;
-            }
-        }
-
-        public TypeRef this[string key] =>
-            TryGetValue(key, out var value) ? value : throw new KeyNotFoundException(key);
-
-        public IEnumerable<string> Keys
-        {
-            get
-            {
-                foreach (var pair in this)
-                {
-                    yield return pair.Key;
-                }
-            }
-        }
-
-        public IEnumerable<TypeRef> Values
-        {
-            get
-            {
-                foreach (var pair in this)
-                {
-                    yield return pair.Value;
-                }
-            }
-        }
-
-        public bool ContainsKey(string key) => TryGetValue(key, out _);
-
-        public bool TryGetValue(string key, out TypeRef value)
-        {
-            if (_overlay.TryGetValue(key, out value))
-            {
-                return true;
-            }
-
-            if (_removed.Contains(key))
-            {
-                value = default!;
-                return false;
-            }
-
-            return globals.TryGetValue(key, out value);
-        }
-
-        public IEnumerator<KeyValuePair<string, TypeRef>> GetEnumerator()
-        {
-            foreach (var pair in _overlay)
-            {
-                yield return pair;
-            }
-
-            foreach (var pair in globals)
-            {
-                if (!_overlay.ContainsKey(pair.Key) && !_removed.Contains(pair.Key))
-                {
-                    yield return pair;
-                }
-            }
-        }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-    }
-
-    private sealed class VisibleCache
-    {
-        public OverlayNames? Names;
-        private BindingScope? _scope;
-        private HashSet<string>? _moduleNames;
-        private Dictionary<string, Symbol>? _local;
-        private HashSet<string>? _hidden;
-        private List<Symbol>? _symbols;
-
-        public void Reset()
-        {
-            Names = null;
-            _scope = null;
-            _local = null;
-            _hidden = null;
-            _symbols = null;
-        }
-
-        public void Ensure(BindingScope inner, Dictionary<string, TypeRef> globals, SymbolList buffer)
-        {
-            if (ReferenceEquals(_scope, inner) && Names != null)
-            {
-                return;
-            }
-
-            Remember(buffer);
-            var overlay = new OverlayNames(globals);
-            _local = null;
-            _hidden = null;
-            OverlayChain(inner, overlay);
-            Names = overlay;
-            _scope = inner;
-            _symbols = null;
-        }
-
-        public IReadOnlyList<Symbol> Symbols(SymbolList buffer)
-        {
-            if ((_local == null || _local.Count == 0) && (_hidden == null || _hidden.Count == 0))
-            {
-                return buffer;
-            }
-
-            if (_symbols != null)
-            {
-                return _symbols;
-            }
-
-            var merged = new List<Symbol>(buffer.Count + (_local?.Count ?? 0));
-            foreach (var symbol in buffer)
-            {
-                if (_hidden != null && _hidden.Contains(symbol.Name) ||
-                    _local != null && _local.ContainsKey(symbol.Name))
-                {
-                    continue;
-                }
-
-                merged.Add(symbol);
-            }
-
-            if (_local != null)
-            {
-                merged.AddRange(_local.Values);
-            }
-
-            _symbols = merged;
-            return _symbols;
-        }
-
-        public void NoteName(BindingScope? changed, string name, TypeRef type)
-        {
-            if (!Tracks(changed) || Names == null)
-            {
-                return;
-            }
-
-            if (Shadowed(changed, name))
-            {
-                return;
-            }
-
-            Names.Set(name, type);
-            var listChanged = _local != null && _local.Remove(name);
-            if (_moduleNames != null && _moduleNames.Contains(name))
-            {
-                _hidden ??= new(StringComparer.Ordinal);
-                listChanged |= _hidden.Add(name);
-            }
-
-            if (listChanged)
-            {
-                _symbols = null;
-            }
-        }
-
-        public void NoteFunction(BindingScope? changed, Symbol symbol)
-        {
-            if (changed == null)
-            {
-                _moduleNames ??= new(StringComparer.Ordinal);
-                _moduleNames.Add(symbol.Name);
-            }
-
-            if (!Tracks(changed) || Names == null)
-            {
-                return;
-            }
-
-            if (Shadowed(changed, symbol.Name))
-            {
-                if (_moduleNames != null && _moduleNames.Contains(symbol.Name))
-                {
-                    _hidden ??= new(StringComparer.Ordinal);
-                    if (_hidden.Add(symbol.Name))
-                    {
-                        _symbols = null;
-                    }
-                }
-
-                return;
-            }
-
-            Names.RemoveName(symbol.Name);
-            if (changed == null)
-            {
-                _hidden?.Remove(symbol.Name);
-                _local?.Remove(symbol.Name);
-                if (_local != null || _hidden != null)
-                {
-                    _symbols = null;
-                }
-
-                return;
-            }
-
-            _local ??= new(StringComparer.Ordinal);
-            _local[symbol.Name] = symbol;
-            _hidden?.Remove(symbol.Name);
-            _symbols = null;
-        }
-
-        private void Remember(SymbolList buffer)
-        {
-            if (_moduleNames != null)
-            {
-                return;
-            }
-
-            _moduleNames = new(StringComparer.Ordinal);
-            foreach (var symbol in buffer)
-            {
-                _moduleNames.Add(symbol.Name);
-            }
-        }
-
-        private void OverlayChain(BindingScope inner, OverlayNames names)
-        {
-            var chain = new List<BindingScope>();
-            for (var scope = inner; scope != null; scope = scope.Enclosing)
-            {
-                chain.Add(scope);
-            }
-
-            for (var i = chain.Count - 1; i >= 0; i--)
-            {
-                var scope = chain[i];
-                foreach (var pair in scope.Names)
-                {
-                    names.Set(pair.Key, pair.Value);
-                    if (_moduleNames == null || !_moduleNames.Contains(pair.Key))
-                    {
-                        continue;
-                    }
-
-                    _hidden ??= new(StringComparer.Ordinal);
-                    _hidden.Add(pair.Key);
-                    _local?.Remove(pair.Key);
-                }
-
-                foreach (var symbol in scope.Symbols)
-                {
-                    _local ??= new(StringComparer.Ordinal);
-                    _local[symbol.Name] = symbol;
-                    _hidden?.Remove(symbol.Name);
-                    if (symbol.Parameters != null)
-                    {
-                        names.RemoveName(symbol.Name);
-                    }
-                }
-            }
-        }
-
-        private bool Shadowed(BindingScope? changed, string name) =>
-            _scope != null && !ReferenceEquals(changed, _scope) && _scope.Names.ContainsKey(name);
-
-        private bool Tracks(BindingScope? changed)
-        {
-            if (Names == null)
-            {
-                return false;
-            }
-
-            if (_scope == null)
-            {
-                return changed == null;
-            }
-
-            return changed == null || changed.Start <= _scope.Start && changed.End >= _scope.End;
-        }
     }
 
     private static void ImportFrom(string imported, string list, string? documentPath, IncludeReader? read,
@@ -2067,9 +1532,10 @@ internal static class VapourSynthBinder
         Dictionary<string, IReadOnlyList<Symbol>> scriptModules, Dictionary<string, SymbolList> modulesByPath,
         LexerOptions lexer, CancellationToken token, IncludeSession includes)
     {
-        var clean = BufferLexer.Mask(text, lexer, token: token).Code;
-        var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token).Code;
-        var statements = StatementScanner.Scan(clean, token);
+        var prepared = PreparedDocument.Create(text, lexer, token);
+        var clean = prepared.Masked.Code;
+        var quoted = prepared.Quoted.Code;
+        var statements = prepared.Statements;
         var scopes = FunctionScopes(clean, quoted, statements);
         var classes = ClassRanges(clean, quoted, statements);
         var dummy = new Dictionary<string, TypeRef>(StringComparer.Ordinal)
@@ -2138,7 +1604,7 @@ internal static class VapourSynthBinder
         return text;
     }
 
-    private static bool Keyword(string text, int start, int end, string word)
+    internal static bool Keyword(string text, int start, int end, string word)
     {
         if (end - start < word.Length)
         {
@@ -2166,14 +1632,14 @@ internal static class VapourSynthBinder
         Keyword(text, start, end, "async") || Keyword(text, start, end, "lambda") ||
         Keyword(text, start, end, "global") || Keyword(text, start, end, "del");
 
-    private static int AfterKeyword(string text, int start, int end, string word)
+    internal static int AfterKeyword(string text, int start, int end, string word)
     {
         var i = start + word.Length;
         SkipWs(text, ref i, end);
         return i;
     }
 
-    private static void SkipWs(string text, ref int i, int end)
+    internal static void SkipWs(string text, ref int i, int end)
     {
         while (i < end && char.IsWhiteSpace(text[i]))
         {
@@ -2181,7 +1647,7 @@ internal static class VapourSynthBinder
         }
     }
 
-    private static bool TryIdent(string text, ref int i, int end, out string name)
+    internal static bool TryIdent(string text, ref int i, int end, out string name)
     {
         var start = i;
         if (i >= end || !BufferLexer.IsIdentifier(text[i]) || char.IsDigit(text[i]))

@@ -33,7 +33,7 @@ internal static class AssistHarness
 }
 
 internal sealed class CountingLanguage(ILanguage inner, ManualResetEventSlim? started = null,
-    ManualResetEventSlim? proceed = null) : ILanguage
+    ManualResetEventSlim? proceed = null) : ILanguage, IPreparedLanguage, IContextHover
 {
     public int Binds;
 
@@ -48,6 +48,17 @@ internal sealed class CountingLanguage(ILanguage inner, ManualResetEventSlim? st
         started?.Set();
         proceed?.Wait();
         return inner.Bind(text, catalog, token, documentPath);
+    }
+
+    DocumentBindings IPreparedLanguage.Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog,
+        CancellationToken token, string? documentPath)
+    {
+        Interlocked.Increment(ref Binds);
+        started?.Set();
+        proceed?.Wait();
+        return inner is IPreparedLanguage preparedLanguage
+            ? preparedLanguage.Bind(prepared, catalog, token, documentPath)
+            : inner.Bind(prepared.Masked.Code, catalog, token, documentPath);
     }
 
     public TypeRef TypeOf(IReadOnlyList<PathSegment> segments, DocumentBindings bindings,
@@ -68,6 +79,12 @@ internal sealed class CountingLanguage(ILanguage inner, ManualResetEventSlim? st
 
     public HoverInfo? Hover(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog) =>
         inner.Hover(code, path, bindings, catalog);
+
+    HoverInfo? IContextHover.Hover(string code, CaretPath path, DocumentBindings bindings,
+        IReadOnlyList<Symbol> catalog, HoverContext? context) =>
+        inner is IContextHover contextual
+            ? contextual.Hover(code, path, bindings, catalog, context)
+            : inner.Hover(code, path, bindings, catalog);
 
     public double CompletionPriority(Symbol symbol, TypeRef receiver) =>
         inner.CompletionPriority(symbol, receiver);
