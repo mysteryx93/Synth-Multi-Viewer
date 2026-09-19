@@ -63,19 +63,8 @@ public sealed class CompletionData : ICompletionData
     internal static string? HintText(CompletionItem item, AssistTipSize? size = null)
     {
         size ??= AssistTipSize.Hint;
-        if (item.Kind is SymbolKind.Property or SymbolKind.Local)
-        {
-            var colon = item.Signature.IndexOf(':');
-            if (colon < 0 || colon + 1 >= item.Signature.Length)
-            {
-                return null;
-            }
-
-            var type = item.Signature[(colon + 1)..].Trim();
-            return type.Length == 0 ? null : TruncateHint(type, size.MaxCharacters);
-        }
-
-        return item.Kind == SymbolKind.Function ? TruncateHint(item.Signature, size.MaxCharacters) : null;
+        var text = Symbol.TipOf(item.Kind, item.InsertionText, item.Signature);
+        return text == null ? null : TruncateHint(text, size.MaxCharacters);
     }
 
     /// <summary>

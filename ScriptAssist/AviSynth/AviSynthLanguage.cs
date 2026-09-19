@@ -275,17 +275,16 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
         }
 
         if (path.Segments.Count == 0 && !Invoked(code, path.End) &&
-            bindings.Names.TryGetValue(name, out var local) && !local.IsUnknown &&
-            !local.Id.Equals(name, StringComparison.OrdinalIgnoreCase))
+            bindings.Names.TryGetValue(name, out var local) && !local.IsUnknown)
         {
-            return new(local.Id, path.Start, path.End - path.Start);
+            return TypeHover(name, path, local.Id);
         }
 
         foreach (var symbol in bindings.BufferSymbols)
         {
             if (symbol.Name.Equals(name, Comparison))
             {
-                return new(symbol.Signature, path.Start, path.End - path.Start);
+                return TypeHover(name, path, symbol.Tip);
             }
         }
 
@@ -293,16 +292,25 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
         {
             if (symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison))
             {
-                return new(symbol.Signature, path.Start, path.End - path.Start);
+                return TypeHover(name, path, symbol.Tip);
             }
         }
 
-        if (bindings.Names.TryGetValue(name, out var typed) && !typed.IsUnknown &&
-            !typed.Id.Equals(name, StringComparison.OrdinalIgnoreCase))
+        if (bindings.Names.TryGetValue(name, out var typed) && !typed.IsUnknown)
         {
-            return new(typed.Id, path.Start, path.End - path.Start);
+            return TypeHover(name, path, typed.Id);
         }
         return null;
+    }
+
+    private static HoverInfo? TypeHover(string name, CaretPath path, string? type)
+    {
+        if (!type.HasValue() || type.Equals(name, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return new(type, path.Start, path.End - path.Start);
     }
 
     private static bool IsFunctionName(string name, int offset, DocumentBindings bindings)

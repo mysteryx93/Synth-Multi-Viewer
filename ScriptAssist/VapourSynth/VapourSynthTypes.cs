@@ -35,6 +35,9 @@ public static class VapourSynthTypes
     /// <summary>A string.</summary>
     public static TypeRef String { get; } = new("string");
 
+    /// <summary>Completion and hover label for a plugin namespace on core or a clip.</summary>
+    internal const string PluginLabel = "plugin";
+
     /// <summary>A plugin namespace on the core.</summary>
     public static TypeRef Plugin(string ns) => new("plugin:" + ns);
 
@@ -181,7 +184,7 @@ public static class VapourSynthTypes
         var ns = NamespaceOf(type);
         if (ns != null)
         {
-            return (IsBound(type) ? "bound plugin " : "plugin ") + ns;
+            return PluginLabel;
         }
 
         var script = ScriptOf(type);

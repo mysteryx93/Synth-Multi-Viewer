@@ -48,7 +48,8 @@ internal sealed class VapourSynthCatalogIndex
             {
                 if (entry.BoundVideoNamespace == null)
                 {
-                    entry.BoundVideoNamespace = new(ns, null, SymbolKind.Namespace);
+                    entry.BoundVideoNamespace = new(ns, null, SymbolKind.Namespace,
+                        ReturnType: VapourSynthTypes.PluginLabel);
                     index._boundVideoNamespaces.Add(entry.BoundVideoNamespace);
                 }
 
@@ -60,7 +61,8 @@ internal sealed class VapourSynthCatalogIndex
             {
                 if (entry.BoundAudioNamespace == null)
                 {
-                    entry.BoundAudioNamespace = new(ns, null, SymbolKind.Namespace);
+                    entry.BoundAudioNamespace = new(ns, null, SymbolKind.Namespace,
+                        ReturnType: VapourSynthTypes.PluginLabel);
                     index._boundAudioNamespaces.Add(entry.BoundAudioNamespace);
                 }
 
@@ -159,7 +161,8 @@ internal sealed class VapourSynthCatalogIndex
 
     private sealed class NamespaceEntry(string ns)
     {
-        public Symbol Namespace { get; } = new(ns, null, SymbolKind.Namespace);
+        public Symbol Namespace { get; } = new(ns, null, SymbolKind.Namespace,
+            ReturnType: VapourSynthTypes.PluginLabel);
         public List<Symbol> Functions { get; } = [];
         public Dictionary<string, Symbol> FunctionByName { get; } = new(StringComparer.Ordinal);
         public List<Symbol> BoundVideo { get; } = [];

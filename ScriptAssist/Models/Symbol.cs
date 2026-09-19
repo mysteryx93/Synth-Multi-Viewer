@@ -35,6 +35,11 @@ public sealed record Symbol(
                 return ReturnType.HasValue() ? Name + ": " + ReturnType : Name;
             }
 
+            if (Kind == SymbolKind.Namespace && ReturnType.HasValue() && ReturnType.IndexOf(':') < 0)
+            {
+                return Name + ": " + ReturnType;
+            }
+
             if (Kind != SymbolKind.Function)
             {
                 return Name;
@@ -51,5 +56,37 @@ public sealed record Symbol(
             var ret = ReturnType.TrimEnd(';').Trim();
             return ret.Length == 0 ? call : call + " -> " + ret;
         }
+    }
+
+    /// <summary>
+    /// Hover and completion-hint text. The list and caret already show the name, so
+    /// locals, properties, and namespaces are the type only; functions are the signature.
+    /// </summary>
+    internal string? Tip => TipOf(Kind, DisplayName, Signature);
+
+    /// <summary>
+    /// Same rules as <see cref="Tip"/> for a completion item or other kind/signature pair.
+    /// </summary>
+    internal static string? TipOf(SymbolKind kind, string name, string signature,
+        StringComparison comparison = StringComparison.Ordinal)
+    {
+        if (kind is SymbolKind.Property or SymbolKind.Local or SymbolKind.Namespace)
+        {
+            var colon = signature.IndexOf(':');
+            if (colon < 0 || colon + 1 >= signature.Length)
+            {
+                return null;
+            }
+
+            var type = signature[(colon + 1)..].Trim();
+            if (type.Length == 0 || type.Equals(name, comparison))
+            {
+                return null;
+            }
+
+            return type;
+        }
+
+        return kind == SymbolKind.Function && signature.HasValue() ? signature : null;
     }
 }

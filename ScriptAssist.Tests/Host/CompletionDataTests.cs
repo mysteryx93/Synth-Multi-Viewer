@@ -46,6 +46,14 @@ public class CompletionDataTests
         Assert.Null(hint);
     }
 
+    [Fact]
+    public void Complete_BoundPluginHint_ShowsLabel()
+    {
+        var hint = CompletionData.HintText(new("bm3d", 0, 4, SymbolKind.Namespace, "bm3d: plugin"));
+
+        Assert.Equal("plugin", hint);
+    }
+
     [Theory]
     [InlineData(SymbolKind.Property, "width", 5, "width: int", "int")]
     [InlineData(SymbolKind.Local, "C", 1, "C: clip", "clip")]

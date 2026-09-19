@@ -45,6 +45,36 @@ public class VapourSynthAssistTests
     }
 
     [Fact]
+    public void Complete_BoundPlugin_MatchesHover()
+    {
+        const string members = "clip = core.std.BlankClip()\nclip.";
+        const string hoverAt = members + "std";
+
+        var item = Assert.Single(VsService().Analyze(members, members.Length, Vs).Items,
+            x => x.InsertionText == "std");
+        var hover = VsService().Analyze(hoverAt, hoverAt.Length, Vs).Hover;
+
+        Assert.Equal(SymbolKind.Namespace, item.Kind);
+        Assert.Equal("plugin", CompletionData.HintText(item));
+        Assert.Equal(CompletionData.HintText(item), hover?.Text);
+    }
+
+    [Fact]
+    public void Complete_CorePlugin_MatchesHover()
+    {
+        const string members = "core.";
+        const string hoverAt = "core.std";
+
+        var item = Assert.Single(VsService().Analyze(members, members.Length, Vs).Items,
+            x => x.InsertionText == "std");
+        var hover = VsService().Analyze(hoverAt, hoverAt.Length, Vs).Hover;
+
+        Assert.Equal(SymbolKind.Namespace, item.Kind);
+        Assert.Equal("plugin", CompletionData.HintText(item));
+        Assert.Equal(CompletionData.HintText(item), hover?.Text);
+    }
+
+    [Fact]
     public void Hover_FormatNamedArgument_UsesDisplayType()
     {
         const string text = "core.std.BlankClip(format=1)";

@@ -193,13 +193,15 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
         {
             var receiver = VapourSynthTypeWalker.TypeOf(path.Segments, bindings, index);
             var symbol = VapourSynthMembers.Find(receiver, name, bindings, index);
-            if (symbol is { Kind: SymbolKind.Function, Parameters: not null })
+            if (symbol != null)
             {
-                return new(VapourSynthTypes.ForDisplay(symbol).Signature, path.Start, path.End - path.Start);
+                var shown = symbol.Kind == SymbolKind.Function
+                    ? VapourSynthTypes.ForDisplay(symbol)
+                    : symbol;
+                return TypeHover(name, path, shown.Tip);
             }
 
-            return TypeHover(name, path, VapourSynthTypes.Display(memberType) ??
-                VapourSynthTypes.DisplayReturn(symbol?.ReturnType));
+            return TypeHover(name, path, VapourSynthTypes.Display(memberType));
         }
 
         if (bindings.InFunctionHeader(path.Start) && IsFunctionName(name, path.Start, bindings))
@@ -208,7 +210,7 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
             {
                 if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
                 {
-                    return new(VapourSynthTypes.ForDisplay(symbol).Signature, path.Start, path.End - path.Start);
+                    return TypeHover(name, path, VapourSynthTypes.ForDisplay(symbol).Tip);
                 }
             }
         }
@@ -219,7 +221,7 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
             {
                 if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
                 {
-                    return new(VapourSynthTypes.ForDisplay(symbol).Signature, path.Start, path.End - path.Start);
+                    return TypeHover(name, path, VapourSynthTypes.ForDisplay(symbol).Tip);
                 }
             }
         }
@@ -233,10 +235,11 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
                 var shown = display.Name.Equals(name, StringComparison.Ordinal)
                     ? display
                     : display with { Name = name };
-                return new(shown.Signature, path.Start, path.End - path.Start);
+                return TypeHover(name, path, shown.Tip);
             }
 
-            return TypeHover(name, path, VapourSynthTypes.Display(typed));
+            return TypeHover(name, path, new Symbol(name, null, SymbolKind.Local,
+                ReturnType: VapourSynthTypes.Display(typed)).Tip);
         }
 
         return null;
