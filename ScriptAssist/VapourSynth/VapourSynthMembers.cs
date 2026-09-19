@@ -17,7 +17,7 @@ internal static class VapourSynthMembers
         var script = VapourSynthTypes.ScriptOf(type);
         if (script != null)
         {
-            return bindings.ScriptModules.TryGetValue(script, out var members) ? members : [];
+            return bindings.ScriptModules.TryGetValue(script, out var members) ? DisplayAll(members) : [];
         }
         if (type == VapourSynthTypes.Module)
         {
@@ -144,8 +144,7 @@ internal static class VapourSynthMembers
     private static IReadOnlyList<Symbol> Root(IReadOnlyList<Symbol> keywords, DocumentBindings bindings)
     {
         var items = new List<Symbol>(keywords.Count + bindings.Names.Count + bindings.BufferSymbols.Count);
-        items.AddRange(keywords);
-        foreach (var symbol in bindings.BufferSymbols)
+        foreach (var symbol in keywords)
         {
             if (!bindings.Names.ContainsKey(symbol.Name))
             {
@@ -153,12 +152,48 @@ internal static class VapourSynthMembers
             }
         }
 
+        foreach (var symbol in bindings.BufferSymbols)
+        {
+            if (!bindings.Names.ContainsKey(symbol.Name))
+            {
+                items.Add(VapourSynthTypes.ForDisplay(symbol));
+            }
+        }
+
         foreach (var pair in bindings.Names)
         {
+            var function = VapourSynthTypes.FunctionSymbol(pair.Value);
+            if (function != null)
+            {
+                var display = VapourSynthTypes.ForDisplay(function);
+                items.Add(display.Name.Equals(pair.Key, StringComparison.Ordinal)
+                    ? display
+                    : display with { Name = pair.Key });
+                continue;
+            }
+
             items.Add(new(pair.Key, null, SymbolKind.Local,
                 ReturnType: VapourSynthTypes.Display(pair.Value) ?? pair.Value.Id));
         }
         return items;
+    }
+
+    private static IReadOnlyList<Symbol> DisplayAll(IReadOnlyList<Symbol> members)
+    {
+        List<Symbol>? mapped = null;
+        for (var i = 0; i < members.Count; i++)
+        {
+            var display = VapourSynthTypes.ForDisplay(members[i]);
+            if (ReferenceEquals(display, members[i]))
+            {
+                continue;
+            }
+
+            mapped ??= [..members];
+            mapped[i] = display;
+        }
+
+        return mapped ?? members;
     }
 
     private static IReadOnlyList<Symbol> Concat(IReadOnlyList<Symbol> left, IReadOnlyList<Symbol> right)

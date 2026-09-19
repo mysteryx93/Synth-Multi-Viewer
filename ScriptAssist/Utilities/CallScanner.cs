@@ -59,7 +59,7 @@ internal static class CallScanner
             }
             else if (c == '=' && stack.Count > 0 && ParameterNames.IsKeywordAssign(code, i))
             {
-                stack.Peek().Keyword(source ?? code, i);
+                stack.Peek().Keyword(code, i);
             }
             else if (c is '\n' or '\r')
             {
@@ -94,22 +94,28 @@ internal static class CallScanner
             if (resolved is { Overloads.Count: > 0 })
             {
                 var current = (source ?? code)[frame.ArgumentStart..caret];
-                var implicitClip = language is ICallReceiver mapping
-                    ? mapping.OmitsFirstClip(resolved, FirstArgument(code, frame.Offset, caret),
-                        bindings, catalog, token)
-                    : resolved.ImplicitReceiver;
+                var first = FirstArgument(code, frame.Offset, caret);
                 var used = CanonicalNames(frame.UsedNames, resolved, language);
-                var keyword = KeywordName(current);
+                var keyword = KeywordName(code[frame.ArgumentStart..caret]);
                 var slots = new int[resolved.Overloads.Count];
+                var skips = new bool[resolved.Overloads.Count];
                 for (var i = 0; i < slots.Length; i++)
                 {
+                    var overload = resolved.Overloads[i];
+                    skips[i] = language is ICallReceiver mapping
+                        ? mapping.OmitsFirstClip(resolved, overload, first, bindings, catalog, token)
+                        : resolved.ImplicitReceiver;
                     slots[i] = ActivePhysical(resolved.Overloads, keyword, frame.Positional,
-                        implicitClip, used, language, resolved.Overloads[i]);
+                        skips[i], used, language, overload);
                 }
 
                 var parameter = slots.Length == 0 ? frame.Positional : slots[0];
-                return new(new(resolved.Overloads, parameter, implicitClip, nested,
-                    current, used, frame.Positional, keyword) { OverloadSlots = slots }, unclosed);
+                return new(new(resolved.Overloads, parameter, resolved.ImplicitReceiver, nested,
+                    current, used, frame.Positional, keyword)
+                {
+                    OverloadSlots = slots,
+                    OverloadSkips = skips
+                }, unclosed);
             }
 
             if (callee[^1].Name.Length > 0)
@@ -257,7 +263,20 @@ internal static class CallScanner
         }
 
         var name = argument[..eq].Trim();
-        return name.Length == 0 ? null : name;
+        if (name.Length == 0)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < name.Length; i++)
+        {
+            if (!BufferLexer.IsIdentifier(name[i]) || i == 0 && char.IsDigit(name[i]))
+            {
+                return null;
+            }
+        }
+
+        return name;
     }
 
     private static IReadOnlySet<string> CanonicalNames(IReadOnlySet<string> used, CallResolution resolved,
@@ -372,6 +391,11 @@ internal sealed record CallScan(
     string? Keyword)
 {
     internal int[]? OverloadSlots { get; init; }
+
+    /// <summary>
+    /// Per-overload first-clip skip; insight <see cref="ImplicitClip"/> stays the receiver flag.
+    /// </summary>
+    internal bool[]? OverloadSkips { get; init; }
 
     /// <summary>
     /// Gets the consumer-facing insight.

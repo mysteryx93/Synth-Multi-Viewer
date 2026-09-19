@@ -9,4 +9,9 @@ internal interface IRefreshableLanguage
     /// Drops remembered includes and other bind-lifetime caches.
     /// </summary>
     void Invalidate();
+
+    /// <summary>
+    /// Drops the include working set for a snapshot that is no longer retained.
+    /// </summary>
+    void ReleaseDocument(string? documentPath);
 }

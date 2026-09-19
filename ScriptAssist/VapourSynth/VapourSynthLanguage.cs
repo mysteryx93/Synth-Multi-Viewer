@@ -57,6 +57,8 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
 
     void IRefreshableLanguage.Invalidate() => Includes.Clear();
 
+    void IRefreshableLanguage.ReleaseDocument(string? documentPath) => Includes.Release(documentPath);
+
     /// <inheritdoc />
     public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
         string? documentPath = null)
@@ -224,6 +226,16 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
 
         if (bindings.Names.TryGetValue(name, out var typed))
         {
+            var aliased = VapourSynthTypes.FunctionSymbol(typed);
+            if (aliased != null)
+            {
+                var display = VapourSynthTypes.ForDisplay(aliased);
+                var shown = display.Name.Equals(name, StringComparison.Ordinal)
+                    ? display
+                    : display with { Name = name };
+                return new(shown.Signature, path.Start, path.End - path.Start);
+            }
+
             return TypeHover(name, path, VapourSynthTypes.Display(typed));
         }
 

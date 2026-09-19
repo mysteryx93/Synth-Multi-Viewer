@@ -55,12 +55,28 @@ internal sealed class SymbolList : IReadOnlyList<Symbol>
     }
 
     /// <summary>
+    /// Gets the symbol named <paramref name="name"/>, if present.
+    /// </summary>
+    public bool TryGet(string name, out Symbol symbol)
+    {
+        if (_index.TryGetValue(name, out var i))
+        {
+            symbol = _items[i];
+            return true;
+        }
+
+        symbol = null!;
+        return false;
+    }
+
+    /// <summary>
     /// Returns the inner list and drops this builder from further use.
     /// </summary>
     public List<Symbol> Freeze() => _items;
 
     /// <summary>
-    /// Gets whether <paramref name="members"/> is this builder's inner list.
+    /// Gets whether <paramref name="members"/> is this builder or its inner list.
     /// </summary>
-    public bool Owns(IReadOnlyList<Symbol> members) => ReferenceEquals(_items, members);
+    public bool Owns(IReadOnlyList<Symbol> members) =>
+        ReferenceEquals(this, members) || ReferenceEquals(_items, members);
 }

@@ -12,6 +12,8 @@ public sealed class OverloadProvider : IOverloadProvider
     private CallInsight _insight;
     private int _selected;
     private bool _explicit;
+    private object? _header;
+    private string? _content;
 
     /// <summary>
     /// Creates a provider for <paramref name="insight"/> using <see cref="AssistTipSize.Hover"/>.
@@ -39,9 +41,17 @@ public sealed class OverloadProvider : IOverloadProvider
         get => _selected;
         set
         {
-            _selected = value.Clamp(0, Math.Max(0, Count - 1));
             _explicit = true;
-            Notify();
+            var selected = value.Clamp(0, Math.Max(0, Count - 1));
+            if (selected == _selected)
+            {
+                return;
+            }
+
+            _selected = selected;
+            _header = null;
+            _content = null;
+            Notify(nameof(SelectedIndex), nameof(CurrentIndexText), nameof(CurrentHeader), nameof(CurrentContent));
         }
     }
 
@@ -53,16 +63,20 @@ public sealed class OverloadProvider : IOverloadProvider
 
     /// <inheritdoc />
     public object CurrentHeader =>
-        CompletionData.HintBlock(_insight.Overloads[SelectedIndex].Signature, _size);
+        _header ??= CompletionData.HintBlock(_insight.Overloads[SelectedIndex].Signature, _size);
 
     /// <inheritdoc />
-    public object CurrentContent => ActiveParameterText(_insight, SelectedIndex);
+    public object CurrentContent => _content ??= ActiveParameterText(_insight, SelectedIndex);
 
     /// <summary>
     /// Replaces the displayed insight. Selection is kept when the overloads are the same call.
     /// </summary>
     internal void Update(CallInsight insight)
     {
+        var previousIndex = _selected;
+        var previousCount = Count;
+        var previousHeader = Count == 0 ? "" : _insight.Overloads[_selected].Signature;
+        var previousContent = ActiveParameterText(_insight, _selected);
         var selected = _selected;
         var same = SameCall(_insight, insight);
         _insight = insight;
@@ -76,10 +90,32 @@ public sealed class OverloadProvider : IOverloadProvider
             _explicit = false;
         }
 
-        Notify();
+        var header = Count == 0 ? "" : _insight.Overloads[_selected].Signature;
+        if (!string.Equals(previousHeader, header, StringComparison.Ordinal) || previousIndex != _selected)
+        {
+            _header = null;
+            Notify(nameof(CurrentHeader));
+        }
+
+        var content = ActiveParameterText(_insight, _selected);
+        if (!string.Equals(previousContent, content, StringComparison.Ordinal))
+        {
+            _content = null;
+            Notify(nameof(CurrentContent));
+        }
+
+        if (previousIndex != _selected)
+        {
+            Notify(nameof(SelectedIndex), nameof(CurrentIndexText));
+        }
+
+        if (previousCount != Count)
+        {
+            Notify(nameof(Count), nameof(CurrentIndexText));
+        }
     }
 
-    private void Notify()
+    private void Notify(params string[] names)
     {
         var handler = PropertyChanged;
         if (handler == null)
@@ -87,11 +123,10 @@ public sealed class OverloadProvider : IOverloadProvider
             return;
         }
 
-        handler(this, new(nameof(SelectedIndex)));
-        handler(this, new(nameof(Count)));
-        handler(this, new(nameof(CurrentIndexText)));
-        handler(this, new(nameof(CurrentHeader)));
-        handler(this, new(nameof(CurrentContent)));
+        foreach (var name in names)
+        {
+            handler(this, new(name));
+        }
     }
 
     /// <summary>

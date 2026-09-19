@@ -52,6 +52,53 @@ public class ScriptImportTests
     }
 
     [Fact]
+    public void Analyze_DeepPythonImportChain_DoesNotThrow()
+    {
+        const int depth = 200;
+        var service = VsService(Read);
+        const string text = "import n0 as m\nm.";
+        IncludeFile? Read(string specifier, string? _)
+        {
+            if (!specifier.StartsWith('n') || !int.TryParse(specifier[1..], out var n) || n >= depth)
+            {
+                return null;
+            }
+
+            var body = n + 1 >= depth ? "def leaf():\n    pass\n" : "import n" + (n + 1) + " as m\n";
+            return new IncludeFile("/plugins/" + specifier + ".py", body);
+        }
+
+        var exception = Record.Exception(() => service.Analyze(text, text.Length, Vs));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Analyze_DeepAviSynthImportChain_DoesNotThrow()
+    {
+        const int depth = 200;
+        var service = AvsService(Read);
+        const string text = "Import(\"0.avsi\")\n";
+        IncludeFile? Read(string specifier, string? _)
+        {
+            if (!specifier.EndsWith(".avsi", StringComparison.Ordinal) ||
+                !int.TryParse(specifier[..^5], out var n) || n >= depth)
+            {
+                return null;
+            }
+
+            var body = n + 1 >= depth
+                ? "function Leaf(clip c) { c }\n"
+                : "Import(\"" + (n + 1) + ".avsi\")\n";
+            return new IncludeFile("/plugins/" + specifier, body);
+        }
+
+        var exception = Record.Exception(() => service.Analyze(text, text.Length, []));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
     public void Bind_ManyPythonImports_DoesNotRereadOnSecondBind()
     {
         var files = new Dictionary<string, string>(StringComparer.Ordinal);

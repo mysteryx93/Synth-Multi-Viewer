@@ -41,7 +41,8 @@ internal sealed class VapourSynthCatalogIndex
                 index._namespaceList.Add(entry.Namespace);
             }
 
-            entry.Functions.Add(symbol);
+            var display = VapourSynthTypes.ForDisplay(symbol);
+            entry.Functions.Add(display);
             entry.FunctionByName.TryAdd(function, symbol);
             if (VapourSynthArguments.TakesVideo(symbol))
             {
@@ -51,7 +52,7 @@ internal sealed class VapourSynthCatalogIndex
                     index._boundVideoNamespaces.Add(entry.BoundVideoNamespace);
                 }
 
-                entry.BoundVideo.Add(symbol);
+                entry.BoundVideo.Add(display);
                 entry.BoundVideoByName.TryAdd(function, symbol);
             }
 
@@ -63,7 +64,7 @@ internal sealed class VapourSynthCatalogIndex
                     index._boundAudioNamespaces.Add(entry.BoundAudioNamespace);
                 }
 
-                entry.BoundAudio.Add(symbol);
+                entry.BoundAudio.Add(display);
                 entry.BoundAudioByName.TryAdd(function, symbol);
             }
         }

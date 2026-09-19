@@ -615,4 +615,77 @@ public class AviSynthLanguageTests
 
         Assert.Contains(reply.Items, x => x.InsertionText == "Filter");
     }
+
+    [Theory]
+    [InlineData("/* Crop(\n")]
+    [InlineData("/[ Crop(\n")]
+    [InlineData("[* Crop(\n")]
+    public void Analyze_Comment_SuppressesCompletion(string text)
+    {
+        var result = AvsService().Analyze(text, text.Length, []);
+
+        Assert.Empty(result.Items);
+        Assert.Null(result.Insight);
+    }
+
+    [Fact]
+    public void Insight_MismatchedDelimiter_ClosesCall()
+    {
+        var crop = new Symbol("Crop", ["clip", "int [left]", "int [top]"]);
+        const string text = "Crop([0),\n";
+
+        var reply = AvsService().Analyze(text, text.Length, [crop]);
+
+        Assert.Null(reply.Insight);
+    }
+
+    [Fact]
+    public void Insight_MismatchedDelimiter_AllowsLaterStatement()
+    {
+        var crop = new Symbol("Crop", ["clip", "int [left]", "int [top]"]);
+        const string text = """
+            Crop([0)
+            x = 1
+            """;
+
+        var reply = AvsService().Analyze(text, text.Length, [crop]);
+
+        Assert.Null(reply.Insight);
+    }
+
+    [Fact]
+    public void Analyze_IndexedWidth_DoesNotKeepClipType()
+    {
+        var crop = new Symbol("Crop", ["clip", "int [left]"]);
+        const string text = """
+            source = BlankClip()
+            result = source.Width[0]
+            result.
+            """;
+
+        var reply = AvsService().Analyze(text, text.Length, [crop]);
+
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Crop");
+    }
+
+    [Fact]
+    public void Analyze_BlockCommentHole_StaysSilent()
+    {
+        const string text = "last = BlankClip()\n/*x";
+
+        var reply = AvsService().Analyze(text, text.IndexOf('*'), []);
+
+        Assert.Empty(reply.Items);
+    }
+
+    [Fact]
+    public void Analyze_DoubledQuote_StaysSilent()
+    {
+        const string text = "last = BlankClip()\ns = \"hello\"\"world\"";
+        var second = text.IndexOf("\"\"", StringComparison.Ordinal) + 1;
+
+        var reply = AvsService().Analyze(text, second, []);
+
+        Assert.Empty(reply.Items);
+    }
 }

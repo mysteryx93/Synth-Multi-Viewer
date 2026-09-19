@@ -13,7 +13,7 @@ internal static partial class AviSynthPatterns
     [GeneratedRegex(@"\bImport\s*\(\s*(?:""""""([\s\S]*?)""""""|""([^""]*)"")\s*\)", RegexOptions.IgnoreCase)]
     public static partial Regex Import();
 
-    [GeneratedRegex(@"(?<=^|{)[^\S\r\n]*(?:(global)[^\S\r\n]+)?([\p{L}_][\p{L}\p{N}_\p{M}]*)[^\S\r\n]*=(?!=)[^\S\r\n]*([^}\r\n]*)",
+    [GeneratedRegex(@"(?<=^|{)[^\S\r\n]*(?:(global)[^\S\r\n]+)?([\p{L}_][\p{L}\p{N}_\p{M}]*)[^\S\r\n]*=(?!=)([^}\r\n]*)",
         RegexOptions.Multiline | RegexOptions.IgnoreCase)]
     public static partial Regex NameAssign();
 

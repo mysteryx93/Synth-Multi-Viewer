@@ -51,7 +51,8 @@ internal static class AviSynthBinder
             var name = match.Groups[2].Value;
             var inner = Innermost(scopes, match.Index);
             var lookup = Visible(names, scopes, match.Index, inner, ref visible, ref visibleScope);
-            var type = Infer(match.Groups[3].Value.Trim(), lookup, catalog, token);
+            var rhs = prepared.Quoted.Code.Substring(match.Groups[3].Index, match.Groups[3].Length).Trim();
+            var type = Infer(rhs, lookup, catalog, token);
             if (match.Groups[1].Success || inner == null)
             {
                 names[name] = type;
@@ -241,9 +242,16 @@ internal static class AviSynthBinder
     private const int MaxInferDepth = 48;
     private const int MaxInferWork = 250_000;
 
-    private static TypeRef Infer(string expression, Dictionary<string, TypeRef> names, IReadOnlyList<Symbol> catalog,
-        CancellationToken token) =>
-        InferCore(expression, names, catalog, 0, 0, token);
+    /// <summary>
+    /// Types an AviSynth expression, including grouping, literals, and clip copies.
+    /// </summary>
+    internal static TypeRef Infer(string expression, IReadOnlyDictionary<string, TypeRef> names,
+        IReadOnlyList<Symbol> catalog, CancellationToken token)
+    {
+        var table = names as Dictionary<string, TypeRef> ??
+            new Dictionary<string, TypeRef>(names, StringComparer.OrdinalIgnoreCase);
+        return InferCore(expression, table, catalog, 0, 0, token);
+    }
 
     private static TypeRef InferCore(string expression, Dictionary<string, TypeRef> names,
         IReadOnlyList<Symbol> catalog, int depth, int work, CancellationToken token)
@@ -301,7 +309,7 @@ internal static class AviSynthBinder
         var parts = ExpressionParts.SplitAddMul(trimmed);
         if (parts.Count == 1)
         {
-            return InferPart(expression, names, catalog);
+            return InferPart(trimmed, names, catalog);
         }
 
         var clip = TypeRef.Unknown;
@@ -325,11 +333,17 @@ internal static class AviSynthBinder
             return clip;
         }
 
-        return TypeRef.Unknown;
+        return last.IsUnknown ? TypeRef.Unknown : last;
     }
 
     private static TypeRef InferPart(string part, Dictionary<string, TypeRef> names, IReadOnlyList<Symbol> catalog)
     {
+        var literal = LiteralType(part);
+        if (!literal.IsUnknown)
+        {
+            return literal;
+        }
+
         var segments = ExpressionReader.Parse(part);
         if (segments.Count == 0)
         {
@@ -337,5 +351,51 @@ internal static class AviSynthBinder
         }
 
         return AviSynthTypeWalker.TypeOf(segments, new() { Names = names }, catalog);
+    }
+
+    private static TypeRef LiteralType(string text)
+    {
+        if (text.Length >= 2 && text[0] is '"' or '\'')
+        {
+            return AviSynthTypes.String;
+        }
+
+        if (text.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+            text.Equals("false", StringComparison.OrdinalIgnoreCase))
+        {
+            return AviSynthTypes.Bool;
+        }
+
+        var i = 0;
+        if (text.Length > 0 && text[0] is '+' or '-')
+        {
+            i++;
+        }
+
+        var digits = false;
+        var dot = false;
+        for (; i < text.Length; i++)
+        {
+            if (char.IsDigit(text[i]))
+            {
+                digits = true;
+                continue;
+            }
+
+            if (text[i] == '.' && !dot)
+            {
+                dot = true;
+                continue;
+            }
+
+            return TypeRef.Unknown;
+        }
+
+        if (!digits)
+        {
+            return TypeRef.Unknown;
+        }
+
+        return dot ? AviSynthTypes.Float : AviSynthTypes.Int;
     }
 }

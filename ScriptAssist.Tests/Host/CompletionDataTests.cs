@@ -158,7 +158,31 @@ public class CompletionDataTests
 
         Assert.Equal(1, provider.SelectedIndex);
         Assert.Equal("Parameter 1: y", provider.CurrentContent);
-        Assert.Contains(nameof(OverloadProvider.CurrentContent), names);
+        Assert.DoesNotContain(nameof(OverloadProvider.CurrentHeader), names);
+    }
+
+    [Fact]
+    public void Update_SameSignature_ReusesHeader()
+    {
+        var overload = new Symbol("Crop", ["clip", "int [left]", "int [top]"]);
+        var provider = new OverloadProvider(new CallInsight([overload], 0, false));
+        var header = provider.CurrentHeader;
+
+        provider.Update(new CallInsight([overload], 2, false));
+
+        Assert.Same(header, provider.CurrentHeader);
+        Assert.Equal("Parameter 3: int [top]", provider.CurrentContent);
+    }
+
+    [Fact]
+    public void Complete_ZeroMaxCharacters_Truncates()
+    {
+        var item = new CompletionItem("Foo", 0, 3, SymbolKind.Function, "Foo(bar)");
+        var size = new AssistTipSize { MaxCharacters = 0 };
+
+        var hint = CompletionData.HintText(item, size);
+
+        Assert.Equal("…", hint);
     }
 
     [Fact]

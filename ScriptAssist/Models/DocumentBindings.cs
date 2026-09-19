@@ -9,6 +9,7 @@ public sealed class DocumentBindings
     private readonly Lock _viewsGate = new();
     private List<(BindingScope Scope, DocumentBindings View)>? _views;
     private HashSet<string>? _functionNames;
+    private long? _baseBytes;
 
     /// <summary>
     /// Gets assigned names and their inferred types.
@@ -192,26 +193,7 @@ public sealed class DocumentBindings
     {
         lock (_viewsGate)
         {
-            var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
-            var bytes = NamesBytes(Names);
-            bytes += SymbolsBytes(BufferSymbols, seen);
-            foreach (var pair in ScriptModules)
-            {
-                bytes += (long)pair.Key.Length * sizeof(char);
-                bytes += SymbolsBytes(pair.Value, seen);
-            }
-
-            foreach (var scope in Scopes)
-            {
-                bytes += (long)scope.Name.Length * sizeof(char);
-                bytes += NamesBytes(scope.Names);
-                bytes += SymbolsBytes(scope.Symbols, seen);
-                foreach (var parameter in scope.Parameters)
-                {
-                    bytes += (long)parameter.Length * sizeof(char);
-                }
-            }
-
+            var bytes = BaseBytes();
             if (_views == null)
             {
                 return bytes;
@@ -220,11 +202,45 @@ public sealed class DocumentBindings
             foreach (var (_, view) in _views)
             {
                 bytes += NamesBytes(view.Names);
-                bytes += SymbolsBytes(view.BufferSymbols, seen);
+                if (!ReferenceEquals(view.BufferSymbols, BufferSymbols))
+                {
+                    bytes += (long)view.BufferSymbols.Count * 32;
+                }
             }
 
             return bytes;
         }
+    }
+
+    private long BaseBytes()
+    {
+        if (_baseBytes is { } cached)
+        {
+            return cached;
+        }
+
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        var bytes = NamesBytes(Names);
+        bytes += SymbolsBytes(BufferSymbols, seen);
+        foreach (var pair in ScriptModules)
+        {
+            bytes += (long)pair.Key.Length * sizeof(char);
+            bytes += SymbolsBytes(pair.Value, seen);
+        }
+
+        foreach (var scope in Scopes)
+        {
+            bytes += (long)scope.Name.Length * sizeof(char);
+            bytes += NamesBytes(scope.Names);
+            bytes += SymbolsBytes(scope.Symbols, seen);
+            foreach (var parameter in scope.Parameters)
+            {
+                bytes += (long)parameter.Length * sizeof(char);
+            }
+        }
+
+        _baseBytes = bytes;
+        return bytes;
     }
 
     private static bool SameSymbols(Dictionary<string, List<Symbol>> functions, IReadOnlyList<Symbol> original)

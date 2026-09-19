@@ -31,3 +31,46 @@ internal static class AssistHarness
             ? new IncludeFile("/plugins/" + specifier.TrimStart('.') + ".py", text)
             : null;
 }
+
+internal sealed class CountingLanguage(ILanguage inner, ManualResetEventSlim? started = null,
+    ManualResetEventSlim? proceed = null) : ILanguage
+{
+    public int Binds;
+
+    public LexerOptions Lexer => inner.Lexer;
+    public StringComparison Comparison => inner.Comparison;
+    public IReadOnlyList<Symbol> Keywords => inner.Keywords;
+
+    public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
+        string? documentPath = null)
+    {
+        Interlocked.Increment(ref Binds);
+        started?.Set();
+        proceed?.Wait();
+        return inner.Bind(text, catalog, token, documentPath);
+    }
+
+    public TypeRef TypeOf(IReadOnlyList<PathSegment> segments, DocumentBindings bindings,
+        IReadOnlyList<Symbol> catalog) =>
+        inner.TypeOf(segments, bindings, catalog);
+
+    public Thread? LastMembersThread { get; set; }
+
+    public IReadOnlyList<Symbol> Members(TypeRef type, IReadOnlyList<Symbol> catalog, DocumentBindings bindings)
+    {
+        LastMembersThread = Thread.CurrentThread;
+        return inner.Members(type, catalog, bindings);
+    }
+
+    public CallResolution? ResolveCall(IReadOnlyList<PathSegment> callee, DocumentBindings bindings,
+        IReadOnlyList<Symbol> catalog) =>
+        inner.ResolveCall(callee, bindings, catalog);
+
+    public HoverInfo? Hover(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog) =>
+        inner.Hover(code, path, bindings, catalog);
+
+    public double CompletionPriority(Symbol symbol, TypeRef receiver) =>
+        inner.CompletionPriority(symbol, receiver);
+
+    public string? ParameterName(string parameter) => inner.ParameterName(parameter);
+}

@@ -270,28 +270,38 @@ public static class VapourSynthTypes
         return name + ":" + display + flags;
     }
 
-    /// <summary>Copy of <paramref name="symbol"/> with display parameter types.</summary>
+    /// <summary>Copy of <paramref name="symbol"/> with display parameter and return types.</summary>
     internal static Symbol ForDisplay(Symbol symbol)
     {
-        if (symbol.Parameters == null || symbol.Parameters.Length == 0)
+        string[]? mapped = null;
+        if (symbol.Parameters != null)
+        {
+            for (var i = 0; i < symbol.Parameters.Length; i++)
+            {
+                var pretty = DisplayParameter(symbol.Parameters[i]);
+                if (pretty == symbol.Parameters[i])
+                {
+                    continue;
+                }
+
+                mapped ??= [..symbol.Parameters];
+                mapped[i] = pretty;
+            }
+        }
+
+        var ret = symbol.ReturnType;
+        var displayRet = DisplayReturn(ret);
+        if (displayRet.HasValue() && displayRet != ret)
+        {
+            ret = displayRet;
+        }
+
+        if (mapped == null && ret == symbol.ReturnType)
         {
             return symbol;
         }
 
-        string[]? mapped = null;
-        for (var i = 0; i < symbol.Parameters.Length; i++)
-        {
-            var pretty = DisplayParameter(symbol.Parameters[i]);
-            if (pretty == symbol.Parameters[i])
-            {
-                continue;
-            }
-
-            mapped ??= [..symbol.Parameters];
-            mapped[i] = pretty;
-        }
-
-        return mapped == null ? symbol : symbol with { Parameters = mapped };
+        return symbol with { Parameters = mapped ?? symbol.Parameters, ReturnType = ret };
     }
 
     private const char Field = '\x1e';

@@ -52,6 +52,8 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
 
     void IRefreshableLanguage.Invalidate() => Includes.Clear();
 
+    void IRefreshableLanguage.ReleaseDocument(string? documentPath) => Includes.Release(documentPath);
+
     /// <inheritdoc />
     public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
         string? documentPath = null)
@@ -124,6 +126,11 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
 
         var name = callee[^1].Name;
         var implicitClip = callee.Count > 1;
+        if (implicitClip && !ReceiverTakesMembers(Prefix(callee), bindings, catalog))
+        {
+            return null;
+        }
+
         var matches = new List<Symbol>();
         foreach (var symbol in bindings.BufferSymbols)
         {
@@ -152,58 +159,26 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
         return new() { Overloads = matches, ImplicitReceiver = implicitClip };
     }
 
-    bool ICallReceiver.OmitsFirstClip(CallResolution resolved, string firstArgument, DocumentBindings bindings,
-        IReadOnlyList<Symbol> catalog, CancellationToken token)
+    bool ICallReceiver.OmitsFirstClip(CallResolution resolved, Symbol overload, string firstArgument,
+        DocumentBindings bindings, IReadOnlyList<Symbol> catalog, CancellationToken token)
     {
         if (resolved.ImplicitReceiver)
         {
             return true;
         }
 
-        var takesClip = false;
-        foreach (var overload in resolved.Overloads)
-        {
-            if (AviSynthTypes.TakesClip(overload))
-            {
-                takesClip = true;
-                break;
-            }
-        }
-
-        return takesClip && !SuppliesClip(firstArgument, bindings, catalog, token);
+        return AviSynthTypes.TakesClip(overload) && !SuppliesClip(firstArgument, bindings, catalog, token);
     }
 
-    private bool SuppliesClip(string argument, DocumentBindings bindings, IReadOnlyList<Symbol> catalog,
+    private static bool SuppliesClip(string argument, DocumentBindings bindings, IReadOnlyList<Symbol> catalog,
         CancellationToken token)
     {
-        if (!argument.HasText())
+        if (!argument.HasText() || ParameterNames.TopLevelKeywordEquals(argument) > 0)
         {
             return false;
         }
 
-        if (ParameterNames.TopLevelKeywordEquals(argument) > 0)
-        {
-            return false;
-        }
-
-        var first = argument[0];
-        if (first is '"' or '\'' || char.IsDigit(first) || first is '-' or '.')
-        {
-            return false;
-        }
-
-        if (argument.Equals("true", Comparison) || argument.Equals("false", Comparison))
-        {
-            return false;
-        }
-
-        var path = ExpressionReader.Parse(argument, this, token);
-        if (path.Count == 0)
-        {
-            return char.IsLetter(first);
-        }
-
-        var type = TypeOf(path, bindings, catalog);
+        var type = AviSynthBinder.Infer(argument, bindings.Names, catalog, token);
         return type == AviSynthTypes.Clip || type.IsUnknown;
     }
 
@@ -289,6 +264,11 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
             return new(type, path.Start, path.End - path.Start);
         }
 
+        if (path.Segments.Count > 0 && !ReceiverTakesMembers(path.Segments, bindings, catalog))
+        {
+            return null;
+        }
+
         if (bindings.InFunctionHeader(path.Start) && !IsFunctionName(name, path.Start, bindings))
         {
             return null;
@@ -337,6 +317,21 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
         }
 
         return false;
+    }
+
+    private bool ReceiverTakesMembers(IReadOnlyList<PathSegment> receiver, DocumentBindings bindings,
+        IReadOnlyList<Symbol> catalog) =>
+        TypeOf(receiver, bindings, catalog) == AviSynthTypes.Clip;
+
+    private static IReadOnlyList<PathSegment> Prefix(IReadOnlyList<PathSegment> callee)
+    {
+        var prefix = new PathSegment[callee.Count - 1];
+        for (var i = 0; i < prefix.Length; i++)
+        {
+            prefix[i] = callee[i];
+        }
+
+        return prefix;
     }
 
     private static bool Invoked(string code, int end)

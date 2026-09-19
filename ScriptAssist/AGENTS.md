@@ -29,11 +29,11 @@ Consumer setup and API examples: [README.md](README.md). These notes describe im
 
 ## Analysis and source handling
 
-`GetAsync` awaits the catalog, then analyzes off-thread. A snapshot masks the document and binds names, scopes, and imports. Languages overlay buffer symbols over native catalog entries when resolving members, calls, and hover. Requests overlay scopes at the caret, read the expression, and produce completion, insight, and hover. Inside comments/strings, assistance is suppressed; function headers suppress call insight.
+`GetAsync` awaits the catalog, then analyzes off-thread, including cache hits. A snapshot masks the document and binds names, scopes, and imports. Languages overlay buffer symbols over native catalog entries when resolving members, calls, and hover. Requests overlay scopes at the caret, read the expression, and produce completion, insight, and hover. Inside comments/strings, assistance is suppressed; function headers suppress call insight.
 
 The snapshot key is **text + document path + catalog reference**, not editor version. `LanguageService` retains a small LRU of snapshots (multiple documents, evicting older revisions of the same path) with a retained-byte cap that includes imported modules, scopes, and parameter strings. Concurrent requests for the same key share one in-flight bind; every caller awaits that task through its own token, and a build with no remaining waiters is cancelled. Invalidation drops cached snapshots and the in-flight lookup so the next request cannot observe a stale bind. Binding performs additional scans; do not assume total analysis is linear. There is no incremental parser. Honor cancellation in potentially long scans.
 
-Include cache lifecycle is documented in README; parsed exports and failed path lookups are LRU-bounded, the current document's working set is pinned, and `Invalidate` still clears everything. Do not assume includes are rebound on every document edit.
+Include cache lifecycle is documented in README; parsed exports and failed path lookups are LRU-bounded, unpinned entries also have a byte cap, the current document's working set is pinned, and `Invalidate` still clears everything. Import expansion is depth-limited. Do not assume includes are rebound on every document edit. Snapshot invalidation clears the language include cache in the same generation transition. Cached snapshot sizes follow live binding views.
 
 - Preserve UTF-16 offsets when masking comments/strings or joining lines; retain newlines when masking.
 - `TypeRef.Root` means an empty completion path, never a stored value type. Empty assignment expressions and tuples must not become Root.
@@ -101,5 +101,22 @@ dotnet ScriptAssist.Tests/bin/Debug/net10.0/ScriptAssist.Tests.dll
 ```
 
 - Prefer `LanguageService.Analyze` tests for language rules. Suite shape, placement, and UI-test rules: repository [AGENTS.md](../AGENTS.md). Unqualified native names lock once on hover; insight wrap locks wrap/`MaxWidth` only. Do not add `Symbol.DisplayName`/`Signature` facts for the same string. Run Avalonia editor tests in `SynthMultiViewer.Tests/EditorCompletionTests` with `-parallel none`; the headless dispatcher is not thread-safe.
+- User-facing coverage is primary: completion items, call insight, and hover as `Analyze` returns them. If a name can be completed, called, and hovered, lock the surfaces that can disagree (list vs insight vs hover). Engine and parser tests do not substitute for that. Put new editor-visible behavior in `User/`; ad-hoc lexer/parser edges stay in the language files.
+
+| Folder | Class | Role |
+| --- | --- | --- |
+| `User/` | `VapourSynthAssistTests` | VS complete / insight / hover contracts |
+| `User/` | `AviSynthAssistTests` | AVS complete / insight / hover contracts |
+| `Engine/` | `ExpressionReaderTests` | Caret expression, joins, grouping |
+| `Engine/` | `IncludeCacheTests` | Include LRU, pinned working sets |
+| `Engine/` | `LanguageServiceTests` | Snapshots, inflight share, invalidate, cancel |
+| `AviSynth/` | `AviSynthLanguageTests` | Bind, `last`, headers, types, AVS lexer |
+| `VapourSynth/` | `VapourSynthLanguageTests` | Bind, scopes, types, members, VS lexer |
+| `Imports/` | `ScriptImportTests` | Import graphs, packages, cycles |
+| `Imports/` | `ScriptIncludesTests` | Parameter parse, include path search |
+| `Calls/` | `CallInsightTests` | Named-arg mapping, separators, recovery |
+| `Host/` | `ScriptLanguageFactoryTests` | Factory, catalogs, enablement |
+| `Host/` | `CompletionDataTests` | Presenters, wrap, overload UI |
+
 - Test inside and after function scopes, header silence, and `vs` annotation hover. Include comments, multiline/incomplete input, and realistic native signatures.
 - Prefer representative installed/sibling scripts: xClean trailing `\`, FrameRateConverter leading `\` and `[** *]`/triple quotes, Shader, and havsfunc. Import graphs use a `Read` local function at the end of Prepare (`IncludeFile? Read(string specifier, string? fromPath)`), not an `IncludeReader` lambda.

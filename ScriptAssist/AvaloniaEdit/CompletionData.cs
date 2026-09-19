@@ -85,10 +85,9 @@ public sealed class CompletionData : ICompletionData
     internal static TextBlock HintBlock(string text, AssistTipSize? size = null)
     {
         size ??= AssistTipSize.Hint;
-        var maxChars = Math.Max(1, size.MaxCharacters);
         return new TextBlock
         {
-            Text = TruncateHint(text, maxChars),
+            Text = TruncateHint(text, size.MaxCharacters),
             MaxWidth = Math.Max(1, size.MaxWidth),
             MaxLines = Math.Max(1, size.MaxLines),
             TextWrapping = TextWrapping.Wrap,
@@ -103,6 +102,7 @@ public sealed class CompletionData : ICompletionData
     /// </summary>
     internal static string TruncateHint(string text, int max)
     {
+        max = Math.Max(1, max);
         if (!text.HasValue() || text.Length <= max)
         {
             return text;

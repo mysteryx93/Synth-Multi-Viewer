@@ -53,9 +53,14 @@ public sealed class LanguageService : ILanguageService
         string? documentPath, bool completions)
     {
         var native = await _catalog.GetAsync(cancellationToken).ConfigureAwait(false);
-        return await Task.Run(
-                () => Analyze(text, caret, native, cancellationToken, documentPath, completions), cancellationToken)
-            .ConfigureAwait(false);
+        if (caret < 0 || caret > text.Length)
+        {
+            return new([], null);
+        }
+
+        var snapshot = await SnapshotAsync(text, native, cancellationToken, documentPath).ConfigureAwait(false);
+        return await Task.Run(() => ReplyFrom(snapshot, caret, cancellationToken, completions),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -66,7 +71,12 @@ public sealed class LanguageService : ILanguageService
     {
         if (caret < 0 || caret > text.Length) { return new([], null); }
 
-        var snapshot = Snapshot(text, native, token, documentPath);
+        var snapshot = SnapshotAsync(text, native, token, documentPath).GetAwaiter().GetResult();
+        return ReplyFrom(snapshot, caret, token, completions);
+    }
+
+    private Reply ReplyFrom(DocumentSnapshot snapshot, int caret, CancellationToken token, bool completions)
+    {
         if (snapshot.Masked.IsLiteral(caret))
         {
             return new([], null);
@@ -143,11 +153,10 @@ public sealed class LanguageService : ILanguageService
             _generation++;
             _snapshots.Clear();
             _inflight.Clear();
-        }
-
-        if (_language is IRefreshableLanguage refreshable)
-        {
-            refreshable.Invalidate();
+            if (_language is IRefreshableLanguage refreshable)
+            {
+                refreshable.Invalidate();
+            }
         }
     }
 
@@ -164,14 +173,15 @@ public sealed class LanguageService : ILanguageService
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal);
         var consumed = scan.PositionalConsumed;
+        var indexOverload = 0;
         foreach (var overload in scan.Overloads)
         {
+            var skip = SkipFirst(scan, indexOverload++);
             if (overload.Parameters == null)
             {
                 continue;
             }
 
-            var skip = scan.ImplicitClip ? 1 : 0;
             var hasSlash = false;
             foreach (var parameter in overload.Parameters)
             {
@@ -225,8 +235,18 @@ public sealed class LanguageService : ILanguageService
         }
     }
 
-    private DocumentSnapshot Snapshot(string text, IReadOnlyList<Symbol> native, CancellationToken token,
-        string? documentPath)
+    private static int SkipFirst(CallScan scan, int overload)
+    {
+        if (scan.OverloadSkips != null && (uint)overload < (uint)scan.OverloadSkips.Length)
+        {
+            return scan.OverloadSkips[overload] ? 1 : 0;
+        }
+
+        return scan.ImplicitClip ? 1 : 0;
+    }
+
+    private async Task<DocumentSnapshot> SnapshotAsync(string text, IReadOnlyList<Symbol> native,
+        CancellationToken token, string? documentPath)
     {
         var key = new SnapshotKey(text, documentPath, native);
         InflightBuild inflight;
@@ -263,7 +283,7 @@ public sealed class LanguageService : ILanguageService
         DocumentSnapshot? snapshot = null;
         try
         {
-            snapshot = inflight.Work.WaitAsync(token).GetAwaiter().GetResult();
+            snapshot = await inflight.Work.WaitAsync(token).ConfigureAwait(false);
             return snapshot;
         }
         finally
@@ -285,8 +305,9 @@ public sealed class LanguageService : ILanguageService
                     _inflight.Remove(key);
                 }
 
-                if (snapshot != null && _generation == inflight.Generation)
+                if (snapshot != null && _generation == inflight.Generation && !inflight.Published)
                 {
+                    inflight.Published = true;
                     Publish(text, documentPath, native, snapshot);
                 }
             }
@@ -308,6 +329,23 @@ public sealed class LanguageService : ILanguageService
 
     private void Publish(string text, string? documentPath, IReadOnlyList<Symbol> native, DocumentSnapshot snapshot)
     {
+        for (var i = 0; i < _snapshots.Count; i++)
+        {
+            if (!ReferenceEquals(_snapshots[i].Snapshot, snapshot))
+            {
+                continue;
+            }
+
+            if (i > 0)
+            {
+                var item = _snapshots[i];
+                _snapshots.RemoveAt(i);
+                _snapshots.Insert(0, item);
+            }
+
+            return;
+        }
+
         if (documentPath != null)
         {
             _snapshots.RemoveAll(item => item.Path == documentPath &&
@@ -320,28 +358,33 @@ public sealed class LanguageService : ILanguageService
         }
 
         _snapshots.Insert(0, new(text, documentPath, native, snapshot));
-        var bytes = 0L;
+        var total = 0L;
         foreach (var item in _snapshots)
         {
-            bytes += Size(item);
+            total += item.Bytes;
         }
 
-        while (_snapshots.Count > SnapshotLimit || bytes > SnapshotByteLimit && _snapshots.Count > 1)
+        while (_snapshots.Count > SnapshotLimit || total > SnapshotByteLimit && _snapshots.Count > 1)
         {
-            bytes -= Size(_snapshots[^1]);
+            var last = _snapshots[^1];
+            total -= last.Bytes;
             _snapshots.RemoveAt(_snapshots.Count - 1);
+            if (_language is IRefreshableLanguage refreshable)
+            {
+                refreshable.ReleaseDocument(last.Path);
+            }
         }
     }
 
-    private static long Size(CachedSnapshot item) =>
-        (long)item.Text.Length * sizeof(char) * 3 + item.Snapshot.Joins.Length +
-        item.Snapshot.Bindings.RetainedBytes();
+    private static long SnapshotBytes(string text, DocumentSnapshot snapshot) =>
+        (long)text.Length * sizeof(char) * 3 + snapshot.Joins.Length + snapshot.Bindings.RetainedBytes();
 
     private sealed class InflightBuild(int generation, CancellationTokenSource cts)
     {
         public int Generation { get; } = generation;
         public CancellationTokenSource Cts { get; } = cts;
         public int Waiters { get; set; } = 1;
+        public bool Published { get; set; }
         public Task<DocumentSnapshot> Work { get; set; } = null!;
     }
 
@@ -371,7 +414,10 @@ public sealed class LanguageService : ILanguageService
         string Text,
         string? Path,
         IReadOnlyList<Symbol> Catalog,
-        DocumentSnapshot Snapshot);
+        DocumentSnapshot Snapshot)
+    {
+        public long Bytes => SnapshotBytes(Text, Snapshot);
+    }
 
     private sealed record DocumentSnapshot(
         LexedBuffer Masked,

@@ -86,6 +86,12 @@ internal static partial class BufferLexer
                 {
                     Consume();
                     HideString(i);
+                    if (text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n')
+                    {
+                        Consume();
+                        HideString(i);
+                    }
+
                     continue;
                 }
 

@@ -439,17 +439,12 @@ public class VapourSynthLanguageTests
     }
 
     [Theory]
-    [InlineData("# core.std.", false)]
-    [InlineData("\"core.std.", false)]
-    [InlineData("'''core.std.\n", false)]
-    [InlineData("/* Crop(\n", true)]
-    [InlineData("/[ Crop(\n", true)]
-    [InlineData("[* Crop(\n", true)]
-    public void Analyze_CommentOrString_SuppressesCompletion(string text, bool avs)
+    [InlineData("# core.std.")]
+    [InlineData("\"core.std.")]
+    [InlineData("'''core.std.\n")]
+    public void Analyze_CommentOrString_SuppressesCompletion(string text)
     {
-        var service = avs ? AvsService() : VsService();
-
-        var result = service.Analyze(text, text.Length, Vs);
+        var result = VsService().Analyze(text, text.Length, Vs);
 
         Assert.Empty(result.Items);
         Assert.Null(result.Insight);
@@ -1117,31 +1112,6 @@ public class VapourSynthLanguageTests
         Assert.Contains(reply.Items, x => x.InsertionText == "width");
     }
 
-    [Fact]
-    public void Insight_AviSynthMismatchedDelimiter_ClosesCall()
-    {
-        var crop = new Symbol("Crop", ["clip", "int [left]", "int [top]"]);
-        const string text = "Crop([0),\n";
-
-        var reply = AvsService().Analyze(text, text.Length, [crop]);
-
-        Assert.Null(reply.Insight);
-    }
-
-    [Fact]
-    public void Insight_AviSynthMismatchedDelimiter_AllowsLaterStatement()
-    {
-        var crop = new Symbol("Crop", ["clip", "int [left]", "int [top]"]);
-        const string text = """
-            Crop([0)
-            x = 1
-            """;
-
-        var reply = AvsService().Analyze(text, text.Length, [crop]);
-
-        Assert.Null(reply.Insight);
-    }
-
     [Theory]
     [InlineData("def f(source: 'vs.VideoNode'):")]
     [InlineData("def f(source: typing.Optional[vs.VideoNode]):")]
@@ -1505,21 +1475,6 @@ public class VapourSynthLanguageTests
 
         Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
         Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
-    }
-
-    [Fact]
-    public void Analyze_AviSynthIndexedWidth_DoesNotKeepClipType()
-    {
-        var crop = new Symbol("Crop", ["clip", "int [left]"]);
-        const string text = """
-            source = BlankClip()
-            result = source.Width[0]
-            result.
-            """;
-
-        var reply = AvsService().Analyze(text, text.Length, [crop]);
-
-        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Crop");
     }
 
     [Fact]
@@ -1889,33 +1844,12 @@ public class VapourSynthLanguageTests
     }
 
     [Fact]
-    public void Analyze_AviSynthBlockCommentHole_StaysSilent()
-    {
-        const string text = "last = BlankClip()\n/*x";
-
-        var reply = AvsService().Analyze(text, text.IndexOf('*'), []);
-
-        Assert.Empty(reply.Items);
-    }
-
-    [Fact]
     public void Analyze_TripleQuoteCloser_StaysSilent()
     {
         const string text = "clip = core.std.BlankClip()\ns = \"\"\"x\"\"\"";
         var closer = text.LastIndexOf('x') + 2;
 
         var reply = VsService().Analyze(text, closer, Vs);
-
-        Assert.Empty(reply.Items);
-    }
-
-    [Fact]
-    public void Analyze_AviSynthDoubledQuote_StaysSilent()
-    {
-        const string text = "last = BlankClip()\ns = \"hello\"\"world\"";
-        var second = text.IndexOf("\"\"", StringComparison.Ordinal) + 1;
-
-        var reply = AvsService().Analyze(text, second, []);
 
         Assert.Empty(reply.Items);
     }

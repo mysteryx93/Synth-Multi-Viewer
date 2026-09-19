@@ -158,6 +158,11 @@ public static class AviSynthFunctions
             return;
         }
 
+        if (ensuring.Count > IncludeCache.ImportDepthLimit || !includes.TryImport())
+        {
+            return;
+        }
+
         token.ThrowIfCancellationRequested();
         var own = Parse(text, lexer, token);
         var deps = new List<string>();
@@ -216,6 +221,11 @@ public static class AviSynthFunctions
         CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
+        if (walking.Count >= IncludeCache.ImportDepthLimit)
+        {
+            return true;
+        }
+
         if (includes.Complete.Contains(path) || !walking.Add(path))
         {
             return true;
@@ -239,7 +249,8 @@ public static class AviSynthFunctions
 
     private static void Expand(string path, List<Symbol> buffer, HashSet<string> visited, IncludeSession includes)
     {
-        if (!visited.Add(path) || !includes.TryEntry(path, out var entry))
+        if (visited.Count >= IncludeCache.ImportDepthLimit || !visited.Add(path) ||
+            !includes.TryEntry(path, out var entry))
         {
             return;
         }
