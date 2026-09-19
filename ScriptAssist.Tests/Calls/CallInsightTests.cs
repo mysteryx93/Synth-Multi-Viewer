@@ -3,7 +3,7 @@ using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 using HanumanInstitute.ScriptAssist.AviSynth;
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.Calls;
 
 using static AssistHarness;
 
@@ -942,7 +942,7 @@ public class CallInsightTests
     public void Insight_IndependentNewline_DoesNotCross()
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter\n(";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;

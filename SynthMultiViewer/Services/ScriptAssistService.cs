@@ -1,21 +1,23 @@
+using HanumanInstitute.ScriptAssist.Services;
 using HanumanInstitute.SynthMultiViewer.Models;
 
 namespace HanumanInstitute.SynthMultiViewer.Services;
 
 /// <summary>
-/// Script assistance wired to this app’s native catalogs and include readers.
+/// Script assistance wired to this app’s native catalogs and include sources.
 /// </summary>
 public sealed class ScriptAssistService : ScriptLanguageFactory
 {
     /// <summary>
     /// Creates the factory around native catalogs and the editor-enhancement setting.
     /// </summary>
-    public ScriptAssistService(ISettingsProvider<AppSettingsData> settings)
+    public ScriptAssistService(ISettingsProvider<AppSettingsData> settings, IFileSystemService files)
         : base(
-            ScriptCatalogs.VapourSynth,
-            ScriptCatalogs.AviSynth,
-            ScriptIncludeIO.VapourSynth,
-            ScriptIncludeIO.AviSynth)
+            new VapourSynthNativeCatalog(),
+            new AviSynthNativeCatalog(),
+            new AviSynthPluginDirectory(files),
+            new VapourSynthIncludeSource(files),
+            new AviSynthIncludeSource(files))
     {
         IsEnabled = settings.Value.EnhanceEditorWithAutoComplete;
     }
@@ -23,7 +25,7 @@ public sealed class ScriptAssistService : ScriptLanguageFactory
     /// <inheritdoc />
     public override void Refresh()
     {
-        ScriptIncludeIO.Invalidate();
+        VapourSynthIncludeSource.Invalidate();
         base.Refresh();
     }
 }

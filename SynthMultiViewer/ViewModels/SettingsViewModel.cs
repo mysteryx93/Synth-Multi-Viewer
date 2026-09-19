@@ -1,6 +1,7 @@
 using HanumanInstitute.MvvmDialogs;
 using HanumanInstitute.MvvmDialogs.FileSystem;
 using HanumanInstitute.MvvmDialogs.FrameworkDialogs;
+using HanumanInstitute.ScriptAssist.Services;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 
@@ -15,16 +16,19 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
     private readonly IAppTheme _appTheme;
     private readonly IFrameworkDetectionService _frameworks;
     private readonly IDialogService _dialogService;
+    private readonly IFileSystemService _files;
 
     /// <summary>
     /// Creates a settings dialog with a working copy of the current theme and library paths.
     /// </summary>
-    public SettingsViewModel(ISettingsProvider<AppSettingsData> settingsProvider, IAppTheme appTheme, IFrameworkDetectionService frameworks, IDialogService dialogService)
+    public SettingsViewModel(ISettingsProvider<AppSettingsData> settingsProvider, IAppTheme appTheme,
+        IFrameworkDetectionService frameworks, IDialogService dialogService, IFileSystemService files)
     {
         _settingsProvider = settingsProvider;
         _appTheme = appTheme;
         _frameworks = frameworks;
         _dialogService = dialogService;
+        _files = files.CheckNotNull();
         DisplayName = "Settings";
         Theme = settingsProvider.Value.Theme;
         VapourSynthPath = settingsProvider.Value.VapourSynthPath;
@@ -263,42 +267,42 @@ public partial class SettingsViewModel : WorkspaceViewModel, IModalDialogViewMod
         var settings = new OpenFolderDialogSettings
         {
             Title = title,
-            SuggestedStartLocation = ExistingFolder(FolderListText.Last(current) ?? current)
+            SuggestedStartLocation = ExistingFolder(FolderListText.Last(current, _files.Path) ?? current)
         };
         var folder = await _dialogService.ShowOpenFolderDialogAsync(this, settings);
         if (folder != null)
         {
-            setFolders(FolderListText.Append(current, folder.LocalPath));
+            setFolders(FolderListText.Append(current, folder.LocalPath, _files.Path));
         }
     }
 
     private static IReadOnlyList<string> LibraryExtensions() =>
         OperatingSystem.IsWindows() ? ["dll"] : OperatingSystem.IsMacOS() ? ["dylib"] : ["so"];
 
-    private static string FileNameIfExists(string path) =>
-        path.HasText() && File.Exists(path) ? Path.GetFileName(path) : "";
+    private string FileNameIfExists(string path) =>
+        path.HasText() && _files.File.Exists(path) ? _files.Path.GetFileName(path) : "";
 
-    private static IDialogStorageFolder? ExistingFolder(string? path)
+    private IDialogStorageFolder? ExistingFolder(string? path)
     {
         var folder = FolderPath(path);
-        return folder != null && Directory.Exists(folder) ? new DesktopDialogStorageFolder(folder) : null;
+        return folder != null && _files.Directory.Exists(folder) ? new DesktopDialogStorageFolder(folder) : null;
     }
 
-    private static string? FolderPath(string? path)
+    private string? FolderPath(string? path)
     {
         if (!path.HasText())
         {
             return null;
         }
 
-        if (Directory.Exists(path))
+        if (_files.Directory.Exists(path))
         {
             return path;
         }
 
         try
         {
-            return Path.GetDirectoryName(path);
+            return _files.Path.GetDirectoryName(path);
         }
         catch (ArgumentException)
         {

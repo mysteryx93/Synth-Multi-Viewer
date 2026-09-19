@@ -12,6 +12,7 @@ namespace HanumanInstitute.ScriptAssist.AvaloniaEdit;
 public sealed class EditorAssist : IDisposable
 {
     private readonly TextEditor _editor;
+    private readonly IAssistSession _session;
     private readonly EditorAssistOptions _options;
     private readonly CompletionPresenter _completion;
     private readonly InsightPresenter _insight;
@@ -31,36 +32,14 @@ public sealed class EditorAssist : IDisposable
     /// <summary>
     /// Creates assistance for <paramref name="editor"/>. Call <see cref="Attach"/> to subscribe.
     /// </summary>
-    public EditorAssist(TextEditor editor, EditorAssistOptions options)
+    public EditorAssist(TextEditor editor, IAssistSession session, EditorAssistOptions? options = null)
     {
         _editor = editor;
-        _options = options;
-        _completion = new(editor, options.Hint);
-        _insight = new(editor, options.Hover);
-        _hover = new(editor, options.Hover);
-    }
-
-    /// <summary>
-    /// Creates assistance that follows <paramref name="factory"/> enablement, catalogs, and refresh.
-    /// </summary>
-    public EditorAssist(
-        TextEditor editor, IScriptLanguageFactory factory, Func<string> language, Func<string?>? documentPath = null)
-        : this(editor, Options(factory, language, documentPath))
-    {
-    }
-
-    private static EditorAssistOptions Options(
-        IScriptLanguageFactory factory, Func<string> language, Func<string?>? documentPath)
-    {
-        factory.CheckNotNull();
-        language.CheckNotNull();
-        return new()
-        {
-            ResolveService = () => factory.Create(language()),
-            IsEnabled = () => factory.IsEnabled,
-            RefreshCatalogs = factory.Refresh,
-            ResolveDocumentPath = documentPath
-        };
+        _session = session.CheckNotNull();
+        _options = options ?? new EditorAssistOptions();
+        _completion = new(editor, _options.Hint);
+        _insight = new(editor, _options.Hover);
+        _hover = new(editor, _options.Hover);
     }
 
     /// <summary>
@@ -141,7 +120,7 @@ public sealed class EditorAssist : IDisposable
     /// </summary>
     public async Task RequestAsync(bool showCompletion = true, TimeSpan? delay = null)
     {
-        if (_options.IsEnabled?.Invoke() == false)
+        if (!_session.AssistanceEnabled)
         {
             Dismiss();
             return;
@@ -167,7 +146,7 @@ public sealed class EditorAssist : IDisposable
                 return;
             }
 
-            var service = _options.ResolveService();
+            var service = _session.ResolveService();
             if (service == null)
             {
                 Dismiss();
@@ -179,7 +158,7 @@ public sealed class EditorAssist : IDisposable
             var caret = _editor.CaretOffset;
             var context = _editor.DataContext;
             var snapshot = document.CreateSnapshot();
-            var path = _options.ResolveDocumentPath?.Invoke();
+            var path = _session.DocumentPath;
             if (!_editor.IsKeyboardFocusWithin || !_editor.IsEffectivelyVisible)
             {
                 return;
@@ -307,7 +286,7 @@ public sealed class EditorAssist : IDisposable
         }
         else if (e.Key == Key.R && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            _options.RefreshCatalogs?.Invoke();
+            _session.RefreshCatalogs();
             _ = RequestAsync(_completion.Window != null, TimeSpan.Zero);
             e.Handled = true;
         }
@@ -345,7 +324,7 @@ public sealed class EditorAssist : IDisposable
             return;
         }
 
-        var service = _options.ResolveService();
+        var service = _session.ResolveService();
         if (service == null)
         {
             Dismiss();
@@ -361,7 +340,7 @@ public sealed class EditorAssist : IDisposable
         var document = _editor.Document;
         var version = document.Version;
         var snapshot = document.CreateSnapshot();
-        var path = _options.ResolveDocumentPath?.Invoke();
+        var path = _session.DocumentPath;
         try
         {
             var text = await MaterializeAsync(document, snapshot, version, request.Token);
@@ -530,9 +509,9 @@ public sealed class EditorAssist : IDisposable
         _request = null;
     }
 
-    private bool Disabled() => _options.IsEnabled?.Invoke() == false;
+    private bool Disabled() => !_session.AssistanceEnabled;
 
     private bool CallbacksChanged(ILanguageService? service, string? path) =>
-        !ReferenceEquals(service, _options.ResolveService()) ||
-        !string.Equals(path, _options.ResolveDocumentPath?.Invoke(), StringComparison.Ordinal);
+        !ReferenceEquals(service, _session.ResolveService()) ||
+        !string.Equals(path, _session.DocumentPath, StringComparison.Ordinal);
 }

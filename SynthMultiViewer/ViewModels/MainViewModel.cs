@@ -6,6 +6,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
+using HanumanInstitute.ScriptAssist.Services;
 using HanumanInstitute.SynthMultiViewer.Helpers;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
@@ -24,6 +25,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     private readonly IDefaultScriptService _defaultScripts;
     private readonly ISettingsProvider<AppSettingsData> _settings;
     private readonly IAppUpdateService _appUpdate;
+    private readonly IFileSystemService _files;
     private const int RecentFileLimit = 8;
     private double _scrollHorizontalOffset;
     private double _scrollVerticalOffset;
@@ -42,13 +44,15 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         IEnvironmentService environmentService,
         IDefaultScriptService defaultScripts,
         ISettingsProvider<AppSettingsData> settings,
-        IAppUpdateService appUpdate)
+        IAppUpdateService appUpdate,
+        IFileSystemService files)
     {
         _dialogService = dialogService;
         _environmentService = environmentService;
         _defaultScripts = defaultScripts;
         _settings = settings;
         _appUpdate = appUpdate;
+        _files = files.CheckNotNull();
         DisplayName = "Synth Multi-Viewer";
         CanClose = false;
 
@@ -434,7 +438,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
             return;
         }
 
-        await File.WriteAllTextAsync(item.FileName, item.Script);
+        await _files.File.WriteAllTextAsync(item.FileName, item.Script);
         item.MarkSaved();
         RememberFile(item.FileName);
     }
@@ -459,9 +463,9 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
             return;
         }
 
-        await File.WriteAllTextAsync(file.LocalPath, item.Script);
+        await _files.File.WriteAllTextAsync(file.LocalPath, item.Script);
         item.FileName = file.LocalPath;
-        item.DisplayName = Path.GetFileName(item.FileName);
+        item.DisplayName = _files.Path.GetFileName(item.FileName);
         item.Kind = ScriptKindLookup.FromPath(item.FileName) ?? item.Kind;
         item.MarkSaved();
         RememberFile(item.FileName);
@@ -821,7 +825,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         var changed = false;
         for (var i = files.Count - 1; i >= 0; i--)
         {
-            if (!File.Exists(files[i]))
+            if (!_files.File.Exists(files[i]))
             {
                 files.RemoveAt(i);
                 changed = true;
@@ -842,7 +846,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
         Recents.Clear();
         foreach (var path in files)
         {
-            Recents.Add(new(path));
+            Recents.Add(new(path, _files.Path.GetFileName(path)));
         }
 
         this.RaisePropertyChanged(nameof(HasRecents));
@@ -874,7 +878,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
     {
         try
         {
-            var content = await File.ReadAllTextAsync(file);
+            var content = await _files.File.ReadAllTextAsync(file);
             var editor = _dialogService.CreateViewModel<EditorViewModel>();
             editor.FileName = file;
             if (ScriptKindLookup.FromPath(file) is { } kind)
@@ -883,7 +887,7 @@ public partial class MainViewModel : WorkspaceViewModel, IViewLoaded, IViewClose
             }
             editor.Script = content;
             editor.MarkSaved();
-            AddTab(editor, Path.GetFileName(file));
+            AddTab(editor, _files.Path.GetFileName(file));
             RememberFile(file);
             return true;
         }

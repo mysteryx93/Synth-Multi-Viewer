@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.VapourSynth;
 
 using static AssistHarness;
 
@@ -566,7 +566,7 @@ public class VapourSynthLanguageTests
     public void Analyze_ScopedImportAssignment_InfersReturnType()
     {
         const string helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             def f(clip):
                 from helper import Filter
@@ -655,7 +655,7 @@ public class VapourSynthLanguageTests
     public void Analyze_ImportedContinuation_CompletesName(string newline)
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         var text = "from helper import \\" + newline + "Filter" + newline + "Fil";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -684,7 +684,7 @@ public class VapourSynthLanguageTests
     public void Insight_ImportedAssignment_ShadowsFunctionSymbol()
     {
         const string helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter\nFilter = 2\nFilter(";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -698,7 +698,7 @@ public class VapourSynthLanguageTests
     public void Insight_LaterImport_ReplacesEarlierValue()
     {
         const string helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "Filter = 1\nfrom helper import Filter\nFilter(";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -811,7 +811,7 @@ public class VapourSynthLanguageTests
     public void Analyze_ImportedEscapedQuoteDefault_KeepsReturnType()
     {
         const string helper = "def f(text=\"a\\\"b\") -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import f\nclip = f()\nclip.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -871,7 +871,7 @@ public class VapourSynthLanguageTests
     public void Analyze_LaterNestedFunction_ShadowsImportedMake()
     {
         const string helper = "def make() -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             def f():
                 from helper import make
@@ -923,7 +923,7 @@ public class VapourSynthLanguageTests
     public void Analyze_ClassBodyImport_DoesNotLeak()
     {
         const string helper = "def Filter():\n    return 1\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             class C:
                 import helper as h
@@ -1062,7 +1062,7 @@ public class VapourSynthLanguageTests
             def Filter(clip, radius=2):
                 return clip
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter\nFilter(";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -1227,7 +1227,7 @@ public class VapourSynthLanguageTests
     public void Insight_ImportedFunctionAlias_PreservesIdentity()
     {
         const string helper = "def Filter(clip, radius=2):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             import helper
             alias = helper.Filter
@@ -1247,7 +1247,7 @@ public class VapourSynthLanguageTests
     public void Insight_ImportedAlias_OverridesLocalFunction()
     {
         const string helper = "def Filter(clip, radius=2):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             def Filter(x):
                 return x
@@ -1750,7 +1750,7 @@ public class VapourSynthLanguageTests
             def Filter() -> Node:
                 return None
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter\nclip = Filter()\nclip.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -1875,7 +1875,7 @@ public class VapourSynthLanguageTests
     public void Analyze_LocalImport_ShadowsGlobalScalar()
     {
         const string helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             Filter = 2
             def f(clip):
@@ -2026,7 +2026,7 @@ public class VapourSynthLanguageTests
     public void Analyze_CalledModule_IsUnknown()
     {
         const string helper = "def Filter():\n    return 1\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             import helper
             result = helper()
@@ -2233,7 +2233,7 @@ public class VapourSynthLanguageTests
             result = load()
             result.
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
 

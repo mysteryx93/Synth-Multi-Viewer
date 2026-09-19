@@ -1,9 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 using HanumanInstitute.ScriptAssist.VapourSynth;
 using Xunit;
+
 // ReSharper disable AccessToModifiedClosure
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.Engine;
 
 using static AssistHarness;
 
@@ -15,8 +16,8 @@ public class LanguageServiceTests
     {
         const string text = "import helper as h\nh.";
         var current = "def Old():\n    return 1\n";
-        var catalog = new CatalogCache(() => Array.Empty<Symbol>());
-        var service = new LanguageService(new VapourSynthLanguage(Read), catalog);
+        var catalog = Catalog();
+        var service = new LanguageService(new VapourSynthLanguage(Includes(Read)), catalog);
         var native = Array.Empty<Symbol>();
         Assert.Contains(service.Analyze(text, text.Length, native).Items, x => x.InsertionText == "Old");
         current = "def New():\n    return 1\n";
@@ -38,7 +39,7 @@ public class LanguageServiceTests
         var started = new ManualResetEventSlim(false);
         var proceed = new ManualResetEventSlim(false);
         var current = "def Old():\n    return 1\n";
-        var service = new LanguageService(new VapourSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(Includes(Read)), Catalog());
         var native = Array.Empty<Symbol>();
         var first = Task.Run(() => service.Analyze(text, text.Length, native));
         Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
@@ -70,7 +71,7 @@ public class LanguageServiceTests
         var reads = 0;
         var helper = string.Concat(Enumerable.Range(0, 30)
             .Select(i => $"def Filter{i}(clip) -> vs.VideoNode:\n    return clip\n"));
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         var text = string.Concat(Enumerable.Range(0, 30).Select(i => $"from helper import Filter{i}\n")) +
             "core.std.Crop(";
         IncludeFile? Read(string specifier, string? _)
@@ -90,7 +91,7 @@ public class LanguageServiceTests
         var reads = 0;
         var helper = string.Concat(Enumerable.Range(0, 30)
             .Select(i => $"def Filter{i}(clip) -> vs.VideoNode:\n    return clip\n"));
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         var text = string.Concat(Enumerable.Range(0, 30).Select(i => $"from helper import Filter{i}\n")) +
             "core.std.Crop(";
         service.Analyze(text, text.Length, Vs);
@@ -112,7 +113,7 @@ public class LanguageServiceTests
         var reads = 0;
         var helper = string.Concat(Enumerable.Range(0, 30)
             .Select(i => $"def Filter{i}(clip) -> vs.VideoNode:\n    return clip\n"));
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         var text = string.Concat(Enumerable.Range(0, 30).Select(i => $"from helper import Filter{i}\n")) +
             "core.std.Crop(";
         service.Analyze(text, text.Length, Vs);
@@ -139,7 +140,7 @@ public class LanguageServiceTests
             .Select(i => new Symbol("core.ns.F" + i, ["clip:vnode"], ReturnType: "clip:vnode;"))
             .ToArray();
         var language = new CountingLanguage(new VapourSynthLanguage());
-        var service = new LanguageService(language, new CatalogCache(() => catalog));
+        var service = new LanguageService(language, new CatalogCache(Symbols(catalog)));
         Assert.NotNull(service.Analyze(a, a.Length, catalog).Insight);
         Assert.NotNull(service.Analyze(b, b.Length, catalog).Insight);
         var binds = language.Binds;
@@ -158,7 +159,7 @@ public class LanguageServiceTests
     {
         const string helper = "def Filter(clip):\n    return clip\n";
         const string text = "from helper import Filter\nFilter(";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         var tasks = Enumerable.Range(0, 24)
             .Select(_ => Task.Run(() => service.Analyze(text, text.Length, Vs)));
         IncludeFile? Read(string specifier, string? _) => specifier == "helper"
@@ -182,7 +183,7 @@ public class LanguageServiceTests
         var proceed = new ManualResetEventSlim(false);
         var catalog = new[] { new Symbol("core.std.BlankClip", ["clip:vnode"], ReturnType: "clip:vnode;") };
         var language = new CountingLanguage(new VapourSynthLanguage(), started, proceed);
-        var service = new LanguageService(language, new CatalogCache(() => catalog));
+        var service = new LanguageService(language, new CatalogCache(Symbols(catalog)));
         var first = Task.Run(() => service.Analyze(text, text.Length, catalog));
         Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
         var second = Task.Run(() => service.Analyze(text, text.Length, catalog));
@@ -202,7 +203,7 @@ public class LanguageServiceTests
         const string text = "import helper as h\nh.";
         var started = new ManualResetEventSlim(false);
         var proceed = new ManualResetEventSlim(false);
-        var service = new LanguageService(new VapourSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(Includes(Read)), Catalog());
         var native = Array.Empty<Symbol>();
         using var cts = new CancellationTokenSource();
         var first = Task.Run(() => service.Analyze(text, text.Length, native, cts.Token));
@@ -232,7 +233,7 @@ public class LanguageServiceTests
         var proceed = new ManualResetEventSlim(false);
         var current = "def Old():\n    return 1\n";
         var reads = 0;
-        var service = new LanguageService(new VapourSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(Includes(Read)), Catalog());
         var native = Array.Empty<Symbol>();
         var first = Task.Run(() => service.Analyze(text, text.Length, native));
         Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
@@ -265,7 +266,7 @@ public class LanguageServiceTests
     {
         var catalog = new[] { new Symbol("core.std.BlankClip", ["clip:vnode"], ReturnType: "clip:vnode;") };
         var language = new CountingLanguage(new VapourSynthLanguage());
-        var service = new LanguageService(language, new CatalogCache(() => catalog));
+        var service = new LanguageService(language, new CatalogCache(Symbols(catalog)));
         for (var i = 0; i < 9; i++)
         {
             var text = "clip" + i + " = core.std.BlankClip()\nclip" + i + ".";
@@ -285,7 +286,7 @@ public class LanguageServiceTests
     {
         const string helper = "def Filter(clip):\n    return clip\n";
         const string text = "from helper import Filter\nFilter(";
-        var language = new VapourSynthLanguage(Read);
+        var language = new VapourSynthLanguage(Includes(Read));
         IncludeFile? Read(string specifier, string? _) => specifier == "helper"
             ? new IncludeFile("/plugins/helper.py", helper)
             : null;
@@ -318,7 +319,7 @@ public class LanguageServiceTests
     public void GetAsync_CachedSnapshot_AnalyzesOffCaller()
     {
         var language = new CountingLanguage(new VapourSynthLanguage());
-        var service = new LanguageService(language, new CatalogCache(() => Vs.ToArray()));
+        var service = new LanguageService(language, Catalog(Vs.ToArray()));
         const string text = "core.std.Blank";
         Thread? caller = null;
         Exception? error = null;

@@ -8,7 +8,7 @@ public class CommandLineScriptsTests
     [Fact]
     public void FromArguments_HostAndScript_ReturnsScript()
     {
-        var script = Path.Combine("media", "preview.vpy");
+        const string script = "media/preview.vpy";
 
         var files = CommandLineScripts.FromArguments(["SynthMultiViewer", script]);
 
@@ -18,7 +18,7 @@ public class CommandLineScriptsTests
     [Fact]
     public void FromArguments_DotnetHostDllAndScript_SkipsDll()
     {
-        var script = Path.Combine("home", "clip.avs");
+        const string script = "home/clip.avs";
 
         var files = CommandLineScripts.FromArguments(["dotnet", "SynthMultiViewer.dll", script]);
 
@@ -28,9 +28,10 @@ public class CommandLineScriptsTests
     [Fact]
     public void FromArguments_FlagsAndFileUri_ReturnsLocalPath()
     {
-        var script = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "script.vpy"));
+        const string script = "/scripts/script.vpy";
 
-        var files = CommandLineScripts.FromArguments(["SynthMultiViewer", "--foo", new Uri(script).AbsoluteUri]);
+        var files = CommandLineScripts.FromArguments(["SynthMultiViewer", "--foo",
+            new Uri("file://" + script).AbsoluteUri]);
 
         Assert.Equal([script], files);
     }
@@ -38,7 +39,7 @@ public class CommandLineScriptsTests
     [Fact]
     public void FromArguments_UnknownExtension_IsIgnored()
     {
-        var script = Path.Combine("job.avsi");
+        const string script = "job.avsi";
 
         var files = CommandLineScripts.FromArguments(["viewer", "notes.txt", script]);
 

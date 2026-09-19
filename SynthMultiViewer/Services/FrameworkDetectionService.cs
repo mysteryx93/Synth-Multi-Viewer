@@ -1,5 +1,6 @@
 using HanumanInstitute.ApiAviSynth;
 using HanumanInstitute.ApiVapourSynth;
+using HanumanInstitute.ScriptAssist.Services;
 using HanumanInstitute.SynthMultiViewer.Models;
 
 namespace HanumanInstitute.SynthMultiViewer.Services;
@@ -9,13 +10,16 @@ namespace HanumanInstitute.SynthMultiViewer.Services;
 /// </summary>
 public sealed class FrameworkDetectionService : IFrameworkDetectionService
 {
+    private readonly IFileSystemService _files;
     private readonly IScriptLanguageFactory? _languages;
 
     /// <summary>
     /// Creates a detector that applies paths and refreshes script-assist catalogs.
     /// </summary>
-    public FrameworkDetectionService(ISettingsProvider<AppSettingsData> settings, IScriptLanguageFactory? languages = null)
+    public FrameworkDetectionService(ISettingsProvider<AppSettingsData> settings, IFileSystemService files,
+        IScriptLanguageFactory? languages = null)
     {
+        _files = files.CheckNotNull();
         _languages = languages;
         Apply(settings.Value);
     }
@@ -31,10 +35,10 @@ public sealed class FrameworkDetectionService : IFrameworkDetectionService
     {
         VsHelper.SetDllPath(settings.VapourSynthPath);
         VsHelper.SetPluginFolders(
-            FolderListText.Parse(settings.VapourSynthPluginFolders), settings.VapourSynthReplacePlugins);
+            FolderListText.Parse(settings.VapourSynthPluginFolders, _files.Path), settings.VapourSynthReplacePlugins);
         AvsScript.SetDllPath(settings.AviSynthPath);
         AvsScript.SetPluginFolders(
-            FolderListText.Parse(settings.AviSynthPluginFolders), settings.AviSynthReplacePlugins);
+            FolderListText.Parse(settings.AviSynthPluginFolders, _files.Path), settings.AviSynthReplacePlugins);
 
         var vapourSynthFound = VsHelper.TryFindLibrary(out var vapourSynthPath);
         var vapourSynthUsable = VsHelper.TryEvaluate(out var vapourSynthError);

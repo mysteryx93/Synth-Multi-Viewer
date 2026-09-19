@@ -1,9 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 using HanumanInstitute.ScriptAssist.VapourSynth;
+using Moq;
 using Xunit;
-// ReSharper disable AccessToModifiedClosure
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.Host;
 
 using static AssistHarness;
 
@@ -13,7 +13,7 @@ public class ScriptLanguageFactoryTests
     [Fact]
     public void HostConstructor_RegistersVapourSynthAndAviSynth()
     {
-        var factory = new ScriptLanguageFactory(() => [], () => []);
+        var factory = Languages();
 
         var vs = factory.Create(ScriptLanguageFactory.VapourSynth);
         var avs = factory.Create(ScriptLanguageFactory.AviSynth);
@@ -28,56 +28,25 @@ public class ScriptLanguageFactoryTests
     [Fact]
     public async Task IsEnabled_Disabled_SkipsEnumerationUntilEnabled()
     {
-        var count = 0;
-        var catalog = new CatalogCache(() =>
-        {
-            Interlocked.Increment(ref count);
-            return [];
-        });
-        var factory = new ScriptLanguageFactory(
-            [new("one", new VapourSynthLanguage(), catalog)])
-        {
-            IsEnabled = false
-        };
-        factory.Configure("one", "a");
-        var disabled = factory.Create("one");
-        var skipped = count;
+        var native = new Mock<IVapourSynthNativeCatalog>();
+        native.Setup(n => n.Read()).Returns([]);
+        var factory = Languages(native.Object);
+        factory.IsEnabled = false;
+        factory.Configure(ScriptLanguageFactory.VapourSynth, "a");
+        var disabled = factory.Create(ScriptLanguageFactory.VapourSynth);
         factory.IsEnabled = true;
-        factory.Configure("one", "a");
+        factory.Configure(ScriptLanguageFactory.VapourSynth, "a");
 
-        await catalog.GetAsync(CancellationToken.None);
+        await factory.Create(ScriptLanguageFactory.VapourSynth)!.GetAsync("im", 2, CancellationToken.None);
 
         Assert.Null(disabled);
-        Assert.Equal(0, skipped);
-        Assert.Equal(1, count);
-    }
-
-    [Fact]
-    public async Task IsEnabled_Disabled_SkipsRetainedServiceEnumeration()
-    {
-        const string text = "clip";
-        var count = 0;
-        var catalog = new CatalogCache(() =>
-        {
-            Interlocked.Increment(ref count);
-            return [];
-        });
-        var factory = new ScriptLanguageFactory(
-            [new("one", new VapourSynthLanguage(), catalog)]);
-        var service = factory.Create("one")!;
-        factory.IsEnabled = false;
-
-        var reply = await service.GetAsync(text, text.Length, CancellationToken.None);
-
-        Assert.Empty(reply.Items);
-        Assert.Equal(0, count);
+        native.Verify(n => n.Read(), Times.Once);
     }
 
     [Fact]
     public void Create_UnknownLanguage_ReturnsNull()
     {
-        var factory = new ScriptLanguageFactory(
-            [new("one", new VapourSynthLanguage(), new CatalogCache(() => []))]);
+        var factory = Languages();
 
         var service = factory.Create("missing");
 
@@ -85,20 +54,9 @@ public class ScriptLanguageFactoryTests
     }
 
     [Fact]
-    public void Create_KnownLanguage_ReturnsService()
-    {
-        var factory = new ScriptLanguageFactory(
-            [new("one", new VapourSynthLanguage(), new CatalogCache(() => []))]);
-
-        var service = factory.Create("one");
-
-        Assert.NotNull(service);
-    }
-
-    [Fact]
     public void Configure_UnknownLanguage_DoesNotThrow()
     {
-        var factory = new ScriptLanguageFactory([]);
+        var factory = Languages();
 
         var exception = Record.Exception(() => factory.Configure("missing", "key"));
 
@@ -106,90 +64,61 @@ public class ScriptLanguageFactoryTests
     }
 
     [Fact]
-    public void Create_DuplicateLanguageId_Throws()
-    {
-        var language = new VapourSynthLanguage();
-        var catalog = new CatalogCache(() => []);
-
-        Assert.Throws<ArgumentException>(() => new ScriptLanguageFactory(
-        [
-            new("one", language, catalog),
-            new("one", language, catalog)
-        ]));
-    }
-
-    [Fact]
     public async Task GetAsync_EnumerationFailure_IsCached()
     {
-        var count = 0;
-        var cache = new CatalogCache(() =>
-        {
-            Interlocked.Increment(ref count);
-            throw new InvalidOperationException();
-        });
+        const string text = "im";
+        var source = new Mock<ISymbolSource>();
+        source.Setup(s => s.Enumerate()).Throws<InvalidOperationException>();
+        var cache = new CatalogCache(source.Object);
         cache.Refresh("path1");
         var service = new LanguageService(new VapourSynthLanguage(), cache);
 
         for (var i = 0; i < 5; i++)
         {
-            Assert.Contains((await service.GetAsync("im", 2, CancellationToken.None)).Items,
+            Assert.Contains((await service.GetAsync(text, 2, CancellationToken.None)).Items,
                 x => x.InsertionText == "import");
             cache.Refresh("path1");
         }
 
-        Assert.Equal(1, count);
+        source.Verify(s => s.Enumerate(), Times.Once);
     }
 
     [Fact]
-    public async Task GetAsync_EnumerationFailure_RerunsOnPathChange()
+    public async Task Refresh_SameKey_EnumeratesOnceUntilForced()
     {
-        var count = 0;
-        var cache = new CatalogCache(() =>
-        {
-            Interlocked.Increment(ref count);
-            throw new InvalidOperationException();
-        });
+        var source = new Mock<ISymbolSource>();
+        source.Setup(s => s.Enumerate()).Returns([]);
+        var cache = new CatalogCache(source.Object);
+        cache.Refresh("path1");
+        await cache.GetAsync(CancellationToken.None);
         cache.Refresh("path1");
         await cache.GetAsync(CancellationToken.None);
 
-        cache.Refresh("path2");
-        await cache.GetAsync(CancellationToken.None);
-
-        Assert.Equal(2, count);
-    }
-
-    [Fact]
-    public async Task GetAsync_EnumerationFailure_RerunsOnForceRefresh()
-    {
-        var count = 0;
-        var cache = new CatalogCache(() =>
-        {
-            Interlocked.Increment(ref count);
-            throw new InvalidOperationException();
-        });
         cache.Refresh("path2");
         await cache.GetAsync(CancellationToken.None);
 
         cache.Refresh("path2", true);
         await cache.GetAsync(CancellationToken.None);
 
-        Assert.Equal(2, count);
+        source.Verify(s => s.Enumerate(), Times.Exactly(3));
     }
 
     [Fact]
     public async Task Refresh_ReusedCatalogList_SnapshotsNewSymbols()
     {
         const string text = "core.std.";
-        var symbols = new List<Symbol>
+        var functions = new List<VapourSynthFunction>
         {
-            new("core.std.Before", ["clip:vnode"], ReturnType: "clip:vnode;")
+            new("std", "Before", "clip:vnode", "clip:vnode;")
         };
-        var factory = new ScriptLanguageFactory(() => symbols, () => []);
+        var native = new Mock<IVapourSynthNativeCatalog>();
+        native.Setup(n => n.Read()).Returns(() => functions.ToArray());
+        var factory = Languages(native.Object);
         var service = factory.Create(ScriptLanguageFactory.VapourSynth)!;
         var first = await service.GetAsync(text, text.Length, CancellationToken.None);
         Assert.Contains(first.Items, x => x.InsertionText == "Before");
-        symbols.Clear();
-        symbols.Add(new("core.std.After", ["clip:vnode"], ReturnType: "clip:vnode;"));
+        functions.Clear();
+        functions.Add(new("std", "After", "clip:vnode", "clip:vnode;"));
 
         factory.Refresh();
 
@@ -203,16 +132,14 @@ public class ScriptLanguageFactoryTests
     {
         const string text = "import helper as h\nh.";
         var current = "def Old():\n    return 1\n";
-        var language = new VapourSynthLanguage(Read);
-        var catalog = new CatalogCache(() => Array.Empty<Symbol>());
-        var factory = new ScriptLanguageFactory([new("vs", language, catalog)]);
-        var service = (LanguageService)factory.Create("vs")!;
+        var includes = Includes((_, _) => new IncludeFile("/plugins/helper.py", current));
+        var factory = Languages(vapoursynthIncludes: includes);
+        var service = (LanguageService)factory.Create(ScriptLanguageFactory.VapourSynth)!;
         var native = Array.Empty<Symbol>();
         Assert.Contains(service.Analyze(text, text.Length, native).Items, x => x.InsertionText == "Old");
         current = "def New():\n    return 1\n";
-        IncludeFile? Read(string specifier, string? _) => new IncludeFile("/plugins/helper.py", current);
 
-        factory.Configure("vs", "other");
+        factory.Configure(ScriptLanguageFactory.VapourSynth, "other");
 
         var reply = service.Analyze(text, text.Length, native);
         Assert.Contains(reply.Items, x => x.InsertionText == "New");
@@ -220,29 +147,37 @@ public class ScriptLanguageFactoryTests
     }
 
     [Fact]
+    public async Task Refresh_WhenDisabled_EnumeratesCatalog()
+    {
+        var native = new Mock<IVapourSynthNativeCatalog>();
+        native.Setup(n => n.Read()).Returns([]);
+        var factory = Languages(native.Object);
+        factory.IsEnabled = false;
+
+        factory.Refresh();
+        factory.IsEnabled = true;
+        await factory.Create(ScriptLanguageFactory.VapourSynth)!.GetAsync("im", 2, CancellationToken.None);
+
+        native.Verify(n => n.Read(), Times.AtLeastOnce);
+    }
+
+    [Fact]
     public async Task Refresh_ThenConfigureSameKey_DoesNotEnumerateAgain()
     {
         const string text = "im";
-        var count = 0;
-        var catalog = new CatalogCache(() =>
-        {
-            Interlocked.Increment(ref count);
-            return [];
-        });
-        var language = new CountingLanguage(new VapourSynthLanguage());
-        var factory = new ScriptLanguageFactory([new("one", language, catalog)]);
-        factory.Configure("one", "A");
-        var service = (LanguageService)factory.Create("one")!;
+        var native = new Mock<IVapourSynthNativeCatalog>();
+        native.Setup(n => n.Read()).Returns([]);
+        var factory = Languages(native.Object);
+        factory.Configure(ScriptLanguageFactory.VapourSynth, "A");
+        var service = factory.Create(ScriptLanguageFactory.VapourSynth)!;
         await service.GetAsync(text, text.Length, CancellationToken.None);
-        var binds = language.Binds;
-        Assert.Equal(1, count);
+        native.Verify(n => n.Read(), Times.Once);
 
         factory.Refresh();
         await service.GetAsync(text, text.Length, CancellationToken.None);
-        factory.Configure("one", "A");
+        factory.Configure(ScriptLanguageFactory.VapourSynth, "A");
         await service.GetAsync(text, text.Length, CancellationToken.None);
 
-        Assert.Equal(2, count);
-        Assert.Equal(binds + 1, language.Binds);
+        native.Verify(n => n.Read(), Times.Exactly(2));
     }
 }

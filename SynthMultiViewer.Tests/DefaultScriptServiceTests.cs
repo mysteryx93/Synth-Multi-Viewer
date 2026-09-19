@@ -37,7 +37,8 @@ public class DefaultScriptServiceTests
         var defaults = new TestSupport.MemoryDefaultScripts();
         var model = new MainViewModel(
             TestSupport.CreateDialogs(), new TestSupport.TestEnvironment(), defaults,
-            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryAppUpdateService());
+            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryAppUpdateService(),
+            new FakeFileSystemService());
 
         await model.New.Execute();
 
@@ -52,7 +53,8 @@ public class DefaultScriptServiceTests
         var defaults = new TestSupport.MemoryDefaultScripts();
         var model = new MainViewModel(
             TestSupport.CreateDialogs(), new TestSupport.TestEnvironment(), defaults,
-            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryAppUpdateService());
+            new TestSupport.MemorySettingsProvider(), new TestSupport.MemoryAppUpdateService(),
+            new FakeFileSystemService());
 
         await model.NewAviSynth.Execute();
 

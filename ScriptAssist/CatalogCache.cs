@@ -3,7 +3,7 @@ namespace HanumanInstitute.ScriptAssist;
 /// <summary>
 /// One task per configuration, including failures. Cancellation never restarts native enumeration.
 /// </summary>
-public sealed class CatalogCache(Func<IReadOnlyList<Symbol>> enumerate) : ISymbolCatalog
+public sealed class CatalogCache(ISymbolSource source) : ISymbolCatalog
 {
     private readonly Lock _gate = new();
     private Task<IReadOnlyList<Symbol>>? _task;
@@ -38,7 +38,7 @@ public sealed class CatalogCache(Func<IReadOnlyList<Symbol>> enumerate) : ISymbo
             {
                 try
                 {
-                    return enumerate().ToArray();
+                    return source.Enumerate().ToArray();
                 }
                 catch (Exception)
                 {

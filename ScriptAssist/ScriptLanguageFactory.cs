@@ -4,7 +4,7 @@ using HanumanInstitute.ScriptAssist.VapourSynth;
 namespace HanumanInstitute.ScriptAssist;
 
 /// <summary>
-/// Holds the VapourSynth and AviSynth language services and their injected catalogs.
+/// Holds the VapourSynth and AviSynth language services and their catalogs.
 /// </summary>
 public class ScriptLanguageFactory : IScriptLanguageFactory
 {
@@ -21,50 +21,25 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
     private readonly Dictionary<string, LanguageProfile> _profiles;
 
     /// <summary>
-    /// Creates the built-in VapourSynth and AviSynth profiles. The host injects native catalogs and optional include readers.
+    /// Creates the built-in VapourSynth and AviSynth profiles.
     /// </summary>
     public ScriptLanguageFactory(
-        Func<IReadOnlyList<Symbol>> vapoursynthCatalog,
-        Func<IReadOnlyList<Symbol>> avisynthCatalog,
-        IncludeReader? vapoursynthIncludes = null,
-        IncludeReader? avisynthIncludes = null)
-        : this(
-        [
-            new(
-                VapourSynth,
-                new VapourSynthLanguage(vapoursynthIncludes),
-                new CatalogCache(vapoursynthCatalog.CheckNotNull())),
-            new(
-                AviSynth,
-                new AviSynthLanguage(avisynthIncludes),
-                new CatalogCache(avisynthCatalog.CheckNotNull()))
-        ])
+        IVapourSynthNativeCatalog vapoursynth,
+        IAviSynthNativeCatalog avisynth,
+        IScriptDirectory avisynthAutoload,
+        IIncludeSource? vapoursynthIncludes = null,
+        IIncludeSource? avisynthIncludes = null)
     {
-    }
-
-    /// <summary>
-    /// Creates cached services around the given profiles. Duplicate ids throw <see cref="ArgumentException"/>.
-    /// </summary>
-    public ScriptLanguageFactory(IReadOnlyList<LanguageProfile> profiles)
-    {
-        profiles.CheckNotNull();
-        _profiles = new(StringComparer.Ordinal);
-        foreach (var profile in profiles)
+        vapoursynth.CheckNotNull();
+        avisynth.CheckNotNull();
+        avisynthAutoload.CheckNotNull();
+        _profiles = new(StringComparer.Ordinal)
         {
-            profile.CheckNotNull();
-            if (!_profiles.TryAdd(profile.Id, profile))
-            {
-                throw new ArgumentException("Duplicate language '{0}'.".FormatInvariant(profile.Id), nameof(profiles));
-            }
-        }
-
-        foreach (var profile in _profiles.Values)
-        {
-            if (profile.Service is LanguageService service)
-            {
-                service.AllowRequests = () => IsEnabled;
-            }
-        }
+            [VapourSynth] = new(VapourSynth, new VapourSynthLanguage(vapoursynthIncludes),
+                new CatalogCache(new VapourSynthSymbolSource(vapoursynth))),
+            [AviSynth] = new(AviSynth, new AviSynthLanguage(avisynthIncludes),
+                new CatalogCache(new AviSynthSymbolSource(avisynth, avisynthAutoload, avisynthIncludes)))
+        };
     }
 
     /// <inheritdoc />
@@ -87,7 +62,10 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
     {
         language.CheckNotNull();
         catalogKey.CheckNotNull();
-        if (!_profiles.TryGetValue(language, out var profile)) { return; }
+        if (!_profiles.TryGetValue(language, out var profile))
+        {
+            return;
+        }
 
         var previous = profile.CatalogKey;
         if (!IsEnabled)
@@ -109,8 +87,6 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
     /// <inheritdoc />
     public virtual void Refresh()
     {
-        if (!IsEnabled) { return; }
-
         foreach (var profile in _profiles.Values)
         {
             profile.Catalog.Refresh(profile.CatalogKey ?? "", true);

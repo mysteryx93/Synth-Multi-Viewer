@@ -54,8 +54,8 @@ public abstract class SettingsProviderBase<T> : ISettingsProvider<T>
         }
         catch (JsonException) { }
         catch (InvalidOperationException) { }
-        catch (DirectoryNotFoundException) { }
-        catch (FileNotFoundException) { }
+        catch (System.IO.DirectoryNotFoundException) { }
+        catch (System.IO.FileNotFoundException) { }
 
         Value = result ?? GetDefault();
         Changed?.Invoke(this, EventArgs.Empty);

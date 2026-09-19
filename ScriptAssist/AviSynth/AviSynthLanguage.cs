@@ -6,7 +6,7 @@ namespace HanumanInstitute.ScriptAssist.AviSynth;
 public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshableLanguage, IContextHover,
     ICallReceiver
 {
-    private readonly IncludeReader? _read;
+    private readonly IIncludeSource? _read;
     /// <summary>
     /// Gets AviSynth comment and string rules.
     /// </summary>
@@ -24,7 +24,7 @@ public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshabl
     /// <summary>
     /// Creates a profile that optionally follows <c>Import</c> through <paramref name="read"/>.
     /// </summary>
-    public AviSynthLanguage(IncludeReader? read = null) => _read = read;
+    public AviSynthLanguage(IIncludeSource? read = null) => _read = read;
 
     /// <inheritdoc />
     public LexerOptions Lexer => LexerOptions;

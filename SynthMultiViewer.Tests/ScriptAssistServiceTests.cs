@@ -1,4 +1,3 @@
-using HanumanInstitute.ApiVapourSynth;
 using HanumanInstitute.ScriptAssist;
 using HanumanInstitute.SynthMultiViewer.Services;
 using Xunit;
@@ -10,7 +9,7 @@ public class ScriptAssistServiceTests
     [Fact]
     public void Create_WellKnownLanguages_AreRegistered()
     {
-        var service = new ScriptAssistService(new TestSupport.MemorySettingsProvider());
+        var service = new ScriptAssistService(new TestSupport.MemorySettingsProvider(), new FakeFileSystemService());
 
         Assert.True(service.IsEnabled);
         Assert.NotNull(service.Create(ScriptLanguageFactory.VapourSynth));
@@ -25,7 +24,7 @@ public class ScriptAssistServiceTests
             Value = { EnhanceEditorWithAutoComplete = false }
         };
 
-        var service = new ScriptAssistService(settings);
+        var service = new ScriptAssistService(settings, new FakeFileSystemService());
 
         Assert.False(service.IsEnabled);
     }
@@ -37,7 +36,7 @@ public class ScriptAssistServiceTests
         {
             Value = { EnhanceEditorWithAutoComplete = false }
         };
-        var service = new ScriptAssistService(settings);
+        var service = new ScriptAssistService(settings, new FakeFileSystemService());
 
         settings.Value.EnhanceEditorWithAutoComplete = true;
 
@@ -47,27 +46,15 @@ public class ScriptAssistServiceTests
     [Fact]
     public void Configure_WhenDisabled_DoesNotEnumerateNativeCatalogs()
     {
-        var service = new ScriptAssistService(new TestSupport.MemorySettingsProvider()) { IsEnabled = false };
+        var service = new ScriptAssistService(new TestSupport.MemorySettingsProvider(), new FakeFileSystemService())
+        {
+            IsEnabled = false
+        };
 
         service.Configure(ScriptLanguageFactory.VapourSynth, "a");
         service.Configure(ScriptLanguageFactory.AviSynth, "b");
         service.Refresh();
 
         Assert.False(service.IsEnabled);
-    }
-
-    [Fact]
-    public void VapourSynthIncludeReadsHavsfuncFromSitePackages()
-    {
-        var file = ScriptIncludeIO.VapourSynth("havsfunc", null);
-        Assert.SkipWhen(file == null, "havsfunc is not installed on this machine");
-
-        Assert.Contains("def QTGMC(", file.Value.Text, StringComparison.Ordinal);
-        Assert.True(file.Value.Path.Contains("site-packages", StringComparison.Ordinal)
-            || file.Value.Path.Contains("dist-packages", StringComparison.Ordinal)
-            || File.Exists(file.Value.Path));
-        Assert.NotNull(VsPathResolver.GetPythonModuleDirectories()
-            .FirstOrDefault(directory => File.Exists(Path.Combine(directory, "havsfunc.py"))
-                || Directory.Exists(Path.Combine(directory, "havsfunc"))));
     }
 }

@@ -80,7 +80,7 @@ public class ViewerBindingTests
     [AvaloniaFact]
     public void ViewerBindings_FileNameSet_AssignsHostPath()
     {
-        var path = Path.Combine(Path.GetTempPath(), "clip.vpy");
+        const string path = "/scripts/clip.vpy";
         var model = new ViewerViewModel { FileName = path };
         var view = new ViewerView { DataContext = model };
         using var window = TestSupport.Show(new() { DataContext = TestSupport.CreateMain(), Content = view });

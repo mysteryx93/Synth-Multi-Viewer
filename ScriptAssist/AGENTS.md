@@ -5,16 +5,21 @@ Consumer setup and API examples: [README.md](README.md). These notes describe im
 ## Boundaries
 
 - Keep one assembly. Never reference `ApiVapourSynth`, `ApiAviSynth`, or the app; never load a native core or execute scripts.
-- Keep language behavior here, including type inference and `clip.` completion. The host supplies catalogs and include readers; it does not assemble language rules.
-- Keep the consumer API centered on `ScriptLanguageFactory`, `GetAsync`, and `EditorAssist`. The factory owns the built-in language ids; the profile-list constructor is for tests.
+- Keep language behavior here, including type inference, `clip.` completion, `Symbol` mapping from dump DTOs, grouping, and browse. The host implements `IVapourSynthNativeCatalog` / `IAviSynthNativeCatalog`, `IScriptDirectory`, and `IIncludeSource`; it does not assemble language rules or map plugins in the app.
+- Disk I/O is `IFileSystemService` in `Services/` (System.IO.Abstractions plus a few helpers). That folder is separable. Call `File` / `Directory` / `Path` only through that service when the member exists on `IFileSystem` / `IPath`. `ScriptFiles` and include-path math take `IFileSystemService` / `IPath`. Tests use a Fake or Moq, not temp files. `System.IO` leftovers (`IOException`, `FileMode`, `SearchOption`) stay fully qualified. Do not remove `System.IO` from implicit usings.
+- Collaborators are native dumps, plugin-folder disk, includes, and `IAssistSession`. Do not take `Func` / `delegate` catalogs, includes, paths, or enablement. Do not add `ITextFile`, a profile-list factory constructor, `IAssistGate`, or settable `AllowRequests` for tests. The factory takes natives and builds `VapourSynthSymbolSource` / `AviSynthSymbolSource`.
+- Keep the consumer API centered on `ScriptLanguageFactory`, `GetAsync`, `BrowseAsync` (when present), and `EditorAssist`. The factory owns the built-in language ids and `IsEnabled`.
+- `Refresh()` always re-enumerates catalogs, including while `IsEnabled` is false. `Create` returns null while disabled; `EditorAssist` skips requests. `LanguageService` does not take an enablement gate.
+- One type per file; the file name matches the type.
 - `LanguageService` and `CatalogCache` remain language-agnostic. Ranking belongs to `ILanguage.CompletionPriority`; do not special-case clip types in the engine. Member lists are alphabetical; named-argument completions keep a higher priority so they stay above the rest of the list. Do not demote plugin namespaces on `clip.`.
-- Unless explicitly requested, exclude full parsers/type checkers, eval/GScript scopes, stdlib/numpy/`__all__`, array/list element types, map keys, imported Python classes, nested FrameEval function environments, and `f.props`. Small static-analysis improvements remain appropriate.
+- Unless explicitly requested, exclude full parsers/type checkers, eval/GScript scopes, stdlib/numpy/`__all__`, array/list element types, map keys, imported Python class *members*, nested FrameEval function environments, and `f.props`. Small static-analysis improvements remain appropriate.
 
 ## Structure
 
 | Location | Namespace suffix after `HanumanInstitute.ScriptAssist` | Role |
 | --- | --- | --- |
 | Project root | none | Public services, factory, catalog and file helpers |
+| `Services/` | `.Services` | `IFileSystemService` / `FileSystemService`; extractable |
 | `Models/` | none | Public contracts; preserve namespace when moving files |
 | `Utilities/` | none | Internal scanning and parsing helpers |
 | `AviSynth/` | `.AviSynth` | Public language/parsers; internal binding and type walking |
@@ -75,14 +80,14 @@ Include cache lifecycle is documented in README; parsed exports and failed path 
 
 ## Catalogs, includes, and editor lifecycle
 
-- Catalog callbacks run in the background. `SetKey` only remembers configuration; `Refresh` starts enumeration; cancelling `GetAsync` cancels the wait, not native work. Enumeration failures become an empty catalog. The cache retains the current task until configuration changes or refresh is forced.
-- `IsEnabled` is a factory bool; the editor options callback follows it. Disabled `Configure` stores the key, disabled `Refresh` does nothing, and `Create` returns null. Retained services skip `GetAsync` catalog work while the factory is disabled. Duplicate profile ids throw.
-- `IncludeReader(specifier, fromPath)` returns full resolved path + text, or null. The host owns I/O; `ScriptFiles` builds candidates and invokes its supplied reader. Missing/unreadable candidates must return null so lookup can continue.
+- `ISymbolSource.Enumerate` runs in the background via `CatalogCache`. `SetKey` only remembers configuration; `Refresh` starts enumeration; cancelling `GetAsync` cancels the wait, not native work. Enumeration failures become an empty catalog. The cache retains the current task until configuration changes or refresh is forced.
+- `IsEnabled` is a factory bool. Disabled `Configure` stores the key, `Refresh` still enumerates, and `Create` returns null. A service already obtained still analyzes; the editor does not call it while the factory is disabled.
+- `IIncludeSource.Read(specifier, fromPath)` returns full resolved path + text, or null. The host owns search roots; `ScriptFiles` tries candidates through `IFileSystemService` and returns null for missing/unreadable paths so lookup can continue. Autoload AviSynth scripts are read through `IScriptDirectory.TryRead`.
 - Use absolute include paths directly; otherwise search beside the importing file, then host roots. Python leading dots are relative to that file's directory, never a rooted path produced by replacing dots. Track resolved paths to prevent cycles.
 - Pass `documentPath` through `GetAsync`/`Bind`. Unsaved buffers lack a sibling directory but can use configured roots. Python site-packages belongs in script search roots, never native autoload directories.
-- `EditorAssist` owns attach/detach, cancellation, debounce, and stale-result rejection; presenters own popups. Keep parser internals out of editor options; exposing `Reply` is sufficient. No Splat registration helper.
+- `EditorAssist` owns attach/detach, cancellation, debounce, and stale-result rejection; presenters own popups. It takes `IAssistSession`, not `Func` catalogs or path callbacks. Keep parser internals out of wrap-size options; exposing `Reply` is sufficient. No Splat registration helper.
 
-Reference host: `ScriptAssistService` supplies `ScriptCatalogs` and `ScriptIncludeIO`. `FrameworkDetectionService` configures keys after native setup; the factory must not call `VsHelper.SetDllPath`. `EnhanceEditorWithAutoComplete` is the enablement setting; `BindableTextEditor` maps `ScriptKind` to factory ids and passes the open file path. Autoload AVSI/AVS parsing and catalog mapping stay at this host boundary.
+Reference host: `ScriptAssistService` passes native dump adapters, `AviSynthPluginDirectory`, and include sources into the factory. `FrameworkDetectionService` configures keys after native setup; the factory must not call `VsHelper.SetDllPath`. `EnhanceEditorWithAutoComplete` is the enablement setting; `BindableTextEditor` implements `IAssistSession` and maps `ScriptKind` to factory ids.
 
 ## Analysis notes
 
@@ -119,4 +124,4 @@ dotnet ScriptAssist.Tests/bin/Debug/net10.0/ScriptAssist.Tests.dll
 | `Host/` | `CompletionDataTests` | Presenters, wrap, overload UI |
 
 - Test inside and after function scopes, header silence, and `vs` annotation hover. Include comments, multiline/incomplete input, and realistic native signatures.
-- Prefer representative installed/sibling scripts: xClean trailing `\`, FrameRateConverter leading `\` and `[** *]`/triple quotes, Shader, and havsfunc. Import graphs use a `Read` local function at the end of Prepare (`IncludeFile? Read(string specifier, string? fromPath)`), not an `IncludeReader` lambda.
+- Prefer representative installed/sibling scripts: xClean trailing `\`, FrameRateConverter leading `\` and `[** *]`/triple quotes, Shader, and havsfunc. Import graphs use a `Read` local function at the end of Prepare, wrapped as `Includes(Read)` for `IIncludeSource`.

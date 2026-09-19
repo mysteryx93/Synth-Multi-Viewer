@@ -3,7 +3,7 @@ using Avalonia.Media;
 using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.Host;
 
 public class CompletionDataTests
 {

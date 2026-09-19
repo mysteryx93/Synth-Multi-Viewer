@@ -66,7 +66,7 @@ public static class AviSynthFunctions
     /// <summary>
     /// Follows <c>Import</c> specifiers with <paramref name="read"/> and returns parsed functions.
     /// </summary>
-    public static IReadOnlyList<Symbol> LoadImports(string text, string? documentPath, IncludeReader? read,
+    public static IReadOnlyList<Symbol> LoadImports(string text, string? documentPath, IIncludeSource? read,
         LexerOptions lexer, CancellationToken token = default)
     {
         var buffer = new List<Symbol>();
@@ -78,15 +78,15 @@ public static class AviSynthFunctions
     /// <summary>
     /// Follows <c>Import</c> specifiers with <paramref name="read"/> and appends parsed functions.
     /// </summary>
-    public static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
+    public static void AddImports(string text, string? documentPath, IIncludeSource? read, List<Symbol> buffer,
         HashSet<string> visited, LexerOptions lexer, CancellationToken token) =>
         AddImports(text, documentPath, read, buffer, visited, lexer, token, new IncludeCache());
 
-    internal static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
+    internal static void AddImports(string text, string? documentPath, IIncludeSource? read, List<Symbol> buffer,
         HashSet<string> visited, LexerOptions lexer, CancellationToken token, IncludeCache? includes) =>
         AddImports(text, documentPath, read, buffer, visited, lexer, token, new IncludeSession(includes));
 
-    internal static void AddImports(string clean, string quoted, string? documentPath, IncludeReader? read,
+    internal static void AddImports(string clean, string quoted, string? documentPath, IIncludeSource? read,
         List<Symbol> buffer, HashSet<string> visited, LexerOptions lexer, CancellationToken token,
         IncludeCache? includes)
     {
@@ -105,7 +105,7 @@ public static class AviSynthFunctions
         session.Finish(documentPath);
     }
 
-    private static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
+    private static void AddImports(string text, string? documentPath, IIncludeSource? read, List<Symbol> buffer,
         HashSet<string> visited, LexerOptions lexer, CancellationToken token, IncludeSession includes)
     {
         if (read == null)
@@ -122,7 +122,7 @@ public static class AviSynthFunctions
         includes.Finish(documentPath);
     }
 
-    private static void LoadSpecifier(string specifier, string? fromPath, IncludeReader read, List<Symbol> buffer,
+    private static void LoadSpecifier(string specifier, string? fromPath, IIncludeSource read, List<Symbol> buffer,
         HashSet<string> visited, HashSet<string> ensuring, LexerOptions lexer, CancellationToken token,
         IncludeSession includes)
     {
@@ -138,7 +138,7 @@ public static class AviSynthFunctions
             return;
         }
 
-        var file = read(specifier, fromPath);
+        var file = read.Read(specifier, fromPath);
         if (file == null)
         {
             includes.SetPath(specifier, fromPath, null);
@@ -150,7 +150,7 @@ public static class AviSynthFunctions
         Expand(file.Value.Path, buffer, visited, includes);
     }
 
-    private static void EnsureCached(string path, string text, string fromPath, IncludeReader read,
+    private static void EnsureCached(string path, string text, string fromPath, IIncludeSource read,
         HashSet<string> ensuring, LexerOptions lexer, CancellationToken token, IncludeSession includes)
     {
         if (EntryComplete(path, includes, token) || !ensuring.Add(path))
@@ -180,7 +180,7 @@ public static class AviSynthFunctions
                 continue;
             }
 
-            var file = read(specifier, fromPath);
+            var file = read.Read(specifier, fromPath);
             if (file == null)
             {
                 includes.SetPath(specifier, fromPath, null);

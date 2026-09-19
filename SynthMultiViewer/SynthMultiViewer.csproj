@@ -35,6 +35,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="HanumanInstitute.Validators" />
+    <PackageReference Include="System.IO.Abstractions" />
     <PackageReference Include="HanumanInstitute.MvvmDialogs" />
     <PackageReference Include="HanumanInstitute.MvvmDialogs.Avalonia" />
     <PackageReference Include="HanumanInstitute.MvvmDialogs.Avalonia.MessageBox" />

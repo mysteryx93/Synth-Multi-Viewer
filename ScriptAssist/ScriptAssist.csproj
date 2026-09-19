@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.AvaloniaEdit" />
     <PackageReference Include="HanumanInstitute.Validators" />
+    <PackageReference Include="System.IO.Abstractions" />
     <InternalsVisibleTo Include="ScriptAssist.Tests" />
     <InternalsVisibleTo Include="SynthMultiViewer.Tests" />
   </ItemGroup>

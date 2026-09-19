@@ -8,7 +8,9 @@ public sealed record Symbol(
     string[]? Parameters,
     SymbolKind Kind = SymbolKind.Function,
     bool ImplicitLast = false,
-    string? ReturnType = null)
+    string? ReturnType = null,
+    string? Group = null,
+    string? Title = null)
 {
     /// <summary>
     /// Gets the last dotted segment of <see cref="Name"/>. Catalog identity stays on

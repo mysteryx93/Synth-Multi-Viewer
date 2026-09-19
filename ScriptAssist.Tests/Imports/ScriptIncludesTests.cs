@@ -3,7 +3,9 @@ using HanumanInstitute.ScriptAssist.AviSynth;
 using HanumanInstitute.ScriptAssist.VapourSynth;
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.Imports;
+
+using static AssistHarness;
 
 [SuppressMessage("Usage", "xUnit1051:Calls to methods which accept CancellationToken should use TestContext.Current.CancellationToken")]
 public class ScriptIncludesTests
@@ -243,48 +245,52 @@ public class ScriptIncludesTests
     [Fact]
     public void Parse_PythonIncludePaths_PrefersBufferThenPluginRoots()
     {
-        var fromPath = Path.Combine("/scripts", "job.vpy");
+        var files = new FakeFileSystemService();
+        var fromPath = files.Path.Combine("/scripts", "job.vpy");
         var roots = new[] { "/plugins" };
 
-        var paths = IncludePaths.PythonModule("havsfunc", fromPath, roots).ToArray();
+        var paths = IncludePaths.PythonModule("havsfunc", fromPath, roots, files.Path).ToArray();
 
-        Assert.Contains(Path.Combine("/scripts", "havsfunc.py"), paths);
-        Assert.Contains(Path.Combine("/scripts", "havsfunc", "__init__.py"), paths);
-        Assert.Contains(Path.Combine("/plugins", "havsfunc.py"), paths);
-        Assert.Contains(Path.Combine("/plugins", "havsfunc", "__init__.py"), paths);
+        Assert.Contains(files.Path.Combine("/scripts", "havsfunc.py"), paths);
+        Assert.Contains(files.Path.Combine("/scripts", "havsfunc", "__init__.py"), paths);
+        Assert.Contains(files.Path.Combine("/plugins", "havsfunc.py"), paths);
+        Assert.Contains(files.Path.Combine("/plugins", "havsfunc", "__init__.py"), paths);
     }
 
     [Fact]
     public void Parse_PythonRelativeInclude_UsesFileDirectory()
     {
-        var fromPath = Path.Combine("/plugins", "havsfunc", "__init__.py");
+        var files = new FakeFileSystemService();
+        var fromPath = files.Path.Combine("/plugins", "havsfunc", "__init__.py");
 
-        var paths = IncludePaths.PythonModule(".qtgmc", fromPath, ["/unused"]).ToArray();
+        var paths = IncludePaths.PythonModule(".qtgmc", fromPath, ["/unused"], files.Path).ToArray();
 
-        Assert.Equal(Path.Combine("/plugins", "havsfunc", "qtgmc.py"), paths[0]);
-        Assert.Equal(Path.Combine("/plugins", "havsfunc", "qtgmc", "__init__.py"), paths[1]);
+        Assert.Equal(files.Path.Combine("/plugins", "havsfunc", "qtgmc.py"), paths[0]);
+        Assert.Equal(files.Path.Combine("/plugins", "havsfunc", "qtgmc", "__init__.py"), paths[1]);
         Assert.DoesNotContain(paths, path => path.Contains("unused", StringComparison.Ordinal));
     }
 
     [Fact]
     public void Parse_PythonDotOnlyRelative_UsesPackageInit()
     {
-        var fromPath = Path.Combine("/project", "pkg", "filter.py");
+        var files = new FakeFileSystemService();
+        var fromPath = files.Path.Combine("/project", "pkg", "filter.py");
 
-        var paths = IncludePaths.PythonModule(".", fromPath, ["/unused"]).ToArray();
+        var paths = IncludePaths.PythonModule(".", fromPath, ["/unused"], files.Path).ToArray();
 
-        Assert.Equal([Path.Combine("/project", "pkg", "__init__.py")], paths);
+        Assert.Equal([files.Path.Combine("/project", "pkg", "__init__.py")], paths);
     }
 
     [Fact]
     public void Parse_AviSynthIncludePaths_UsesSpecifierNextToDocument()
     {
-        var fromPath = Path.Combine("/scripts", "job.avs");
+        var files = new FakeFileSystemService();
+        var fromPath = files.Path.Combine("/scripts", "job.avs");
 
-        var paths = IncludePaths.AviSynth("helpers.avsi", fromPath, ["/plugins"]).ToArray();
+        var paths = IncludePaths.AviSynth("helpers.avsi", fromPath, ["/plugins"], files.Path).ToArray();
 
-        Assert.Equal(Path.Combine("/scripts", "helpers.avsi"), paths[0]);
-        Assert.Contains(Path.Combine("/plugins", "helpers.avsi"), paths);
+        Assert.Equal(files.Path.Combine("/scripts", "helpers.avsi"), paths[0]);
+        Assert.Contains(files.Path.Combine("/plugins", "helpers.avsi"), paths);
     }
 
     [Theory]
@@ -319,7 +325,7 @@ public class ScriptIncludesTests
             ? new IncludeFile("/h.avsi", avsi)
             : null;
 
-        var symbols = AviSynthFunctions.LoadImports("Import(\"helper.avsi\")", null, Read, lexer);
+        var symbols = AviSynthFunctions.LoadImports("Import(\"helper.avsi\")", null, Includes(Read), lexer);
 
         Assert.Contains(symbols, x => x.Name.Equals("Helper", StringComparison.OrdinalIgnoreCase));
     }

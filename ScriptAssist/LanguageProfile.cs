@@ -3,7 +3,7 @@ namespace HanumanInstitute.ScriptAssist;
 /// <summary>
 /// A language implementation paired with its symbol catalog.
 /// </summary>
-public sealed class LanguageProfile
+internal sealed class LanguageProfile
 {
     /// <summary>
     /// Creates a profile identified by <paramref name="id"/>.
@@ -28,7 +28,7 @@ public sealed class LanguageProfile
     /// <summary>
     /// Gets the configuration key last passed to <see cref="ScriptLanguageFactory.Configure"/>.
     /// </summary>
-    internal string? CatalogKey { get; set; }
+    public string? CatalogKey { get; set; }
 
     /// <summary>
     /// Gets the shared language service for this profile.

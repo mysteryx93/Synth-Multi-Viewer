@@ -22,28 +22,30 @@ public class MainViewModelTests
     [AvaloniaFact]
     public async Task Load_FileUriArgument_OpensScript()
     {
-        using var file = new TestSupport.TemporaryScript("opened from uri");
-        var uri = new Uri(file.Path).AbsoluteUri;
-        var model = TestSupport.CreateMain(new TestSupport.TestEnvironment(["viewer", uri]));
+        const string path = "/scripts/opened.vpy";
+        var files = new FakeFileSystemService().Add(path, "opened from uri");
+        var model = TestSupport.CreateMain(new TestSupport.TestEnvironment(["viewer", new Uri("file://" + path).AbsoluteUri]),
+            files: files);
 
         await model.Load.Execute();
 
         var editor = Assert.IsType<EditorViewModel>(Assert.Single(model.ScriptList));
-        Assert.Equal(file.Path, editor.FileName);
+        Assert.Equal(path, editor.FileName);
         Assert.Equal("opened from uri", editor.Script);
     }
 
     [AvaloniaFact]
     public async Task Load_ExecutedTwice_OpensArgumentsOnce()
     {
-        using var file = new TestSupport.TemporaryScript("script from file");
-        var model = TestSupport.CreateMain(new TestSupport.TestEnvironment(["viewer", file.Path]));
+        const string path = "/scripts/from-file.vpy";
+        var files = new FakeFileSystemService().Add(path, "script from file");
+        var model = TestSupport.CreateMain(new TestSupport.TestEnvironment(["viewer", path]), files: files);
 
         await model.Load.Execute();
         await model.Load.Execute();
 
         var editor = Assert.IsType<EditorViewModel>(Assert.Single(model.ScriptList));
-        Assert.Equal(file.Path, editor.FileName);
+        Assert.Equal(path, editor.FileName);
         Assert.Equal("script from file", editor.Script);
         Assert.True(editor.IsActive);
     }
@@ -250,14 +252,15 @@ public class MainViewModelTests
     [AvaloniaFact]
     public async Task New_AfterOpenFile_DoesNotConsumeScriptNumbers()
     {
-        using var file = new TestSupport.TemporaryScript("opened");
-        var model = TestSupport.CreateMain();
+        const string path = "/scripts/opened.vpy";
+        var files = new FakeFileSystemService().Add(path, "opened");
+        var model = TestSupport.CreateMain(files: files);
         await model.New.Execute();
 
-        await model.ReadScriptFileAsync(file.Path);
+        await model.ReadScriptFileAsync(path);
         await model.New.Execute();
 
-        Assert.Equal(["Script 1", Path.GetFileName(file.Path), "Script 2"],
+        Assert.Equal(["Script 1", "opened.vpy", "Script 2"],
             model.ScriptList.Select(x => x.DisplayName));
     }
 
@@ -414,28 +417,30 @@ public class MainViewModelTests
     [AvaloniaFact]
     public async Task Close_DirtyEditor_Discard_ClosesWithoutSaving()
     {
-        using var file = new TestSupport.TemporaryScript("original");
+        const string path = "/scripts/original.vpy";
+        var files = new FakeFileSystemService().Add(path, "original");
         var manager = new TestSupport.FakeDialogManager();
         manager.QueueFrameworkResult(false);
-        var model = TestSupport.CreateMain(manager: manager);
-        Assert.True(await model.ReadScriptFileAsync(file.Path));
+        var model = TestSupport.CreateMain(manager: manager, files: files);
+        Assert.True(await model.ReadScriptFileAsync(path));
         var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
         editor.Script = "changed";
 
         await editor.Close.Execute();
 
         Assert.Empty(model.ScriptList);
-        Assert.Equal("original", await File.ReadAllTextAsync(file.Path));
+        Assert.Equal("original", files.File.ReadAllText(path));
     }
 
     [AvaloniaFact]
     public async Task Close_DirtyEditor_Save_WritesAndCloses()
     {
-        using var file = new TestSupport.TemporaryScript("original");
+        const string path = "/scripts/original.vpy";
+        var files = new FakeFileSystemService().Add(path, "original");
         var manager = new TestSupport.FakeDialogManager();
         manager.QueueFrameworkResult(true);
-        var model = TestSupport.CreateMain(manager: manager);
-        Assert.True(await model.ReadScriptFileAsync(file.Path));
+        var model = TestSupport.CreateMain(manager: manager, files: files);
+        Assert.True(await model.ReadScriptFileAsync(path));
         var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
         editor.Script = "changed";
 
@@ -447,7 +452,7 @@ public class MainViewModelTests
         }
 
         Assert.Empty(model.ScriptList);
-        Assert.Equal("changed", await File.ReadAllTextAsync(file.Path));
+        Assert.Equal("changed", files.File.ReadAllText(path));
     }
 
     [AvaloniaFact]
@@ -957,7 +962,7 @@ public class MainViewModelTests
         var model = TestSupport.CreateMain();
         await model.NewAviSynth.Execute();
         var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
-        editor.FileName = Path.Combine(Path.GetTempPath(), "clip.avs");
+        editor.FileName = "/scripts/clip.avs";
 
         await model.Run.Execute();
 
@@ -991,25 +996,18 @@ public class MainViewModelTests
     [AvaloniaFact]
     public async Task ReadScriptFileAsync_AvsExtension_SetsAviSynthKind()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"SynthMultiViewer-{Guid.NewGuid():N}.avs");
+        const string path = "/scripts/clip.avs";
         const string script = "BlankClip()\n";
-        try
-        {
-            await File.WriteAllTextAsync(path, script);
-            var model = TestSupport.CreateMain();
+        var files = new FakeFileSystemService().Add(path, script);
+        var model = TestSupport.CreateMain(files: files);
 
-            var loaded = await model.ReadScriptFileAsync(path);
+        var loaded = await model.ReadScriptFileAsync(path);
 
-            var editor = Assert.IsType<EditorViewModel>(Assert.Single(model.ScriptList));
-            Assert.True(loaded);
-            Assert.Equal(path, editor.FileName);
-            Assert.Equal(ScriptKind.AviSynth, editor.Kind);
-            Assert.Equal(script, editor.Script);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        var editor = Assert.IsType<EditorViewModel>(Assert.Single(model.ScriptList));
+        Assert.True(loaded);
+        Assert.Equal(path, editor.FileName);
+        Assert.Equal(ScriptKind.AviSynth, editor.Kind);
+        Assert.Equal(script, editor.Script);
     }
 
     [AvaloniaFact]
@@ -1066,80 +1064,78 @@ public class MainViewModelTests
     [AvaloniaFact]
     public async Task ReadScriptFileAsync_RemembersRecent()
     {
-        using var file = new TestSupport.TemporaryScript("clip");
+        const string path = "/scripts/clip.vpy";
+        var files = new FakeFileSystemService().Add(path, "clip");
         var settings = new TestSupport.MemorySettingsProvider();
-        var model = TestSupport.CreateMain(settings: settings);
+        var model = TestSupport.CreateMain(settings: settings, files: files);
 
-        Assert.True(await model.ReadScriptFileAsync(file.Path));
+        Assert.True(await model.ReadScriptFileAsync(path));
 
-        Assert.Equal([file.Path], settings.Value.RecentFiles);
+        Assert.Equal([path], settings.Value.RecentFiles);
         Assert.False(model.IsStartVisible);
     }
 
     [AvaloniaFact]
     public async Task Close_RecentFile_ShowsRecentOnStart()
     {
-        using var file = new TestSupport.TemporaryScript("clip");
+        const string path = "/scripts/clip.vpy";
+        var files = new FakeFileSystemService().Add(path, "clip");
         var settings = new TestSupport.MemorySettingsProvider();
-        var model = TestSupport.CreateMain(settings: settings);
-        Assert.True(await model.ReadScriptFileAsync(file.Path));
+        var model = TestSupport.CreateMain(settings: settings, files: files);
+        Assert.True(await model.ReadScriptFileAsync(path));
 
         await model.SelectedItem!.Close.Execute();
 
         Assert.True(model.IsStartVisible);
-        Assert.Equal(file.Path, Assert.Single(model.Recents).Path);
-        Assert.Equal(Path.GetFileName(file.Path), model.Recents[0].Name);
+        Assert.Equal(path, Assert.Single(model.Recents).Path);
+        Assert.Equal("clip.vpy", model.Recents[0].Name);
     }
 
     [AvaloniaFact]
     public async Task Recents_Reopen_MovesToFront()
     {
-        using var first = new TestSupport.TemporaryScript("a");
-        using var second = new TestSupport.TemporaryScript("b");
+        const string first = "/scripts/a.vpy";
+        const string second = "/scripts/b.vpy";
+        var files = new FakeFileSystemService().Add(first, "a").Add(second, "b");
         var settings = new TestSupport.MemorySettingsProvider();
-        var model = TestSupport.CreateMain(settings: settings);
-        Assert.True(await model.ReadScriptFileAsync(first.Path));
-        Assert.True(await model.ReadScriptFileAsync(second.Path));
-        Assert.Equal([second.Path, first.Path], settings.Value.RecentFiles);
+        var model = TestSupport.CreateMain(settings: settings, files: files);
+        Assert.True(await model.ReadScriptFileAsync(first));
+        Assert.True(await model.ReadScriptFileAsync(second));
+        Assert.Equal([second, first], settings.Value.RecentFiles);
 
-        Assert.True(await model.ReadScriptFileAsync(first.Path));
+        Assert.True(await model.ReadScriptFileAsync(first));
 
-        Assert.Equal([first.Path, second.Path], settings.Value.RecentFiles);
+        Assert.Equal([first, second], settings.Value.RecentFiles);
     }
 
     [AvaloniaFact]
     public async Task Recents_Cap8_DropsOldest()
     {
+        var disk = new FakeFileSystemService();
+        var paths = new string[9];
+        for (var i = 0; i < 9; i++)
+        {
+            paths[i] = "/scripts/" + i + ".vpy";
+            disk.Add(paths[i], i.ToString());
+        }
         var settings = new TestSupport.MemorySettingsProvider();
-        var model = TestSupport.CreateMain(settings: settings);
-        var files = new List<TestSupport.TemporaryScript>();
-        try
-        {
-            for (var i = 0; i < 9; i++)
-            {
-                var file = new TestSupport.TemporaryScript(i.ToString());
-                files.Add(file);
-                Assert.True(await model.ReadScriptFileAsync(file.Path));
-            }
+        var model = TestSupport.CreateMain(settings: settings, files: disk);
 
-            Assert.Equal(8, settings.Value.RecentFiles.Count);
-            Assert.Equal(files[8].Path, settings.Value.RecentFiles[0]);
-            Assert.DoesNotContain(files[0].Path, settings.Value.RecentFiles);
-        }
-        finally
+        for (var i = 0; i < 9; i++)
         {
-            foreach (var file in files)
-            {
-                file.Dispose();
-            }
+            Assert.True(await model.ReadScriptFileAsync(paths[i]));
         }
+
+        Assert.Equal(8, settings.Value.RecentFiles.Count);
+        Assert.Equal(paths[8], settings.Value.RecentFiles[0]);
+        Assert.DoesNotContain(paths[0], settings.Value.RecentFiles);
     }
 
     [AvaloniaFact]
     public void Recents_MissingFile_PrunedOnStart()
     {
         var settings = new TestSupport.MemorySettingsProvider();
-        settings.Value.RecentFiles.Add(Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.vpy"));
+        settings.Value.RecentFiles.Add("/scripts/missing.vpy");
 
         var model = TestSupport.CreateMain(settings: settings);
 
@@ -1153,12 +1149,12 @@ public class MainViewModelTests
     {
         var manager = new TestSupport.FakeDialogManager();
         var settings = new TestSupport.MemorySettingsProvider();
-        var missing = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.vpy");
-        await File.WriteAllTextAsync(missing, "clip");
+        const string missing = "/scripts/missing.vpy";
+        var files = new FakeFileSystemService().Add(missing, "clip");
         settings.Value.RecentFiles.Add(missing);
-        var model = TestSupport.CreateMain(settings: settings, manager: manager);
+        var model = TestSupport.CreateMain(settings: settings, manager: manager, files: files);
         Assert.Single(model.Recents);
-        File.Delete(missing);
+        files.File.Delete(missing);
 
         await model.OpenRecent.Execute(missing);
 
@@ -1171,17 +1167,18 @@ public class MainViewModelTests
     [AvaloniaFact]
     public async Task Save_ExistingPath_RemembersFile()
     {
-        using var file = new TestSupport.TemporaryScript("original");
+        const string path = "/scripts/original.vpy";
+        var files = new FakeFileSystemService().Add(path, "original");
         var settings = new TestSupport.MemorySettingsProvider();
-        var model = TestSupport.CreateMain(settings: settings);
+        var model = TestSupport.CreateMain(settings: settings, files: files);
         await model.New.Execute();
         var editor = Assert.IsType<EditorViewModel>(model.SelectedItem);
-        editor.FileName = file.Path;
+        editor.FileName = path;
         editor.Script = "saved";
 
         await model.Save.Execute();
 
-        Assert.Equal([file.Path], settings.Value.RecentFiles);
-        Assert.Equal("saved", await File.ReadAllTextAsync(file.Path));
+        Assert.Equal([path], settings.Value.RecentFiles);
+        Assert.Equal("saved", files.File.ReadAllText(path));
     }
 }

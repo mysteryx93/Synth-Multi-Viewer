@@ -12,7 +12,9 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Avalonia.Media;
+using System.IO.Abstractions;
 using HanumanInstitute.MediaSynthUI;
+using HanumanInstitute.ScriptAssist.Services;
 using HanumanInstitute.SynthMultiViewer.Controls;
 using HanumanInstitute.SynthMultiViewer.Helpers;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
@@ -207,18 +209,19 @@ public class BehaviorTests
     [AvaloniaFact]
     public async Task ReadScriptFileAsync_OpensDocument_FocusesScriptEditor()
     {
-        using var file = new TestSupport.TemporaryScript("clip = core.std.BlankClip()");
-        var model = TestSupport.CreateMain();
+        const string path = "/scripts/clip.vpy";
+        var files = new FakeFileSystemService().Add(path, "clip = core.std.BlankClip()");
+        var model = TestSupport.CreateMain(files: files);
         var view = new MainView { DataContext = model };
         using var window = TestSupport.Show(view);
         await model.Load.Execute();
         Dispatcher.UIThread.RunJobs();
 
-        await model.ReadScriptFileAsync(file.Path);
+        await model.ReadScriptFileAsync(path);
         Dispatcher.UIThread.RunJobs();
 
         Assert.True(VisibleEditor(view).TextArea.IsFocused);
-        Assert.Equal(file.Path, Assert.IsType<EditorViewModel>(model.SelectedItem).FileName);
+        Assert.Equal(path, Assert.IsType<EditorViewModel>(model.SelectedItem).FileName);
     }
 
     [AvaloniaFact]
@@ -306,36 +309,45 @@ public class BehaviorTests
     [AvaloniaFact]
     public async Task DropFiles_FileDroppedOnEditor_OpensScriptWithoutInsertingPath()
     {
-        using var file = new TestSupport.TemporaryScript("clip = core.std.BlankClip()");
-        var model = TestSupport.CreateMain();
-        var view = new MainView { DataContext = model };
-        using var window = TestSupport.Show(view);
-        await model.New.Execute();
-        Dispatcher.UIThread.RunJobs();
-        var editor = view.GetVisualDescendants().OfType<BindableTextEditor>().Single();
-        var original = editor.Text;
-        var storage = await view.StorageProvider.TryGetFileFromPathAsync(new(file.Path));
-        Assert.NotNull(storage);
-        using var data = new DataTransfer();
-        data.Add(DataTransferItem.CreateFile(storage));
-        data.Add(DataTransferItem.CreateText(file.Path));
-        var point = editor.TranslatePoint(new(20, 20), view)!.Value;
-
-        view.DragDrop(point, RawDragEventType.DragEnter, data, DragDropEffects.Copy, RawInputModifiers.None);
-        view.DragDrop(point, RawDragEventType.DragOver, data, DragDropEffects.Copy, RawInputModifiers.None);
-        view.DragDrop(point, RawDragEventType.Drop, data, DragDropEffects.Copy, RawInputModifiers.None);
-        for (var i = 0; i < 50 && (model.SelectedItem as EditorViewModel)?.FileName != file.Path; i++)
+        var files = new FileSystemService(new FileSystem());
+        var path = files.Path.Combine(files.Path.GetTempPath(), files.Path.GetRandomFileName() + ".vpy");
+        files.File.WriteAllText(path, "clip = core.std.BlankClip()");
+        try
         {
+            var model = TestSupport.CreateMain(files: files);
+            var view = new MainView { DataContext = model };
+            using var window = TestSupport.Show(view);
+            await model.New.Execute();
             Dispatcher.UIThread.RunJobs();
-            await Task.Yield();
-        }
+            var editor = view.GetVisualDescendants().OfType<BindableTextEditor>().Single();
+            var original = editor.Text;
+            var storage = await view.StorageProvider.TryGetFileFromPathAsync(new(path));
+            Assert.NotNull(storage);
+            using var data = new DataTransfer();
+            data.Add(DataTransferItem.CreateFile(storage));
+            data.Add(DataTransferItem.CreateText(path));
+            var point = editor.TranslatePoint(new(20, 20), view)!.Value;
 
-        var opened = Assert.IsType<EditorViewModel>(model.SelectedItem);
-        Assert.Equal(file.Path, opened.FileName);
-        Assert.Equal("clip = core.std.BlankClip()", opened.Script);
-        Assert.Equal(original, editor.Text);
-        Assert.DoesNotContain(file.Path, editor.Text);
-        Assert.True(VisibleEditor(view).TextArea.IsFocused);
+            view.DragDrop(point, RawDragEventType.DragEnter, data, DragDropEffects.Copy, RawInputModifiers.None);
+            view.DragDrop(point, RawDragEventType.DragOver, data, DragDropEffects.Copy, RawInputModifiers.None);
+            view.DragDrop(point, RawDragEventType.Drop, data, DragDropEffects.Copy, RawInputModifiers.None);
+            for (var i = 0; i < 50 && (model.SelectedItem as EditorViewModel)?.FileName != path; i++)
+            {
+                Dispatcher.UIThread.RunJobs();
+                await Task.Yield();
+            }
+
+            var opened = Assert.IsType<EditorViewModel>(model.SelectedItem);
+            Assert.Equal(path, opened.FileName);
+            Assert.Equal("clip = core.std.BlankClip()", opened.Script);
+            Assert.Equal(original, editor.Text);
+            Assert.DoesNotContain(path, editor.Text);
+            Assert.True(VisibleEditor(view).TextArea.IsFocused);
+        }
+        finally
+        {
+            files.DeleteFileSilent(path);
+        }
     }
 
     [AvaloniaFact]

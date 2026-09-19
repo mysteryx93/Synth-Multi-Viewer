@@ -30,6 +30,7 @@ internal sealed class VsCoreApi
     private readonly NextPluginDelegate _getNextPlugin;
     private readonly NextFunctionDelegate _getNextPluginFunction;
     private readonly GetStringDelegate _getPluginNamespace;
+    private readonly GetStringDelegate? _getPluginName;
     private readonly GetStringDelegate _getPluginFunctionName;
     private readonly GetStringDelegate _getPluginFunctionArguments;
     private readonly GetStringDelegate? _getPluginFunctionReturnType;
@@ -62,6 +63,11 @@ internal sealed class VsCoreApi
         _getNextPlugin = Marshal.GetDelegateForFunctionPointer<NextPluginDelegate>(table.GetNextPlugin);
         _getNextPluginFunction = Marshal.GetDelegateForFunctionPointer<NextFunctionDelegate>(table.GetNextPluginFunction);
         _getPluginNamespace = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginNamespace);
+        if (table.GetPluginName != IntPtr.Zero)
+        {
+            _getPluginName = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginName);
+        }
+
         _getPluginFunctionName = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginFunctionName);
         _getPluginFunctionArguments = Marshal.GetDelegateForFunctionPointer<GetStringDelegate>(table.GetPluginFunctionArguments);
         if (table.GetPluginFunctionReturnType != IntPtr.Zero)
@@ -102,6 +108,8 @@ internal sealed class VsCoreApi
     public IntPtr GetNextPlugin(IntPtr plugin, IntPtr core) => _getNextPlugin(plugin, core);
     public IntPtr GetNextPluginFunction(IntPtr function, IntPtr plugin) => _getNextPluginFunction(function, plugin);
     public string PluginNamespace(IntPtr plugin) => Marshal.PtrToStringUTF8(_getPluginNamespace(plugin)) ?? "";
+    public string? PluginName(IntPtr plugin) =>
+        _getPluginName == null ? null : Marshal.PtrToStringUTF8(_getPluginName(plugin));
     public string PluginFunctionName(IntPtr function) => Marshal.PtrToStringUTF8(_getPluginFunctionName(function)) ?? "";
     public string? PluginFunctionArguments(IntPtr function) => Marshal.PtrToStringUTF8(_getPluginFunctionArguments(function));
     public string? PluginFunctionReturnType(IntPtr function) =>

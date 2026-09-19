@@ -1,5 +1,6 @@
 using HanumanInstitute.ScriptAssist.AviSynth;
 using HanumanInstitute.ScriptAssist.VapourSynth;
+using Moq;
 
 namespace HanumanInstitute.ScriptAssist.Tests;
 
@@ -17,19 +18,67 @@ internal static class AssistHarness
         new("core.std.AudioTrim", ["clip:anode", "first:int:opt"], ReturnType: "clip:anode;")
     ];
 
-    internal static LanguageService VsService(IncludeReader? read = null) =>
-        new(new VapourSynthLanguage(read), new CatalogCache(() => []));
+    internal static ISymbolSource Symbols(IReadOnlyList<Symbol> symbols)
+    {
+        var source = new Mock<ISymbolSource>();
+        source.Setup(s => s.Enumerate()).Returns(symbols);
+        return source.Object;
+    }
 
-    internal static LanguageService AvsService(IncludeReader? read = null) =>
-        new(new AviSynthLanguage(read), new CatalogCache(() => []));
+    internal static IVapourSynthNativeCatalog VsNative(params VapourSynthFunction[] functions)
+    {
+        var native = new Mock<IVapourSynthNativeCatalog>();
+        native.Setup(n => n.Read()).Returns(functions);
+        return native.Object;
+    }
 
-    internal static IncludeReader HavsReader(string? text) =>
+    internal static IAviSynthNativeCatalog AvsNative(params AviSynthFilter[] filters)
+    {
+        var native = new Mock<IAviSynthNativeCatalog>();
+        native.Setup(n => n.Read()).Returns(filters);
+        return native.Object;
+    }
+
+    internal static IScriptDirectory NoScripts()
+    {
+        var folders = new Mock<IScriptDirectory>();
+        folders.Setup(d => d.Roots()).Returns([]);
+        folders.Setup(d => d.Files(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>())).Returns([]);
+        folders.Setup(d => d.TryRead(It.IsAny<string>())).Returns((string?)null);
+        return folders.Object;
+    }
+
+    internal static ScriptLanguageFactory Languages(
+        IVapourSynthNativeCatalog? vapoursynth = null,
+        IAviSynthNativeCatalog? avisynth = null,
+        IIncludeSource? vapoursynthIncludes = null,
+        IIncludeSource? avisynthIncludes = null,
+        IScriptDirectory? autoload = null) =>
+        new(vapoursynth ?? VsNative(), avisynth ?? AvsNative(), autoload ?? NoScripts(),
+            vapoursynthIncludes, avisynthIncludes);
+
+    internal static CatalogCache Catalog(params Symbol[] symbols) => new(Symbols(symbols));
+
+    internal static IIncludeSource Includes(Func<string, string?, IncludeFile?> read)
+    {
+        var source = new Mock<IIncludeSource>();
+        source.Setup(s => s.Read(It.IsAny<string>(), It.IsAny<string?>())).Returns(read);
+        return source.Object;
+    }
+
+    internal static LanguageService VsService(IIncludeSource? read = null) =>
+        new(new VapourSynthLanguage(read), Catalog());
+
+    internal static LanguageService AvsService(IIncludeSource? read = null) =>
+        new(new AviSynthLanguage(read), Catalog());
+
+    internal static IIncludeSource HavsReader(string? text) =>
         FilesReader(text == null ? [] : new Dictionary<string, string> { ["havsfunc"] = text });
 
-    internal static IncludeReader FilesReader(IReadOnlyDictionary<string, string> files) =>
-        (specifier, _) => files.TryGetValue(specifier, out var text)
+    internal static IIncludeSource FilesReader(IReadOnlyDictionary<string, string> files) =>
+        Includes((specifier, _) => files.TryGetValue(specifier, out var text)
             ? new IncludeFile("/plugins/" + specifier.TrimStart('.') + ".py", text)
-            : null;
+            : null);
 }
 
 internal sealed class CountingLanguage(ILanguage inner, ManualResetEventSlim? started = null,
@@ -80,14 +129,13 @@ internal sealed class CountingLanguage(ILanguage inner, ManualResetEventSlim? st
     public HoverInfo? Hover(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog) =>
         inner.Hover(code, path, bindings, catalog);
 
-    HoverInfo? IContextHover.Hover(string code, CaretPath path, DocumentBindings bindings,
-        IReadOnlyList<Symbol> catalog, HoverContext? context) =>
-        inner is IContextHover contextual
-            ? contextual.Hover(code, path, bindings, catalog, context)
+    HoverInfo? IContextHover.Hover(string code, CaretPath path, DocumentBindings bindings, IReadOnlyList<Symbol> catalog,
+        HoverContext? context) =>
+        inner is IContextHover hover
+            ? hover.Hover(code, path, bindings, catalog, context)
             : inner.Hover(code, path, bindings, catalog);
 
-    public double CompletionPriority(Symbol symbol, TypeRef receiver) =>
-        inner.CompletionPriority(symbol, receiver);
+    public double CompletionPriority(Symbol symbol, TypeRef receiver) => inner.CompletionPriority(symbol, receiver);
 
     public string? ParameterName(string parameter) => inner.ParameterName(parameter);
 }

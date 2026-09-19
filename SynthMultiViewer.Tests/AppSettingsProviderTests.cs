@@ -1,3 +1,5 @@
+using System.IO.Abstractions.TestingHelpers;
+using HanumanInstitute.ScriptAssist.Services;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using Xunit;
@@ -6,11 +8,12 @@ namespace HanumanInstitute.SynthMultiViewer.Tests;
 
 public class AppSettingsProviderTests
 {
+    private const string ConfigPath = "/config/settings.json";
+
     [Fact]
     public void Load_MissingFile_ReturnsDefaultLightTheme()
     {
-        using var file = new TemporaryConfig();
-        var provider = CreateProvider(file.Path);
+        var provider = CreateProvider(new FakeFileSystemService());
 
         var settings = provider.Load();
 
@@ -20,12 +23,12 @@ public class AppSettingsProviderTests
     [Fact]
     public void Save_RoundTrip_PersistsDarkTheme()
     {
-        using var file = new TemporaryConfig();
-        var provider = CreateProvider(file.Path);
+        var files = new FakeFileSystemService();
+        var provider = CreateProvider(files);
         provider.Value.Theme = AppTheme.Dark;
 
         provider.Save();
-        var loaded = CreateProvider(file.Path).Load();
+        var loaded = CreateProvider(files).Load();
 
         Assert.Equal(AppTheme.Dark, loaded.Theme);
     }
@@ -33,8 +36,8 @@ public class AppSettingsProviderTests
     [Fact]
     public void Save_RoundTrip_PersistsLibraryPaths()
     {
-        using var file = new TemporaryConfig();
-        var provider = CreateProvider(file.Path);
+        var files = new FakeFileSystemService();
+        var provider = CreateProvider(files);
         provider.Value.VapourSynthPath = "/opt/vs";
         provider.Value.VapourSynthPluginFolders = "/opt/vs/plugins";
         provider.Value.VapourSynthReplacePlugins = true;
@@ -43,7 +46,7 @@ public class AppSettingsProviderTests
         provider.Value.VapourSynthThreads = 8;
 
         provider.Save();
-        var loaded = CreateProvider(file.Path).Load();
+        var loaded = CreateProvider(files).Load();
 
         Assert.Equal("/opt/vs", loaded.VapourSynthPath);
         Assert.Equal("/opt/vs/plugins", loaded.VapourSynthPluginFolders);
@@ -58,12 +61,12 @@ public class AppSettingsProviderTests
     [Fact]
     public void Save_RoundTrip_PersistsEnhanceEditorWithAutoComplete()
     {
-        using var file = new TemporaryConfig();
-        var provider = CreateProvider(file.Path);
+        var files = new FakeFileSystemService();
+        var provider = CreateProvider(files);
         provider.Value.EnhanceEditorWithAutoComplete = false;
 
         provider.Save();
-        var loaded = CreateProvider(file.Path).Load();
+        var loaded = CreateProvider(files).Load();
 
         Assert.False(loaded.EnhanceEditorWithAutoComplete);
     }
@@ -71,14 +74,14 @@ public class AppSettingsProviderTests
     [Fact]
     public void Save_RoundTrip_PersistsWindowBounds()
     {
-        using var file = new TemporaryConfig();
-        var provider = CreateProvider(file.Path);
+        var files = new FakeFileSystemService();
+        var provider = CreateProvider(files);
         provider.Value.Width = 1280;
         provider.Value.Height = 800;
         provider.Value.Maximized = true;
 
         provider.Save();
-        var loaded = CreateProvider(file.Path).Load();
+        var loaded = CreateProvider(files).Load();
 
         Assert.Equal(1280, loaded.Width);
         Assert.Equal(800, loaded.Height);
@@ -88,12 +91,12 @@ public class AppSettingsProviderTests
     [Fact]
     public void Save_RoundTrip_PersistsRecentFiles()
     {
-        using var file = new TemporaryConfig();
-        var provider = CreateProvider(file.Path);
+        var files = new FakeFileSystemService();
+        var provider = CreateProvider(files);
         provider.Value.RecentFiles = ["/tmp/a.vpy", "/tmp/b.avs"];
 
         provider.Save();
-        var loaded = CreateProvider(file.Path).Load();
+        var loaded = CreateProvider(files).Load();
 
         Assert.Equal(["/tmp/a.vpy", "/tmp/b.avs"], loaded.RecentFiles);
     }
@@ -101,14 +104,14 @@ public class AppSettingsProviderTests
     [Fact]
     public void Save_RoundTrip_PersistsCheckForUpdates()
     {
-        using var file = new TemporaryConfig();
-        var provider = CreateProvider(file.Path);
+        var files = new FakeFileSystemService();
+        var provider = CreateProvider(files);
         var lastCheck = new DateTime(2026, 1, 10, 8, 30, 0);
         provider.Value.CheckForUpdates = UpdateInterval.Monthly;
         provider.Value.LastCheckForUpdate = lastCheck;
 
         provider.Save();
-        var loaded = CreateProvider(file.Path).Load();
+        var loaded = CreateProvider(files).Load();
 
         Assert.Equal(UpdateInterval.Monthly, loaded.CheckForUpdates);
         Assert.Equal(lastCheck, loaded.LastCheckForUpdate);
@@ -117,8 +120,7 @@ public class AppSettingsProviderTests
     [Fact]
     public void Load_MissingFile_ReturnsWeeklyUpdates()
     {
-        using var file = new TemporaryConfig();
-        var provider = CreateProvider(file.Path);
+        var provider = CreateProvider(new FakeFileSystemService());
 
         var settings = provider.Load();
 
@@ -129,38 +131,24 @@ public class AppSettingsProviderTests
     [Fact]
     public void Load_CorruptFile_ReturnsDefaultSettings()
     {
-        using var file = new TemporaryConfig();
-        File.WriteAllText(file.Path, "{ not json");
-        var provider = CreateProvider(file.Path);
+        var files = new FakeFileSystemService(new Dictionary<string, MockFileData>
+        {
+            [ConfigPath] = "{ not json"
+        });
+        var provider = CreateProvider(files);
 
         var settings = provider.Load();
 
         Assert.Equal(AppTheme.Light, settings.Theme);
     }
 
-    private static AppSettingsProvider CreateProvider(string path) =>
-        new(new SerializationService(), new FixedAppPath(path));
+    private static AppSettingsProvider CreateProvider(IFileSystemService files) =>
+        new(new SerializationService(files), new FixedAppPath(ConfigPath));
 
-    private sealed class FixedAppPath(string path) : IAppPathService
+    private sealed class FixedAppPath : IAppPathService
     {
-        public string ConfigFile { get; } = path;
-    }
+        public FixedAppPath(string path) => ConfigFile = path;
 
-    private sealed class TemporaryConfig : IDisposable
-    {
-        public TemporaryConfig()
-        {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"SynthMultiViewer-{Guid.NewGuid():N}.json");
-        }
-
-        public string Path { get; }
-
-        public void Dispose()
-        {
-            if (File.Exists(Path))
-            {
-                File.Delete(Path);
-            }
-        }
+        public string ConfigFile { get; }
     }
 }

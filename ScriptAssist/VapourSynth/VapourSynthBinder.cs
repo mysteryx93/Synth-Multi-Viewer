@@ -12,14 +12,14 @@ internal static class VapourSynthBinder
     /// Last assignment wins; seeded <c>vs</c>/<c>core</c> names are overwritten when rebound.
     /// </summary>
     public static DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, LexerOptions lexer,
-        CancellationToken token, string? documentPath = null, IncludeReader? read = null,
+        CancellationToken token, string? documentPath = null, IIncludeSource? read = null,
         IncludeCache? includes = null)
     {
         return Bind(PreparedDocument.Create(text, lexer, token), catalog, lexer, token, documentPath, read, includes);
     }
 
     public static DocumentBindings Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog, LexerOptions lexer,
-        CancellationToken token, string? documentPath = null, IncludeReader? read = null,
+        CancellationToken token, string? documentPath = null, IIncludeSource? read = null,
         IncludeCache? includes = null)
     {
         var clean = prepared.Masked.Code;
@@ -143,7 +143,7 @@ internal static class VapourSynthBinder
     }
 
     private static void ApplyBody(string quoted, StatementScanner.Span span, BindingScope? scope,
-        string? documentPath, IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
+        string? documentPath, IIncludeSource? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, SymbolList> modulesByPath, LexerOptions lexer, CancellationToken token,
         SymbolList buffer, Dictionary<string, TypeRef> names, IReadOnlyList<BindingScope> scopes,
         VapourSynthCatalogIndex index, IncludeSession includes, VisibleCache visible,
@@ -204,7 +204,7 @@ internal static class VapourSynthBinder
     }
 
     private static void ApplyImport(string quoted, int start, int end, BindingScope? scope, string? documentPath,
-        IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
+        IIncludeSource? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, SymbolList> modulesByPath, LexerOptions lexer, CancellationToken token,
         Dictionary<string, TypeRef> names, SymbolList buffer, SymbolList? exports, IncludeSession includes,
         VisibleCache? visible = null)
@@ -234,7 +234,7 @@ internal static class VapourSynthBinder
     }
 
     private static void ApplyFrom(string quoted, int start, int end, BindingScope? scope, string? documentPath,
-        IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
+        IIncludeSource? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, SymbolList> modulesByPath, LexerOptions lexer, CancellationToken token,
         SymbolList buffer, Dictionary<string, TypeRef> names, IncludeSession includes,
         VisibleCache? visible = null)
@@ -283,7 +283,7 @@ internal static class VapourSynthBinder
     }
 
     private static void BindImportedModule(string imported, string alias, bool explicitAlias, BindingScope? scope,
-        string? documentPath, IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
+        string? documentPath, IIncludeSource? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, SymbolList> modulesByPath, LexerOptions lexer, CancellationToken token,
         Dictionary<string, TypeRef> names, SymbolList buffer, SymbolList? exports, IncludeSession includes,
         VisibleCache? visible = null)
@@ -312,7 +312,7 @@ internal static class VapourSynthBinder
     }
 
     private static void BindDotted(string imported, LoadedScript loaded, BindingScope? scope, string? documentPath,
-        IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
+        IIncludeSource? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, SymbolList> modulesByPath, LexerOptions lexer, CancellationToken token,
         Dictionary<string, TypeRef> names, SymbolList buffer, SymbolList? exports, IncludeSession includes,
         VisibleCache? visible = null)
@@ -1252,7 +1252,7 @@ internal static class VapourSynthBinder
         return Current(visible.Names!, scriptModules, visible.Symbols(buffer), scopes);
     }
 
-    private static void ImportFrom(string imported, string list, string? documentPath, IncludeReader? read,
+    private static void ImportFrom(string imported, string list, string? documentPath, IIncludeSource? read,
         Dictionary<string, IReadOnlyList<Symbol>> scriptModules, Dictionary<string, SymbolList> modulesByPath,
         LexerOptions lexer, CancellationToken token, SymbolList target, Dictionary<string, TypeRef>? names,
         IncludeSession includes, VisibleCache? visible = null, BindingScope? scope = null)
@@ -1362,7 +1362,7 @@ internal static class VapourSynthBinder
         }
     }
 
-    private static LoadedScript? LoadModule(string imported, string? documentPath, IncludeReader? read,
+    private static LoadedScript? LoadModule(string imported, string? documentPath, IIncludeSource? read,
         Dictionary<string, IReadOnlyList<Symbol>> scriptModules, Dictionary<string, SymbolList> modulesByPath,
         LexerOptions lexer, CancellationToken token, IncludeSession includes)
     {
@@ -1381,7 +1381,7 @@ internal static class VapourSynthBinder
         }
         else
         {
-            var file = read(imported, documentPath);
+            var file = read.Read(imported, documentPath);
             path = file?.Path;
             text = file?.Text;
             includes.SetPath(imported, documentPath, path);
@@ -1411,7 +1411,7 @@ internal static class VapourSynthBinder
 
         if (text == null)
         {
-            var file = read(imported, documentPath);
+            var file = read.Read(imported, documentPath);
             if (file == null)
             {
                 return null;
@@ -1528,7 +1528,7 @@ internal static class VapourSynthBinder
         return true;
     }
 
-    private static void FillModule(string text, string path, SymbolList members, IncludeReader? read,
+    private static void FillModule(string text, string path, SymbolList members, IIncludeSource? read,
         Dictionary<string, IReadOnlyList<Symbol>> scriptModules, Dictionary<string, SymbolList> modulesByPath,
         LexerOptions lexer, CancellationToken token, IncludeSession includes)
     {

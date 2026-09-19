@@ -8,6 +8,7 @@ using HanumanInstitute.MediaSynthUI;
 using HanumanInstitute.MvvmDialogs;
 using HanumanInstitute.MvvmDialogs.Avalonia;
 using HanumanInstitute.MvvmDialogs.FileSystem;
+using HanumanInstitute.ScriptAssist.Services;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
@@ -31,10 +32,11 @@ internal static class TestSupport
 
     public static MainViewModel CreateMain(
         IEnvironmentService? environment = null, ISettingsProvider<AppSettingsData>? settings = null,
-        IDialogManager? manager = null, IAppUpdateService? updates = null) =>
+        IDialogManager? manager = null, IAppUpdateService? updates = null,
+        IFileSystemService? files = null) =>
         new(CreateDialogs(settings: settings, manager: manager), environment ?? new TestEnvironment(),
             new MemoryDefaultScripts(), settings ?? new MemorySettingsProvider(),
-            updates ?? new MemoryAppUpdateService());
+            updates ?? new MemoryAppUpdateService(), files ?? new FakeFileSystemService());
 
     public static async Task OpenViewerAsync(MainViewModel model)
     {
@@ -63,12 +65,14 @@ internal static class TestSupport
         ISettingsProvider<AppSettingsData>? settings = null,
         IAppTheme? theme = null,
         IFrameworkDetectionService? detection = null,
-        IDialogService? dialogs = null) =>
+        IDialogService? dialogs = null,
+        IFileSystemService? files = null) =>
         new(
             settings ?? new MemorySettingsProvider(),
             theme ?? new MemoryAppTheme(),
             detection ?? new MemoryFrameworkDetection(),
-            dialogs ?? CreateDialogs());
+            dialogs ?? CreateDialogs(),
+            files ?? new FakeFileSystemService());
 
     public static object CreateViewModel(
         Type type, ISettingsProvider<AppSettingsData>? settings = null, IAppTheme? theme = null)
@@ -179,7 +183,7 @@ internal static class TestSupport
     {
         public IReadOnlyList<string> CommandLineArguments { get; } = arguments ?? ["viewer"];
         public Version AppVersion { get; set; } = new(1, 2, 3);
-        public string ApplicationDataPath { get; } = Path.Combine(Path.GetTempPath(), "SynthMultiViewerTests");
+        public string ApplicationDataPath { get; } = "/appdata";
         public DateTime Now { get; set; } = new(2026, 1, 15);
     }
 
@@ -221,16 +225,4 @@ internal static class TestSupport
         public string AviSynth { get; set; } = "BlankClip()\n";
     }
 
-    public sealed class TemporaryScript : IDisposable
-    {
-        public TemporaryScript(string text, string extension = ".vpy")
-        {
-            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
-                $"SynthMultiViewer-{Guid.NewGuid():N}{extension}");
-            File.WriteAllText(Path, text);
-        }
-
-        public string Path { get; }
-        public void Dispose() => File.Delete(Path);
-    }
 }

@@ -6,14 +6,14 @@ namespace HanumanInstitute.ScriptAssist;
 public interface IScriptLanguageFactory
 {
     /// <summary>
-    /// Gets or sets whether assistance is enabled. Defaults to true. Catalog enumeration runs only when this is true.
+    /// Gets or sets whether <see cref="Create"/> may return a service.
+    /// Catalog <c>Refresh</c> still enumerates while this is false.
     /// </summary>
     bool IsEnabled { get; set; }
 
     /// <summary>
     /// Returns the shared service for <paramref name="language"/>, or null when the id is unknown
-    /// or <see cref="IsEnabled"/> is false. A service obtained earlier still skips catalog work on
-    /// <c>GetAsync</c> while this factory is disabled.
+    /// or <see cref="IsEnabled"/> is false.
     /// </summary>
     ILanguageService? Create(string language);
 
@@ -24,7 +24,8 @@ public interface IScriptLanguageFactory
     void Configure(string language, string catalogKey);
 
     /// <summary>
-    /// Forces every registered catalog to enumerate again.
+    /// Forces every registered catalog to enumerate again, including while
+    /// <see cref="IsEnabled"/> is false.
     /// </summary>
     void Refresh();
 }

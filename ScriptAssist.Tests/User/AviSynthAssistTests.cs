@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.User;
 
 using static AssistHarness;
 

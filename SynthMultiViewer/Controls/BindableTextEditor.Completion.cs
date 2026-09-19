@@ -3,12 +3,13 @@ using Avalonia;
 using AvaloniaEdit;
 using AvaloniaEdit.CodeCompletion;
 using AvaloniaEdit.Search;
+using HanumanInstitute.ScriptAssist;
 using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 using Splat;
 
 namespace HanumanInstitute.SynthMultiViewer.Controls;
 
-public partial class BindableTextEditor
+public partial class BindableTextEditor : IAssistSession
 {
     /// <summary>
     /// Defines the script language used for completion.
@@ -24,11 +25,6 @@ public partial class BindableTextEditor
         get => GetValue(ScriptKindProperty);
         set => SetValue(ScriptKindProperty, value);
     }
-
-    /// <summary>
-    /// Gets or sets an optional language service supplied by tests or a host.
-    /// </summary>
-    public ILanguageService? LanguageService { get; set; }
 
     /// <summary>
     /// Gets or sets an optional factory; the locator is used when this is null.
@@ -51,13 +47,7 @@ public partial class BindableTextEditor
 
     private void InitializeCompletion()
     {
-        _assist = new(this, new()
-        {
-            ResolveService = ResolveService,
-            IsEnabled = () => LanguageService != null || ResolveFactory()?.IsEnabled != false,
-            RefreshCatalogs = () => ResolveFactory()?.Refresh(),
-            ResolveDocumentPath = () => (DataContext as IEditorViewModel)?.FileName
-        });
+        _assist = new(this, this);
         _assist.Attach();
         AttachedToVisualTree += (_, _) =>
         {
@@ -82,13 +72,9 @@ public partial class BindableTextEditor
     private IScriptLanguageFactory? ResolveFactory() =>
         LanguageFactory ?? Locator.Current.GetService<IScriptLanguageFactory>();
 
-    private ILanguageService? ResolveService()
+    /// <inheritdoc />
+    public ILanguageService? ResolveService()
     {
-        if (LanguageService != null)
-        {
-            return LanguageService;
-        }
-
         var factory = ResolveFactory();
         if (factory == null || !factory.IsEnabled)
         {
@@ -97,6 +83,15 @@ public partial class BindableTextEditor
 
         return factory.Create(ScriptKind.ToString());
     }
+
+    /// <inheritdoc />
+    public bool AssistanceEnabled => ResolveFactory()?.IsEnabled != false;
+
+    /// <inheritdoc />
+    public string? DocumentPath => (DataContext as IEditorViewModel)?.FileName;
+
+    /// <inheritdoc />
+    public void RefreshCatalogs() => ResolveFactory()?.Refresh();
 
     /// <summary>
     /// Cancels pending requests and closes all editor assistance popups.

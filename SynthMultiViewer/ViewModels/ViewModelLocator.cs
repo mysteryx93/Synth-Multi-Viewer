@@ -1,3 +1,5 @@
+using System.IO.Abstractions;
+using HanumanInstitute.ScriptAssist.Services;
 using HanumanInstitute.SynthMultiViewer.Models;
 using HanumanInstitute.SynthMultiViewer.Services;
 using HanumanInstitute.MvvmDialogs;
@@ -22,6 +24,8 @@ public static class ViewModelLocator
             viewModelFactory: t => Locator.Current.GetService(t)));
 
         SplatRegistrations.RegisterLazySingleton<IEnvironmentService, EnvironmentService>();
+        SplatRegistrations.RegisterLazySingleton<IFileSystem, FileSystem>();
+        SplatRegistrations.RegisterLazySingleton<IFileSystemService, FileSystemService>();
         SplatRegistrations.RegisterLazySingleton<ISerializationService, SerializationService>();
         SplatRegistrations.RegisterLazySingleton<IAppPathService, AppPathService>();
         SplatRegistrations.RegisterLazySingleton<ISettingsProvider<AppSettingsData>, AppSettingsProvider>();

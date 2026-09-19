@@ -13,6 +13,7 @@ using HanumanInstitute.MvvmDialogs.Avalonia;
 using HanumanInstitute.MvvmDialogs.FileSystem;
 using HanumanInstitute.ScriptAssist;
 using HanumanInstitute.ScriptAssist.VapourSynth;
+using Moq;
 using HanumanInstitute.SynthMultiViewer.Controls;
 using HanumanInstitute.SynthMultiViewer.ViewModels;
 using HanumanInstitute.SynthMultiViewer.Views;
@@ -25,15 +26,16 @@ public class KeyBindingTests
     [AvaloniaFact]
     public async Task WindowBindings_FileTabsAndDialogs_Execute()
     {
-        using var file = new TestSupport.TemporaryScript("BlankClip()\n");
+        const string path = "/scripts/open.vpy";
+        const string savePath = "/scripts/keybind-save.vpy";
+        var files = new FakeFileSystemService().Add(path, "BlankClip()\n");
         var dialogs = new RecordingDialogs();
-        dialogs.QueueFile(file.Path);
-        var model = TestSupport.CreateMain(manager: dialogs);
+        dialogs.QueueFile(path);
+        var model = TestSupport.CreateMain(manager: dialogs, files: files);
         var view = new MainView { DataContext = model, Width = 640, Height = 400 };
         using var shown = TestSupport.Show(view);
         view.Focus();
         Dispatcher.UIThread.RunJobs();
-        var savePath = Path.Combine(Path.GetTempPath(), "keybind-save.vpy");
 
         TestSupport.Press(view, Key.N, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
@@ -84,7 +86,6 @@ public class KeyBindingTests
         TestSupport.Press(view, Key.S, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
         var savedPath = vs.FileName;
-        File.Delete(savePath);
         TestSupport.Press(view, Key.F5);
         Dispatcher.UIThread.RunJobs();
         var afterF5 = model.SelectedItem;
@@ -95,7 +96,7 @@ public class KeyBindingTests
 
         Assert.Equal(ScriptKind.VapourSynth, vsKind);
         Assert.Equal(ScriptKind.AviSynth, avsKind);
-        Assert.Equal(file.Path, openedPath);
+        Assert.Equal(path, openedPath);
         Assert.Same(vs, afterCtrl1);
         Assert.Same(avs, afterCtrlTab);
         Assert.Same(vs, afterShiftTab);
@@ -220,11 +221,6 @@ public class KeyBindingTests
         var editor = new BindableTextEditor
         {
             Text = "alpha\nbeta\n",
-            LanguageService = new LanguageService(new VapourSynthLanguage(),
-                new CatalogCache(() =>
-                [
-                    new("core.std.Crop", ["clip:vnode", "left:int:opt"], ReturnType: "clip:vnode")
-                ])),
             LanguageFactory = factory
         };
         var window = new Window { Content = editor, Width = 480, Height = 240 };
@@ -373,7 +369,19 @@ public class KeyBindingTests
     {
         public int RefreshCount { get; private set; }
         public bool IsEnabled { get; set; } = true;
-        public ILanguageService? Create(string language) => null;
+        private readonly ILanguageService _service;
+
+        public CountingFactory()
+        {
+            var source = new Mock<ISymbolSource>();
+            source.Setup(s => s.Enumerate()).Returns(
+            [
+                new Symbol("core.std.Crop", ["clip:vnode", "left:int:opt"], ReturnType: "clip:vnode")
+            ]);
+            _service = new LanguageService(new VapourSynthLanguage(), new CatalogCache(source.Object));
+        }
+
+        public ILanguageService? Create(string language) => IsEnabled ? _service : null;
         public void Configure(string language, string catalogKey) { }
         public void Refresh() => RefreshCount++;
     }

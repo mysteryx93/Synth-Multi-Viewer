@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.User;
 
 using static AssistHarness;
 
@@ -75,6 +75,24 @@ public class VapourSynthAssistTests
     }
 
     [Fact]
+    public void Complete_NamedPlugin_HintIsTitle()
+    {
+        const string members = "core.";
+        const string hoverAt = "core.bm3d";
+        Symbol[] catalog =
+        [
+            new("core.bm3d.BM3D", ["clip:vnode"], ReturnType: "clip:vnode;", Title: "VapourSynth BM3D")
+        ];
+
+        var item = Assert.Single(VsService().Analyze(members, members.Length, catalog).Items,
+            x => x.InsertionText == "bm3d");
+        var hover = VsService().Analyze(hoverAt, hoverAt.Length, catalog).Hover;
+
+        Assert.Equal("VapourSynth BM3D", CompletionData.HintText(item));
+        Assert.Equal(CompletionData.HintText(item), hover?.Text);
+    }
+
+    [Fact]
     public void Hover_FormatNamedArgument_UsesDisplayType()
     {
         const string text = "core.std.BlankClip(format=1)";
@@ -88,7 +106,7 @@ public class VapourSynthAssistTests
     [Fact]
     public void Insight_PackageImportThenDef_ReplacesNamespace()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from pkg import sub\nsub(";
         IncludeFile? Read(string specifier, string? _) => Package(specifier);
 
@@ -102,7 +120,7 @@ public class VapourSynthAssistTests
     [Fact]
     public void Insight_PackageMemberCall_UsesFunctionAfterDef()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg\npkg.sub(";
         IncludeFile? Read(string specifier, string? _) => Package(specifier);
 
@@ -116,7 +134,7 @@ public class VapourSynthAssistTests
     [Fact]
     public void Complete_PackageMember_OffersFunctionAfterDef()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg\npkg.";
         IncludeFile? Read(string specifier, string? _) => Package(specifier);
 
@@ -130,7 +148,7 @@ public class VapourSynthAssistTests
     [Fact]
     public void Hover_ImportedPackageFunction_ShowsCall()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from pkg import sub\nsub";
         IncludeFile? Read(string specifier, string? _) => Package(specifier);
 
@@ -143,7 +161,7 @@ public class VapourSynthAssistTests
     [Fact]
     public void Complete_FromPackageImport_OffersFunction()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from pkg import sub\nsu";
         IncludeFile? Read(string specifier, string? _) => Package(specifier);
 
@@ -156,7 +174,7 @@ public class VapourSynthAssistTests
     [Fact]
     public void Complete_PackageAfterAssign_OmitsName()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg\npkg.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -174,7 +192,7 @@ public class VapourSynthAssistTests
     [Fact]
     public void Complete_PackageAfterDel_OmitsName()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg\npkg.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -374,7 +392,7 @@ public class VapourSynthAssistTests
             with open("x") as make:
                 pass
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import make\nmake(";
         IncludeFile? Read(string specifier, string? _) => specifier == "helper"
             ? new IncludeFile("/plugins/helper.py", helper)
@@ -396,7 +414,7 @@ public class VapourSynthAssistTests
             except Exception as make:
                 pass
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import make\nmake(";
         IncludeFile? Read(string specifier, string? _) => specifier == "helper"
             ? new IncludeFile("/plugins/helper.py", helper)

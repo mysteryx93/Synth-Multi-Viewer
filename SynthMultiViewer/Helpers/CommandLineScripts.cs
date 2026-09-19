@@ -39,8 +39,7 @@ public static class CommandLineScripts
 
     private static bool IsHostBinary(string path)
     {
-        var extension = Path.GetExtension(path);
-        return extension.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".exe", StringComparison.OrdinalIgnoreCase);
+        return path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
+               path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
     }
 }

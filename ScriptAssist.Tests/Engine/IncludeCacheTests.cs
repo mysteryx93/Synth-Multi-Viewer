@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.Engine;
 
 public class IncludeCacheTests
 {

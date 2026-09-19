@@ -18,11 +18,6 @@ public sealed class LanguageService : ILanguageService
     private const long SnapshotByteLimit = 16 * 1024 * 1024;
 
     /// <summary>
-    /// Optional enablement gate. When it returns false, catalog requests are skipped.
-    /// </summary>
-    internal Func<bool>? AllowRequests { get; set; }
-
-    /// <summary>
     /// Creates a service for <paramref name="language"/> using <paramref name="catalog"/>.
     /// </summary>
     public LanguageService(ILanguage language, ISymbolCatalog catalog)
@@ -40,15 +35,8 @@ public sealed class LanguageService : ILanguageService
     /// Analyzes a snapshot, optionally skipping completion items.
     /// </summary>
     internal Task<Reply> GetAsync(string text, int caret, CancellationToken cancellationToken,
-        string? documentPath, bool completions)
-    {
-        if (AllowRequests?.Invoke() == false)
-        {
-            return Task.FromResult(new Reply([], null));
-        }
-
-        return GetCoreAsync(text, caret, cancellationToken, documentPath, completions);
-    }
+        string? documentPath, bool completions) =>
+        GetCoreAsync(text, caret, cancellationToken, documentPath, completions);
 
     private async Task<Reply> GetCoreAsync(string text, int caret, CancellationToken cancellationToken,
         string? documentPath, bool completions)

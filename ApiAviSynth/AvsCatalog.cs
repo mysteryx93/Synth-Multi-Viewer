@@ -46,7 +46,7 @@ public static class AvsCatalog
                         continue;
                     }
 
-                    result.Add(new(name, ReadParameters(native, env, category, name)));
+                    result.Add(new(name, ReadParameters(native, env, category, name), category));
                 }
             }
             return result;
@@ -71,4 +71,4 @@ public static class AvsCatalog
 /// <summary>
 /// Metadata copied from an autoload environment.
 /// </summary>
-public sealed record AvsFilterInfo(string Name, string? Arguments);
+public sealed record AvsFilterInfo(string Name, string? Arguments, string Category);

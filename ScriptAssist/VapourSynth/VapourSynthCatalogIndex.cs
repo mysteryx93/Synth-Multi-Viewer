@@ -29,6 +29,11 @@ internal sealed class VapourSynthCatalogIndex
         var index = new VapourSynthCatalogIndex();
         foreach (var symbol in catalog)
         {
+            if (symbol.Kind == SymbolKind.Namespace)
+            {
+                continue;
+            }
+
             if (!TrySplit(symbol.Name, out var ns, out var function))
             {
                 continue;
@@ -36,7 +41,7 @@ internal sealed class VapourSynthCatalogIndex
 
             if (!index._namespaces.TryGetValue(ns, out var entry))
             {
-                entry = new NamespaceEntry(ns);
+                entry = new NamespaceEntry(ns, symbol.Title);
                 index._namespaces[ns] = entry;
                 index._namespaceList.Add(entry.Namespace);
             }
@@ -49,7 +54,7 @@ internal sealed class VapourSynthCatalogIndex
                 if (entry.BoundVideoNamespace == null)
                 {
                     entry.BoundVideoNamespace = new(ns, null, SymbolKind.Namespace,
-                        ReturnType: VapourSynthTypes.PluginLabel);
+                        ReturnType: entry.Namespace.ReturnType);
                     index._boundVideoNamespaces.Add(entry.BoundVideoNamespace);
                 }
 
@@ -62,7 +67,7 @@ internal sealed class VapourSynthCatalogIndex
                 if (entry.BoundAudioNamespace == null)
                 {
                     entry.BoundAudioNamespace = new(ns, null, SymbolKind.Namespace,
-                        ReturnType: VapourSynthTypes.PluginLabel);
+                        ReturnType: entry.Namespace.ReturnType);
                     index._boundAudioNamespaces.Add(entry.BoundAudioNamespace);
                 }
 
@@ -159,10 +164,10 @@ internal sealed class VapourSynthCatalogIndex
         return function.Length > 0 && !function.Contains('.', StringComparison.Ordinal);
     }
 
-    private sealed class NamespaceEntry(string ns)
+    private sealed class NamespaceEntry(string ns, string? title)
     {
         public Symbol Namespace { get; } = new(ns, null, SymbolKind.Namespace,
-            ReturnType: VapourSynthTypes.PluginLabel);
+            ReturnType: title.HasValue() ? title : VapourSynthTypes.PluginLabel);
         public List<Symbol> Functions { get; } = [];
         public Dictionary<string, Symbol> FunctionByName { get; } = new(StringComparer.Ordinal);
         public List<Symbol> BoundVideo { get; } = [];

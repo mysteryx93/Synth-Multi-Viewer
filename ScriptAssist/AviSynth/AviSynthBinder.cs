@@ -11,14 +11,14 @@ internal static class AviSynthBinder
     /// Script-level last-assignment-wins. Function parameters and inner assignments stay in their scope.
     /// </summary>
     public static DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, LexerOptions lexer,
-        CancellationToken token, string? documentPath = null, IncludeReader? read = null,
+        CancellationToken token, string? documentPath = null, IIncludeSource? read = null,
         IncludeCache? includes = null)
     {
         return Bind(PreparedDocument.Create(text, lexer, token), catalog, lexer, token, documentPath, read, includes);
     }
 
     public static DocumentBindings Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog, LexerOptions lexer,
-        CancellationToken token, string? documentPath = null, IncludeReader? read = null,
+        CancellationToken token, string? documentPath = null, IIncludeSource? read = null,
         IncludeCache? includes = null)
     {
         var joined = prepared.Masked.Code;

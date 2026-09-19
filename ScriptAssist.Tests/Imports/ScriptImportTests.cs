@@ -3,7 +3,7 @@ using HanumanInstitute.ScriptAssist.AviSynth;
 using HanumanInstitute.ScriptAssist.VapourSynth;
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.Imports;
 
 using static AssistHarness;
 
@@ -15,7 +15,7 @@ public class ScriptImportTests
     {
         var crop = new Symbol("Crop", ["clip", "int [left]"]);
         const string avsi = "function QTGMC(clip Input, int \"TR0\") { return Input }\n";
-        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new AviSynthLanguage(Includes(Read)), Catalog());
         const string text = "Import(\"QTGMC.avsi\")\nInput.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "QTGMC.avsi" ? new IncludeFile("/plugins/QTGMC.avsi", avsi) : null;
@@ -38,7 +38,7 @@ public class ScriptImportTests
         }
 
         script += "Child79(";
-        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new AviSynthLanguage(Includes(Read)), Catalog());
         IncludeFile? Read(string specifier, string? _) =>
             files.TryGetValue(specifier, out var text)
                 ? new IncludeFile("/plugins/" + specifier, text)
@@ -55,7 +55,7 @@ public class ScriptImportTests
     public void Analyze_DeepPythonImportChain_DoesNotThrow()
     {
         const int depth = 200;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import n0 as m\nm.";
         IncludeFile? Read(string specifier, string? _)
         {
@@ -77,7 +77,7 @@ public class ScriptImportTests
     public void Analyze_DeepAviSynthImportChain_DoesNotThrow()
     {
         const int depth = 200;
-        var service = AvsService(Read);
+        var service = AvsService(Includes(Read));
         const string text = "Import(\"0.avsi\")\n";
         IncludeFile? Read(string specifier, string? _)
         {
@@ -111,7 +111,7 @@ public class ScriptImportTests
 
         script += "F79(";
         var reads = 0;
-        var language = new VapourSynthLanguage(Read);
+        var language = new VapourSynthLanguage(Includes(Read));
         var native = Array.Empty<Symbol>();
         language.Bind(script, native, CancellationToken.None, "/plugins/root.py");
         var first = reads;
@@ -142,7 +142,7 @@ public class ScriptImportTests
                     return clip
                 return nested
             """;
-        var service = new LanguageService(new VapourSynthLanguage(HavsReader(havs)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(HavsReader(havs)), Catalog());
         const string text = "import havsfunc as haf\nhaf.";
 
         var reply = service.Analyze(text, text.Length, Vs);
@@ -164,7 +164,7 @@ public class ScriptImportTests
                     return clip
                 return nested
             """;
-        var service = new LanguageService(new VapourSynthLanguage(HavsReader(havs)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(HavsReader(havs)), Catalog());
         const string text = "import havsfunc as haf\nhaf.QTGMC(";
 
         var insight = service.Analyze(text, text.Length, Vs).Insight!;
@@ -177,7 +177,7 @@ public class ScriptImportTests
     public void Analyze_FromImportStar_OffersFunctionsAtRoot()
     {
         const string havs = "def QTGMC(clip, Preset='Slow'):\n    return clip\n";
-        var service = new LanguageService(new VapourSynthLanguage(HavsReader(havs)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(HavsReader(havs)), Catalog());
         const string text = "from havsfunc import *\nQTG";
 
         var reply = service.Analyze(text, text.Length, Vs);
@@ -190,7 +190,7 @@ public class ScriptImportTests
     public void Hover_FromImportStar_ShowsSignature()
     {
         const string havs = "def QTGMC(clip, Preset='Slow'):\n    return clip\n";
-        var service = new LanguageService(new VapourSynthLanguage(HavsReader(havs)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(HavsReader(havs)), Catalog());
         const string text = "from havsfunc import *\nQTGMC";
 
         var hover = service.Analyze(text, text.Length, Vs).Hover;
@@ -202,7 +202,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_UnknownImport_StaysSilent()
     {
-        var service = new LanguageService(new VapourSynthLanguage(HavsReader(null)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(HavsReader(null)), Catalog());
         const string text = "import os\nos.";
 
         var reply = service.Analyze(text, text.Length, Vs);
@@ -222,7 +222,7 @@ public class ScriptImportTests
             ["mid"] = "import leaf as l\ndef MidFn(clip):\n    return clip\n",
             ["leaf"] = "def Deep(clip, radius=1):\n    return clip\n"
         };
-        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), Catalog());
         const string text = "import pack as p\np.";
 
         var reply = service.Analyze(text, text.Length, Vs);
@@ -241,7 +241,7 @@ public class ScriptImportTests
             ["mid"] = "import leaf as l\ndef MidFn(clip):\n    return clip\n",
             ["leaf"] = "def Deep(clip, radius=1):\n    return clip\n"
         };
-        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), Catalog());
         const string text = "import pack as p\np.m.l.";
 
         var reply = service.Analyze(text, text.Length, Vs);
@@ -258,7 +258,7 @@ public class ScriptImportTests
             ["mid"] = "import leaf as l\ndef MidFn(clip):\n    return clip\n",
             ["leaf"] = "def Deep(clip, radius=1):\n    return clip\n"
         };
-        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), Catalog());
         const string text = "import pack as p\np.m.l.Deep(";
 
         var insight = service.Analyze(text, text.Length, Vs).Insight!;
@@ -275,7 +275,7 @@ public class ScriptImportTests
             ["pack"] = "from mid import Deep\n",
             ["mid"] = "def Deep(clip, radius=1):\n    return clip\n"
         };
-        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), Catalog());
         const string text = "import pack as p\np.";
 
         var reply = service.Analyze(text, text.Length, Vs);
@@ -293,7 +293,7 @@ public class ScriptImportTests
             ["mid"] = "from leaf import *\n",
             ["leaf"] = "def Deep(clip, radius=1):\n    return clip\n"
         };
-        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), Catalog());
         const string text = "from pack import *\nDee";
 
         var reply = service.Analyze(text, text.Length, Vs);
@@ -310,7 +310,7 @@ public class ScriptImportTests
             ["havsfunc"] = "from .qtgmc import QTGMC\n",
             [".qtgmc"] = "def QTGMC(clip, Preset='Slow'):\n    return clip\n"
         };
-        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), Catalog());
         const string text = "import havsfunc as haf\nhaf.";
 
         var reply = service.Analyze(text, text.Length, Vs);
@@ -327,7 +327,7 @@ public class ScriptImportTests
                 return Input
             }
             """;
-        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new AviSynthLanguage(Includes(Read)), Catalog());
         var native = new[] { new Symbol("QTGMC", ["clip"]) };
         const string text = "Import(\"QTGMC.avsi\")\nlast.QTG";
         IncludeFile? Read(string specifier, string? _) =>
@@ -348,7 +348,7 @@ public class ScriptImportTests
                 return Input
             }
             """;
-        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new AviSynthLanguage(Includes(Read)), Catalog());
         var native = new[] { new Symbol("QTGMC", ["clip"]) };
         const string text = "Import(\"QTGMC.avsi\")\nlast.QTGMC(";
         IncludeFile? Read(string specifier, string? _) =>
@@ -363,7 +363,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_AviSynthNestedImport_LoadsGrandchildSignatures()
     {
-        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new AviSynthLanguage(Includes(Read)), Catalog());
         const string text = "Import(\"a.avs\")\nlast.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -384,7 +384,7 @@ public class ScriptImportTests
     [Fact]
     public void Insight_AviSynthNestedImport_ShowsGrandchildSignature()
     {
-        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new AviSynthLanguage(Includes(Read)), Catalog());
         const string text = "Import(\"a.avs\")\nlast.FromC(";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -402,7 +402,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_AviSynthImportCycle_DoesNotRecurseForever()
     {
-        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new AviSynthLanguage(Includes(Read)), Catalog());
         const string text = "Import(\"a.avs\")\nlast.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -425,7 +425,7 @@ public class ScriptImportTests
             ["a"] = "import b as x\ndef FromA(clip):\n    return clip\n",
             ["b"] = "import a as y\ndef FromB(clip):\n    return clip\n"
         };
-        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), new CatalogCache(() => []));
+        var service = new LanguageService(new VapourSynthLanguage(FilesReader(files)), Catalog());
         const string text = "import a as m\nm.";
 
         var reply = service.Analyze(text, text.Length, Vs);
@@ -438,7 +438,7 @@ public class ScriptImportTests
     public void Insight_ImportedFunction_ShowsOverload()
     {
         const string helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter\nFilter(";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -453,7 +453,7 @@ public class ScriptImportTests
     public void Analyze_ImportedFunction_InfersReturnType()
     {
         const string helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter\nclip = Filter()\nclip.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -466,7 +466,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_RelativeImportA_DoesNotSeeB()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import a\nimport b\na.";
         IncludeFile? Read(string specifier, string? fromPath)
         {
@@ -478,12 +478,11 @@ public class ScriptImportTests
             {
                 return null;
             }
-            var dir = Path.GetDirectoryName(fromPath) ?? "";
-            if (dir.EndsWith("/a", StringComparison.Ordinal))
+            if (fromPath?.Contains("/a/", StringComparison.Ordinal) == true)
             {
                 return new IncludeFile("/pkg/a/helper.py", "def OnlyA(clip):\n    return clip\n");
             }
-            if (dir.EndsWith("/b", StringComparison.Ordinal))
+            if (fromPath?.Contains("/b/", StringComparison.Ordinal) == true)
             {
                 return new IncludeFile("/pkg/b/helper.py", "def OnlyB(clip):\n    return clip\n");
             }
@@ -499,7 +498,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_RelativeImportB_DoesNotSeeA()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import a\nimport b\nb.";
         IncludeFile? Read(string specifier, string? fromPath)
         {
@@ -511,12 +510,11 @@ public class ScriptImportTests
             {
                 return null;
             }
-            var dir = Path.GetDirectoryName(fromPath) ?? "";
-            if (dir.EndsWith("/a", StringComparison.Ordinal))
+            if (fromPath?.Contains("/a/", StringComparison.Ordinal) == true)
             {
                 return new IncludeFile("/pkg/a/helper.py", "def OnlyA(clip):\n    return clip\n");
             }
-            if (dir.EndsWith("/b", StringComparison.Ordinal))
+            if (fromPath?.Contains("/b/", StringComparison.Ordinal) == true)
             {
                 return new IncludeFile("/pkg/b/helper.py", "def OnlyB(clip):\n    return clip\n");
             }
@@ -533,7 +531,7 @@ public class ScriptImportTests
     public void Analyze_ScopedImport_DoesNotLeak()
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             def f():
                 from helper import Filter
@@ -551,7 +549,7 @@ public class ScriptImportTests
     public void Analyze_ScopedImport_OffersInsideBody()
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             def f():
                 from helper import Filter
@@ -569,7 +567,7 @@ public class ScriptImportTests
     public void Analyze_ReboundModuleAlias_OffersImportedMembers()
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             local = 2
             import helper as local
@@ -588,7 +586,7 @@ public class ScriptImportTests
     public void Analyze_ParenthesizedFromImport_OffersMember()
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             from helper import (
                 Filter,
@@ -609,7 +607,7 @@ public class ScriptImportTests
     public void Analyze_DottedPackageImport_OffersModuleNotMembers()
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import package.helper\npackage.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier is "helper" or "package.helper"
@@ -626,7 +624,7 @@ public class ScriptImportTests
     public void Analyze_DottedPackageImport_OffersNestedMembers()
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import package.helper\npackage.helper.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier is "helper" or "package.helper"
@@ -642,7 +640,7 @@ public class ScriptImportTests
     public void Analyze_ThreeComponentImport_KeepsIntermediateNamespace()
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg.sub.helper\npkg.sub.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "pkg.sub.helper"
@@ -659,7 +657,7 @@ public class ScriptImportTests
     public void Analyze_ThreeComponentImport_OffersLeafMembers()
     {
         const string helper = "def Filter(clip):\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg.sub.helper\npkg.sub.helper.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "pkg.sub.helper"
@@ -674,7 +672,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_InnerFunctionImport_ShadowsGlobalFunction()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             from helper import Filter
             def f():
@@ -699,7 +697,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_PackageAndSubmoduleImports_PreserveBothSides()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg\nimport pkg.sub\npkg.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -718,7 +716,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_SubmoduleThenPackageImport_PreservesBothSides()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg.sub\nimport pkg\npkg.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -737,7 +735,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_PackageSubmodule_OffersSubMembers()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg.sub\nimport pkg.sub.helper\npkg.sub.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -756,7 +754,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_ReboundModuleAlias_DoesNotMergeUnrelatedModules()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             import helper as mod
             import other as mod
@@ -778,7 +776,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_ReboundModuleAlias_LeavesOtherAliasIntact()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             import other as o
             import helper as mod
@@ -801,7 +799,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_PlaceholderPackage_DoesNotMergeIntoUnrelatedAlias()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg.sub\nimport other as pkg\npkg.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -827,7 +825,7 @@ public class ScriptImportTests
             def Keep():
                 return 1
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import wrapper\nwrapper.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -845,7 +843,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_FromImport_ResolvesSubmoduleMembers()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from pkg import helper\nhelper.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -864,7 +862,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_RelativeFromImport_InfersReturnType()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from . import Filter\nclip = Filter()\nclip.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -889,7 +887,7 @@ public class ScriptImportTests
             def _private(clip):
                 return clip
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import *\nFil";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -908,7 +906,7 @@ public class ScriptImportTests
             def _private(clip):
                 return clip
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import *\n_pri";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -927,7 +925,7 @@ public class ScriptImportTests
             def _private(clip):
                 return clip
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import _private\n_pri";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -946,7 +944,7 @@ public class ScriptImportTests
             def _private(clip):
                 return clip
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = """
             def Filter(clip, radius=2):
                 return clip
@@ -971,7 +969,7 @@ public class ScriptImportTests
                 return clip
             Filter = None
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter\nFilter(";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -989,7 +987,7 @@ public class ScriptImportTests
                 return clip
             Filter = None
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter\nclip = Filter()\nclip.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -1003,7 +1001,7 @@ public class ScriptImportTests
     public void Analyze_ImportAlias_AllowsTabAroundAs()
     {
         const string helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import helper\tas h\nh.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -1017,7 +1015,7 @@ public class ScriptImportTests
     public void Analyze_FromImportAlias_AllowsTabBeforeName()
     {
         const string helper = "def Filter(clip) -> vs.VideoNode:\n    return clip\n";
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter as\tF\nclip = F()\nclip.";
         IncludeFile? Read(string specifier, string? _) =>
             specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
@@ -1031,9 +1029,9 @@ public class ScriptImportTests
     public void Analyze_AviSynthIncompleteImport_ReloadsWithoutRefresh()
     {
         var reads = 0;
-        var language = new AviSynthLanguage(Read);
+        var language = new AviSynthLanguage(Includes(Read));
         language.Includes.SetPath("helper", null, "/h.avsi", language.Includes.Version);
-        var service = new LanguageService(language, new CatalogCache(() => []));
+        var service = new LanguageService(language, Catalog());
         const string text = "Import(\"helper\")\nHelper(";
         IncludeFile? Read(string specifier, string? _)
         {
@@ -1053,7 +1051,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_AviSynthCachedExports_DoNotDependOnVisitOrder()
     {
-        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new AviSynthLanguage(Includes(Read)), Catalog());
         const string first = "Import(\"b.avs\")\nlast.";
         service.Analyze(first, first.Length, []);
         const string onlyA = "Import(\"a.avs\")\nlast.";
@@ -1073,7 +1071,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_DottedImportRoot_DoesNotOfferChild()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg\npkg.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -1091,7 +1089,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_DottedImportChild_OffersChildOnPackage()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import pkg.child\npkg.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -1108,7 +1106,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_DottedImport_DoesNotMutateOtherDocumentCache()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string root = "import pkg\npkg.";
         service.Analyze(root, root.Length, Vs);
         const string child = "import pkg.child\npkg.";
@@ -1130,7 +1128,7 @@ public class ScriptImportTests
     public void Analyze_AviSynthCancelledCycle_ReloadsMissingDependency()
     {
         var cts = new CancellationTokenSource();
-        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        var service = new LanguageService(new AviSynthLanguage(Includes(Read)), Catalog());
         const string first = "Import(\"a.avs\")\n";
         try
         {
@@ -1167,7 +1165,7 @@ public class ScriptImportTests
     public void Analyze_VapourSynthCancelledCycle_ReloadsMissingDependency()
     {
         var cts = new CancellationTokenSource();
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string first = "import a\n";
         try
         {
@@ -1202,7 +1200,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_CyclicImport_SeesDeclarationsAlreadyEncountered()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import a\nimport b\nb.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -1219,7 +1217,7 @@ public class ScriptImportTests
     [Fact]
     public void Analyze_CyclicImport_SeesDeclarationsThroughB()
     {
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "import b\nb.";
         IncludeFile? Read(string specifier, string? _) => specifier switch
         {
@@ -1241,7 +1239,7 @@ public class ScriptImportTests
                 return 1
             from helper import *
             """;
-        var service = VsService(Read);
+        var service = VsService(Includes(Read));
         const string text = "from helper import Filter\nFilter(";
         IncludeFile? Read(string specifier, string? _) =>
             specifier is "helper" or "/helper.py"

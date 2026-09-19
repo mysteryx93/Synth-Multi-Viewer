@@ -5,7 +5,7 @@ namespace HanumanInstitute.ScriptAssist.VapourSynth;
 /// </summary>
 public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefreshableLanguage, IContextHover
 {
-    private readonly IncludeReader? _read;
+    private readonly IIncludeSource? _read;
     /// <summary>
     /// Gets Python-like comment and string rules.
     /// </summary>
@@ -21,7 +21,7 @@ public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefresh
     /// <summary>
     /// Creates a profile that optionally follows Python imports through <paramref name="read"/>.
     /// </summary>
-    public VapourSynthLanguage(IncludeReader? read = null) => _read = read;
+    public VapourSynthLanguage(IIncludeSource? read = null) => _read = read;
 
     /// <inheritdoc />
     public LexerOptions Lexer => LexerOptions;

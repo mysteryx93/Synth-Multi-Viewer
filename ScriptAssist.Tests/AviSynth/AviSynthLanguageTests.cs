@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using HanumanInstitute.ScriptAssist.AviSynth;
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.AviSynth;
 
 using static AssistHarness;
 

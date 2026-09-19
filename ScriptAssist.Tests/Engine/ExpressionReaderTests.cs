@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Xunit;
 
-namespace HanumanInstitute.ScriptAssist.Tests;
+namespace HanumanInstitute.ScriptAssist.Tests.Engine;
 
 [SuppressMessage("Usage", "xUnit1051:Calls to methods which accept CancellationToken should use TestContext.Current.CancellationToken")]
 public class ExpressionReaderTests

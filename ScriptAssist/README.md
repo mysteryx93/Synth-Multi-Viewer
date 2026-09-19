@@ -12,21 +12,19 @@ Targets .NET 10. Uses `Avalonia.AvaloniaEdit` and `HanumanInstitute.Validators`.
 
 ## Attach to an editor
 
-Supply two catalog callbacks returning `IReadOnlyList<Symbol>` (see [Catalogs](#catalogs)). The factory provides both languages; include readers are optional.
+Supply native catalog dumps and AviSynth plugin-folder disk (see [Catalogs](#catalogs)). Include sources are optional.
 
 ```csharp
 using HanumanInstitute.ScriptAssist;
 using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 
-var factory = new ScriptLanguageFactory(ReadVsCatalog, ReadAvsCatalog);
+var factory = new ScriptLanguageFactory(vapoursynthNative, avisynthNative, avisynthAutoload);
 
-var assist = new EditorAssist(editor, factory,
-    () => ScriptLanguageFactory.VapourSynth,
-    () => documentPath);
+var assist = new EditorAssist(editor, session);
 assist.Attach();
 ```
 
-Keep `assist` for the editor's lifetime and call `Dispose()` when finished. The callbacks can return the current language and file path when an editor switches documents. Use `ScriptLanguageFactory.AviSynth` for AviSynth.
+`session` is an `IAssistSession` (current language service, path, enablement, refresh). Keep `assist` for the editor's lifetime and call `Dispose()` when finished.
 
 `EditorAssistOptions.Hint` and `Hover` set wrap width, line count, and character cap (`AssistTipSize`). Hover defaults are wider than the completion side panel and also wrap call-insight headers. Function signatures omit the `core.ns.` prefix.
 
@@ -39,17 +37,17 @@ var service = factory.Create(ScriptLanguageFactory.VapourSynth)!;
 Reply reply = await service.GetAsync(text, caret, cancellationToken, documentPath);
 ```
 
-`Reply` contains completion items, call insight, and hover text. Discard it if the document, caret, language, or path changed while awaiting it. `Create` returns null while `IsEnabled` is false. A service obtained earlier also skips catalog enumeration on `GetAsync` while the factory remains disabled.
+`Reply` contains completion items, call insight, and hover text. Discard it if the document, caret, language, or path changed while awaiting it. `Create` returns null while `IsEnabled` is false.
 
 ## Catalog lifecycle
 
 Catalogs load on first request. Call `factory.Configure(language, catalogKey)` to prefetch or when native library/plugin settings change; choose a key representing those settings. `factory.Refresh()` forces enumeration again. Catalog callbacks run in the background; exceptions produce an empty catalog.
 
-`factory.IsEnabled` defaults to true. When false, `EditorAssist` skips requests, `Configure` only remembers the key, and `Refresh` does nothing. After re-enabling, the next request loads any pending catalog.
+`factory.IsEnabled` defaults to true. When false, `EditorAssist` skips requests, `Configure` only remembers the key, and `Create` returns null. `Refresh()` still re-enumerates catalogs. After re-enabling, the next request uses the current catalog.
 
 ## Catalogs
 
-The host maps native catalog entries to `Symbol`. This repository uses `VsCatalog.Read` / `AvsCatalog.Read` from the separate API projects; [ScriptCatalogs.cs](../SynthMultiViewer/Services/ScriptCatalogs.cs) shows the mapping.
+The host copies native metadata (`VsCatalog.Read` / `AvsCatalog.Read`) into dump DTOs. The factory maps those to `Symbol` (`VapourSynthSymbolSource`, `AviSynthSymbolSource`). Do not map plugins in the app.
 
 **VapourSynth:** use `core.<namespace>.<Function>`, one native argument descriptor per array entry, and the API4 return string. Multiple return keys remain untyped.
 
@@ -65,29 +63,16 @@ new Symbol("Crop", AviSynthParameters.Parse("c[left]i[top]i"));
 
 ## Includes
 
-Pass optional readers to follow external scripts. Each returns an `IncludeFile` with its resolved full path and text, or `null` when unavailable. The host owns search directories and disk access.
+Pass optional `IIncludeSource` instances to follow external scripts. Each `Read` returns an `IncludeFile` with its resolved full path and text, or `null` when unavailable. The host owns search directories.
 
 ```csharp
-IncludeFile? ReadAviSynth(string specifier, string? fromPath) =>
-    ScriptFiles.AviSynth(specifier, fromPath, pluginDirectories, TryRead);
-
-IncludeFile? ReadPython(string specifier, string? fromPath) =>
-    ScriptFiles.PythonModule(specifier, fromPath, pythonDirectories, TryRead);
-
-static string? TryRead(string path)
-{
-    try { return File.ReadAllText(path); }
-    catch (IOException) { return null; }
-    catch (UnauthorizedAccessException) { return null; }
-}
-
 var factory = new ScriptLanguageFactory(
-    ReadVsCatalog, ReadAvsCatalog, ReadPython, ReadAviSynth);
+    vapoursynthNative, avisynthNative, avisynthAutoload, pythonIncludes, avisynthIncludes);
 ```
 
-`ScriptFiles` uses absolute paths directly; otherwise it tries paths beside `fromPath`, then the supplied directories. The per-path reader must return `null` for a missing or unreadable candidate so later paths are tried; do not pass `File.ReadAllText` directly. AviSynth uses the supplied filename, including its extension; Python tries `name.py` and `name/__init__.py`. Leading-dot Python imports resolve relative to the importing file. Include plugin or site-packages directories in the host's roots as needed.
+`ScriptFiles` uses absolute paths directly; otherwise it tries paths beside `fromPath`, then the supplied directories, through `IFileSystemService`. Missing or unreadable candidates are skipped so later paths are tried. AviSynth uses the supplied filename, including its extension; Python tries `name.py` and `name/__init__.py`. Leading-dot Python imports resolve relative to the importing file. Include plugin or site-packages directories in the host's roots as needed.
 
-Pass the open document's path for sibling imports. Unsaved buffers can still use supplied search roots. Autoload AviSynth scripts can be parsed with `AviSynthFunctions.Parse` and merged into the host catalog with `UnionByName`.
+Pass the open document's path for sibling imports. Unsaved buffers can still use supplied search roots. Autoload AviSynth scripts are merged inside `AviSynthSymbolSource` via `AviSynthFunctions.Parse` and `UnionByName`.
 
 Imported exports and failed lookups are cached on the language (bounded LRU). The current bind keeps its own import graph, and that document's working set is pinned so a later edit of the same file does not cascade-reread. `Invalidate`, factory `Refresh`, or `Configure` with a new catalog key still drop the cache. Files that fall out of the cache and the working set are read again.
 

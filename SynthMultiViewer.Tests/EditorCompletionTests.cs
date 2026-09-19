@@ -10,6 +10,7 @@ using HanumanInstitute.ScriptAssist;
 using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 using HanumanInstitute.ScriptAssist.VapourSynth;
 using HanumanInstitute.SynthMultiViewer.Controls;
+using Moq;
 using Xunit;
 
 namespace HanumanInstitute.SynthMultiViewer.Tests;
@@ -24,8 +25,23 @@ public class EditorCompletionTests
         new("core.std.SelectEvery", ["clip:vnode", "cycle:int", "offsets:int[]"], ReturnType: "clip:vnode")
     ];
 
+    private static CatalogCache EmptyCatalog()
+    {
+        var source = new Mock<ISymbolSource>();
+        source.Setup(s => s.Enumerate()).Returns([]);
+        return new CatalogCache(source.Object);
+    }
+
     private static LanguageService Service() =>
-        new(new VapourSynthLanguage(), new CatalogCache(() => []));
+        new(new VapourSynthLanguage(), EmptyCatalog());
+
+    private static void UseService(BindableTextEditor editor, ILanguageService service)
+    {
+        var factory = new Mock<IScriptLanguageFactory>();
+        factory.Setup(f => f.IsEnabled).Returns(true);
+        factory.Setup(f => f.Create(It.IsAny<string>())).Returns(service);
+        editor.LanguageFactory = factory.Object;
+    }
 
     [AvaloniaFact]
     public void Complete_UnicodeReplacement_UndoRestoresDocument()
@@ -53,7 +69,8 @@ public class EditorCompletionTests
     public async Task RequestCompletion_StaleChange_DiscardsReply(string change)
     {
         var service = new DelayedService();
-        var editor = new BindableTextEditor { Text = "co", LanguageService = service };
+        var editor = new BindableTextEditor { Text = "co" };
+        UseService(editor, service);
         var other = new TextBox();
         using var shown = TestSupport.Show(new() { Content = new StackPanel { Children = { editor, other } } });
         editor.TextArea.Focus();
@@ -100,12 +117,11 @@ public class EditorCompletionTests
         string? path = "/tmp/a.vpy";
         var enabled = true;
         var editor = new TextEditor { Text = "co" };
-        var assist = new EditorAssist(editor, new()
-        {
-            ResolveService = () => current,
-            IsEnabled = () => enabled,
-            ResolveDocumentPath = () => path
-        });
+        var session = new Mock<IAssistSession>();
+        session.Setup(s => s.AssistanceEnabled).Returns(() => enabled);
+        session.Setup(s => s.ResolveService()).Returns(() => current);
+        session.Setup(s => s.DocumentPath).Returns(() => path);
+        var assist = new EditorAssist(editor, session.Object);
         assist.Attach();
         using var shown = TestSupport.Show(new() { Content = editor, Width = 400, Height = 200 });
         editor.TextArea.Focus();
@@ -143,12 +159,11 @@ public class EditorCompletionTests
         string? path = "/tmp/a.vpy";
         var enabled = true;
         var editor = new TextEditor { Text = "clip" };
-        var assist = new EditorAssist(editor, new()
-        {
-            ResolveService = () => current,
-            IsEnabled = () => enabled,
-            ResolveDocumentPath = () => path
-        });
+        var session = new Mock<IAssistSession>();
+        session.Setup(s => s.AssistanceEnabled).Returns(() => enabled);
+        session.Setup(s => s.ResolveService()).Returns(() => current);
+        session.Setup(s => s.DocumentPath).Returns(() => path);
+        var assist = new EditorAssist(editor, session.Object);
         assist.Attach();
         using var shown = TestSupport.Show(new() { Content = editor, Width = 400, Height = 200 });
         editor.TextArea.Focus();
@@ -264,7 +279,8 @@ public class EditorCompletionTests
     public async Task RequestCompletion_ReplyReady_ShowsPopupAndInsight()
     {
         var service = new DelayedService();
-        var editor = new BindableTextEditor { Text = "core.std.Crop(co", LanguageService = service };
+        var editor = new BindableTextEditor { Text = "core.std.Crop(co" };
+        UseService(editor, service);
         using var shown = TestSupport.Show(new() { Content = editor });
         editor.TextArea.Focus();
         editor.CaretOffset = editor.Text.Length;
@@ -399,7 +415,8 @@ public class EditorCompletionTests
     public async Task DocumentChange_PendingRequest_CancelsAnalysis()
     {
         var service = new DelayedService();
-        var editor = new BindableTextEditor { Text = "core.std.Crop(", LanguageService = service };
+        var editor = new BindableTextEditor { Text = "core.std.Crop(" };
+        UseService(editor, service);
         using var shown = TestSupport.Show(new() { Content = editor, Width = 640, Height = 300 });
         editor.TextArea.Focus();
         editor.CaretOffset = editor.Document.TextLength;
@@ -421,11 +438,14 @@ public class EditorCompletionTests
         editor.DismissCompletion();
     }
 
-    private static BindableTextEditor OpenEditor(string text) => new()
+    private static BindableTextEditor OpenEditor(string text)
     {
-        Text = text,
-        LanguageService = new LanguageService(new VapourSynthLanguage(), new CatalogCache(() => Vs))
-    };
+        var editor = new BindableTextEditor { Text = text };
+        var source = new Mock<ISymbolSource>();
+        source.Setup(s => s.Enumerate()).Returns(Vs);
+        UseService(editor, new LanguageService(new VapourSynthLanguage(), new CatalogCache(source.Object)));
+        return editor;
+    }
 
     private sealed class DelayedService : ILanguageService
     {
