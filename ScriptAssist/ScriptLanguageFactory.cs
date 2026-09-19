@@ -89,7 +89,7 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
         catalogKey.CheckNotNull();
         if (!_profiles.TryGetValue(language, out var profile)) { return; }
 
-        var previous = profile.Catalog is CatalogCache cache ? cache.Key : null;
+        var previous = profile.CatalogKey;
         if (!IsEnabled)
         {
             profile.Catalog.SetKey(catalogKey);
@@ -99,6 +99,7 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
             profile.Catalog.Refresh(catalogKey);
         }
 
+        profile.CatalogKey = catalogKey;
         if (previous != catalogKey)
         {
             profile.Service.Invalidate();
@@ -112,7 +113,7 @@ public class ScriptLanguageFactory : IScriptLanguageFactory
 
         foreach (var profile in _profiles.Values)
         {
-            profile.Catalog.Refresh("explicit", true);
+            profile.Catalog.Refresh(profile.CatalogKey ?? "", true);
             profile.Service.Invalidate();
         }
     }

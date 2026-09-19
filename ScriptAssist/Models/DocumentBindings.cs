@@ -5,8 +5,10 @@ namespace HanumanInstitute.ScriptAssist;
 /// </summary>
 public sealed class DocumentBindings
 {
+    private const int ViewLimit = 4;
     private readonly Lock _viewsGate = new();
-    private Dictionary<BindingScope, DocumentBindings>? _views;
+    private List<(BindingScope Scope, DocumentBindings View)>? _views;
+    private HashSet<string>? _functionNames;
 
     /// <summary>
     /// Gets assigned names and their inferred types.
@@ -48,14 +50,34 @@ public sealed class DocumentBindings
 
         lock (_viewsGate)
         {
-            _views ??= new();
-            if (_views.TryGetValue(inner, out var view))
+            if (_views != null)
             {
-                return view;
+                for (var i = 0; i < _views.Count; i++)
+                {
+                    if (!ReferenceEquals(_views[i].Scope, inner))
+                    {
+                        continue;
+                    }
+
+                    var cached = _views[i].View;
+                    if (i > 0)
+                    {
+                        _views.RemoveAt(i);
+                        _views.Insert(0, (inner, cached));
+                    }
+
+                    return cached;
+                }
             }
 
-            view = OverlayView(caret);
-            _views[inner] = view;
+            var view = OverlayView(caret);
+            _views ??= [];
+            _views.Insert(0, (inner, view));
+            if (_views.Count > ViewLimit)
+            {
+                _views.RemoveAt(_views.Count - 1);
+            }
+
             return view;
         }
     }
@@ -85,20 +107,218 @@ public sealed class DocumentBindings
             ? dictionary.Comparer
             : StringComparer.Ordinal;
         var merged = new Dictionary<string, TypeRef>(Names, comparer);
-        var functions = new Dictionary<string, Symbol>(comparer);
+        if (!ShadowsFunctions(caret, comparer))
+        {
+            Overlay(caret, merged);
+            return new()
+            {
+                Names = merged,
+                BufferSymbols = BufferSymbols,
+                ScriptModules = ScriptModules,
+                Scopes = Scopes
+            };
+        }
+
+        var functions = new Dictionary<string, List<Symbol>>(comparer);
         foreach (var symbol in BufferSymbols)
         {
-            functions[symbol.Name] = symbol;
+            if (!functions.TryGetValue(symbol.Name, out var group))
+            {
+                group = [];
+                functions[symbol.Name] = group;
+            }
+
+            group.Add(symbol);
         }
 
         Overlay(caret, merged, functions);
         return new()
         {
             Names = merged,
-            BufferSymbols = [..functions.Values],
+            BufferSymbols = SameSymbols(functions, BufferSymbols) ? BufferSymbols : Flatten(functions),
             ScriptModules = ScriptModules,
             Scopes = Scopes
         };
+    }
+
+    private bool ShadowsFunctions(int caret, IEqualityComparer<string> comparer)
+    {
+        HashSet<string>? functionNames = null;
+        foreach (var scope in Scopes)
+        {
+            if (caret < scope.Start || caret > scope.End)
+            {
+                continue;
+            }
+
+            if (scope.Symbols.Count > 0)
+            {
+                return true;
+            }
+
+            functionNames ??= FunctionNames(comparer);
+            foreach (var name in scope.Names.Keys)
+            {
+                if (functionNames.Contains(name))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private HashSet<string> FunctionNames(IEqualityComparer<string> comparer)
+    {
+        if (_functionNames != null)
+        {
+            return _functionNames;
+        }
+
+        _functionNames = new(comparer);
+        foreach (var symbol in BufferSymbols)
+        {
+            _functionNames.Add(symbol.Name);
+        }
+
+        return _functionNames;
+    }
+
+    /// <summary>
+    /// Approximate retained size of names, function lists, and cached scope views.
+    /// </summary>
+    internal long RetainedBytes()
+    {
+        lock (_viewsGate)
+        {
+            var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            var bytes = NamesBytes(Names);
+            bytes += SymbolsBytes(BufferSymbols, seen);
+            foreach (var pair in ScriptModules)
+            {
+                bytes += (long)pair.Key.Length * sizeof(char);
+                bytes += SymbolsBytes(pair.Value, seen);
+            }
+
+            foreach (var scope in Scopes)
+            {
+                bytes += (long)scope.Name.Length * sizeof(char);
+                bytes += NamesBytes(scope.Names);
+                bytes += SymbolsBytes(scope.Symbols, seen);
+                foreach (var parameter in scope.Parameters)
+                {
+                    bytes += (long)parameter.Length * sizeof(char);
+                }
+            }
+
+            if (_views == null)
+            {
+                return bytes;
+            }
+
+            foreach (var (_, view) in _views)
+            {
+                bytes += NamesBytes(view.Names);
+                bytes += SymbolsBytes(view.BufferSymbols, seen);
+            }
+
+            return bytes;
+        }
+    }
+
+    private static bool SameSymbols(Dictionary<string, List<Symbol>> functions, IReadOnlyList<Symbol> original)
+    {
+        var count = 0;
+        foreach (var group in functions.Values)
+        {
+            count += group.Count;
+        }
+
+        if (count != original.Count)
+        {
+            return false;
+        }
+
+        foreach (var symbol in original)
+        {
+            if (!functions.TryGetValue(symbol.Name, out var group) || !Contains(group, symbol))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool Contains(List<Symbol> group, Symbol symbol)
+    {
+        foreach (var item in group)
+        {
+            if (ReferenceEquals(item, symbol))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static List<Symbol> Flatten(Dictionary<string, List<Symbol>> functions)
+    {
+        var items = new List<Symbol>();
+        foreach (var group in functions.Values)
+        {
+            items.AddRange(group);
+        }
+
+        return items;
+    }
+
+    private static long NamesBytes(IReadOnlyDictionary<string, TypeRef> names)
+    {
+        var bytes = 0L;
+        foreach (var pair in names)
+        {
+            bytes += (long)(pair.Key.Length + pair.Value.Id.Length) * sizeof(char);
+        }
+
+        return bytes;
+    }
+
+    private static long SymbolsBytes(IReadOnlyList<Symbol> symbols, HashSet<object> seen)
+    {
+        if (!seen.Add(symbols))
+        {
+            return 0;
+        }
+
+        var bytes = (long)symbols.Count * 32;
+        foreach (var symbol in symbols)
+        {
+            if (!seen.Add(symbol))
+            {
+                continue;
+            }
+
+            bytes += (long)symbol.Name.Length * sizeof(char);
+            if (symbol.ReturnType != null)
+            {
+                bytes += (long)symbol.ReturnType.Length * sizeof(char);
+            }
+
+            if (symbol.Parameters == null || !seen.Add(symbol.Parameters))
+            {
+                continue;
+            }
+
+            foreach (var parameter in symbol.Parameters)
+            {
+                bytes += (long)parameter.Length * sizeof(char);
+            }
+        }
+
+        return bytes;
     }
 
     /// <summary>
@@ -120,7 +340,8 @@ public sealed class DocumentBindings
     /// <summary>
     /// Overlays containing scope names onto <paramref name="names"/> in source order.
     /// </summary>
-    internal void Overlay(int caret, Dictionary<string, TypeRef> names, Dictionary<string, Symbol>? functions = null) =>
+    internal void Overlay(int caret, Dictionary<string, TypeRef> names,
+        Dictionary<string, List<Symbol>>? functions = null) =>
         Overlay(Scopes, caret, names, functions);
 
     /// <summary>
@@ -128,7 +349,7 @@ public sealed class DocumentBindings
     /// A function symbol with parameters removes a same-named value binding.
     /// </summary>
     internal static void Overlay(IReadOnlyList<BindingScope> scopes, int caret, Dictionary<string, TypeRef> names,
-        Dictionary<string, Symbol>? functions = null)
+        Dictionary<string, List<Symbol>>? functions = null)
     {
         foreach (var scope in scopes)
         {
@@ -148,9 +369,18 @@ public sealed class DocumentBindings
                 continue;
             }
 
+            var added = new HashSet<string>(functions.Comparer);
             foreach (var symbol in scope.Symbols)
             {
-                functions[symbol.Name] = symbol;
+                if (added.Add(symbol.Name))
+                {
+                    functions[symbol.Name] = [symbol];
+                }
+                else
+                {
+                    functions[symbol.Name].Add(symbol);
+                }
+
                 if (symbol.Parameters != null)
                 {
                     names.Remove(symbol.Name);

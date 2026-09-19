@@ -65,10 +65,74 @@ internal static class VapourSynthMembers
             return null;
         }
 
-        foreach (var symbol in Of(receiver, [], bindings, index))
+        if (receiver.IsRoot)
         {
-            if (symbol.Name.Equals(name, StringComparison.Ordinal) ||
-                symbol.Name.EndsWith('.' + name, StringComparison.Ordinal))
+            foreach (var symbol in bindings.BufferSymbols)
+            {
+                if (symbol.Name.Equals(name, StringComparison.Ordinal))
+                {
+                    return symbol;
+                }
+            }
+
+            return bindings.Names.ContainsKey(name)
+                ? new(name, null, SymbolKind.Local)
+                : null;
+        }
+
+        var script = VapourSynthTypes.ScriptOf(receiver);
+        if (script != null)
+        {
+            return bindings.ScriptModules.TryGetValue(script, out var members)
+                ? Named(members, name)
+                : null;
+        }
+
+        if (receiver == VapourSynthTypes.Module)
+        {
+            return Named(VapourSynthHostTypes.ModuleMembers, name);
+        }
+
+        if (receiver == VapourSynthTypes.Core)
+        {
+            return Named(VapourSynthHostTypes.CoreMembers, name) ??
+                index.FindNamespace(name, false);
+        }
+
+        if (receiver == VapourSynthTypes.VideoNode)
+        {
+            return Named(VapourSynthHostTypes.VideoNodeMembers, name) ??
+                index.FindNamespace(name, true, receiver);
+        }
+
+        if (receiver == VapourSynthTypes.AudioNode)
+        {
+            return Named(VapourSynthHostTypes.AudioNodeMembers, name) ??
+                index.FindNamespace(name, true, receiver);
+        }
+
+        if (receiver == VapourSynthTypes.Format)
+        {
+            return Named(VapourSynthHostTypes.FormatMembers, name);
+        }
+
+        if (receiver == VapourSynthTypes.VideoFrame)
+        {
+            return Named(VapourSynthHostTypes.VideoFrameMembers, name);
+        }
+
+        var ns = VapourSynthTypes.NamespaceOf(receiver);
+        return ns == null
+            ? null
+            : index.FindFunction(ns, name, VapourSynthTypes.IsBound(receiver),
+                VapourSynthTypes.IsBound(receiver) ? VapourSynthTypes.BoundNode(receiver) : default);
+    }
+
+    private static Symbol? Named(IReadOnlyList<Symbol> symbols, string name)
+    {
+        foreach (var symbol in symbols)
+        {
+            if (symbol.Name.Equals(name, StringComparison.Ordinal))
             {
                 return symbol;
             }

@@ -35,9 +35,9 @@ public sealed class EditorAssist : IDisposable
     {
         _editor = editor;
         _options = options;
-        _completion = new(editor);
-        _insight = new(editor);
-        _hover = new(editor);
+        _completion = new(editor, options.Hint);
+        _insight = new(editor, options.Hover);
+        _hover = new(editor, options.Hover);
     }
 
     /// <summary>
@@ -115,6 +115,7 @@ public sealed class EditorAssist : IDisposable
         BindDocument(null);
         _attached = false;
         Dismiss();
+        ClearTextCache();
     }
 
     /// <inheritdoc />
@@ -169,6 +170,7 @@ public sealed class EditorAssist : IDisposable
             var service = _options.ResolveService();
             if (service == null)
             {
+                Dismiss();
                 return;
             }
 
@@ -346,6 +348,7 @@ public sealed class EditorAssist : IDisposable
         var service = _options.ResolveService();
         if (service == null)
         {
+            Dismiss();
             return;
         }
 
@@ -418,7 +421,8 @@ public sealed class EditorAssist : IDisposable
         if (e.Property == TextEditor.DocumentProperty)
         {
             BindDocument();
-            CancelAnalysis();
+            ClearTextCache();
+            Dismiss();
         }
     }
 
@@ -482,8 +486,14 @@ public sealed class EditorAssist : IDisposable
             }
 
             var text = snapshot.Text;
+            token.ThrowIfCancellationRequested();
             lock (_textGate)
             {
+                if (token.IsCancellationRequested)
+                {
+                    return text;
+                }
+
                 _textDocument = document;
                 _textVersion = version;
                 _text = text;
@@ -491,6 +501,16 @@ public sealed class EditorAssist : IDisposable
 
             return text;
         }, token);
+    }
+
+    private void ClearTextCache()
+    {
+        lock (_textGate)
+        {
+            _textDocument = null;
+            _textVersion = null;
+            _text = null;
+        }
     }
 
     private static Task<Reply> QueryAsync(ILanguageService service, string text, int caret,

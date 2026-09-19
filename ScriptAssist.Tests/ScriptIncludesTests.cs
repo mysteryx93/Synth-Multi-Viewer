@@ -70,7 +70,7 @@ public class ScriptIncludesTests
     [InlineData("radius: int = 1", "int")]
     [InlineData("clip: vs.VideoNode", "vs.VideoNode")]
     [InlineData("radius: Optional[int] = None", "Optional[int]")]
-    [InlineData("offsets:int[]", "int")]
+    [InlineData("offsets:int[]", "int[]")]
     [InlineData("planes=[0, 1]", null)]
     [InlineData("clip", null)]
     public void Parse_PythonParameter_ReturnsType(string parameter, string? expected)
@@ -223,6 +223,24 @@ public class ScriptIncludesTests
     }
 
     [Fact]
+    public void Parse_AsyncDef_OmitsReturnType()
+    {
+        const string text = """
+            async def load(clip) -> vs.VideoNode:
+                return clip
+            def sync(clip) -> vs.VideoNode:
+                return clip
+            """;
+
+        var symbols = VapourSynthFunctions.Parse(text, new VapourSynthLanguage().Lexer);
+
+        var load = Assert.Single(symbols, x => x.Name == "load");
+        var sync = Assert.Single(symbols, x => x.Name == "sync");
+        Assert.Null(load.ReturnType);
+        Assert.Equal("vnode", sync.ReturnType);
+    }
+
+    [Fact]
     public void Parse_PythonIncludePaths_PrefersBufferThenPluginRoots()
     {
         var fromPath = Path.Combine("/scripts", "job.vpy");
@@ -246,6 +264,16 @@ public class ScriptIncludesTests
         Assert.Equal(Path.Combine("/plugins", "havsfunc", "qtgmc.py"), paths[0]);
         Assert.Equal(Path.Combine("/plugins", "havsfunc", "qtgmc", "__init__.py"), paths[1]);
         Assert.DoesNotContain(paths, path => path.Contains("unused", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Parse_PythonDotOnlyRelative_UsesPackageInit()
+    {
+        var fromPath = Path.Combine("/project", "pkg", "filter.py");
+
+        var paths = IncludePaths.PythonModule(".", fromPath, ["/unused"]).ToArray();
+
+        Assert.Equal([Path.Combine("/project", "pkg", "__init__.py")], paths);
     }
 
     [Fact]

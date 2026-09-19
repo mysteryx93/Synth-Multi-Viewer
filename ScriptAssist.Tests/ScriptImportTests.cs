@@ -26,6 +26,65 @@ public class ScriptImportTests
     }
 
     [Fact]
+    public void Analyze_ManyAviSynthImports_KeepsAllExports()
+    {
+        var files = new Dictionary<string, string>(StringComparer.Ordinal);
+        var script = "";
+        for (var i = 0; i < 80; i++)
+        {
+            var name = "Child" + i;
+            files[name + ".avsi"] = "function " + name + "(clip c) { c }\n";
+            script += "Import(\"" + name + ".avsi\")\n";
+        }
+
+        script += "Child79(";
+        var service = new LanguageService(new AviSynthLanguage(Read), new CatalogCache(() => []));
+        IncludeFile? Read(string specifier, string? _) =>
+            files.TryGetValue(specifier, out var text)
+                ? new IncludeFile("/plugins/" + specifier, text)
+                : null;
+
+        var reply = service.Analyze(script, script.Length, []);
+
+        Assert.NotNull(reply.Insight);
+        Assert.Equal("Child79", reply.Insight.Overloads[0].Name);
+        Assert.Contains(reply.Insight.Overloads[0].Parameters ?? [], x => x.Contains("clip", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Bind_ManyPythonImports_DoesNotRereadOnSecondBind()
+    {
+        var files = new Dictionary<string, string>(StringComparer.Ordinal);
+        var script = "";
+        for (var i = 0; i < 80; i++)
+        {
+            files["child" + i] = "def F" + i + "(clip):\n    return clip\n";
+            script += "from child" + i + " import F" + i + "\n";
+        }
+
+        script += "F79(";
+        var reads = 0;
+        var language = new VapourSynthLanguage(Read);
+        var native = Array.Empty<Symbol>();
+        language.Bind(script, native, CancellationToken.None, "/plugins/root.py");
+        var first = reads;
+        IncludeFile? Read(string specifier, string? _)
+        {
+            Interlocked.Increment(ref reads);
+            return files.TryGetValue(specifier, out var text)
+                ? new IncludeFile("/plugins/" + specifier + ".py", text)
+                : null;
+        }
+
+        var bindings = language.Bind(script, native, CancellationToken.None, "/plugins/root.py");
+
+        Assert.Equal(80, first);
+        Assert.Equal(first, reads);
+        Assert.Contains(bindings.BufferSymbols, x => x.Name == "F79");
+        Assert.Equal(80, bindings.BufferSymbols.Count(x => x.Name.StartsWith('F')));
+    }
+
+    [Fact]
     public void Analyze_ImportedModule_CompletesMembers()
     {
         const string havs = """

@@ -3,7 +3,7 @@ namespace HanumanInstitute.ScriptAssist.AviSynth;
 /// <summary>
 /// Catalog-driven AviSynth profile: <c>last</c>, implicit first clip, and internals.
 /// </summary>
-public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContextHover
+public sealed class AviSynthLanguage : ILanguage, IPreparedLanguage, IRefreshableLanguage, IContextHover
 {
     private readonly IncludeReader? _read;
     /// <summary>
@@ -53,8 +53,17 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
 
     /// <inheritdoc />
     public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
-        string? documentPath = null) =>
-        AviSynthBinder.Bind(text, catalog, Lexer, token, documentPath, _read, Includes);
+        string? documentPath = null)
+    {
+        var masked = BufferLexer.Mask(text, Lexer, token: token);
+        var quoted = BufferLexer.Mask(text, Lexer, maskStrings: false, token: token);
+        return AviSynthBinder.Bind(new PreparedDocument(masked, quoted), catalog, Lexer, token,
+            documentPath, _read, Includes);
+    }
+
+    DocumentBindings IPreparedLanguage.Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog,
+        CancellationToken token, string? documentPath) =>
+        AviSynthBinder.Bind(prepared, catalog, Lexer, token, documentPath, _read, Includes);
 
     /// <inheritdoc />
     public double CompletionPriority(Symbol symbol, TypeRef receiver) =>
@@ -80,10 +89,16 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
         }
 
         var items = new List<Symbol>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var shadowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var symbol in bindings.BufferSymbols)
         {
-            if (symbol.Kind == SymbolKind.Function && AviSynthTypes.TakesClip(symbol) && seen.Add(symbol.Name))
+            if (symbol.Kind != SymbolKind.Function)
+            {
+                continue;
+            }
+
+            shadowed.Add(symbol.Name);
+            if (AviSynthTypes.TakesClip(symbol))
             {
                 items.Add(symbol);
             }
@@ -91,7 +106,12 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
 
         foreach (var symbol in catalog)
         {
-            if (symbol.Kind == SymbolKind.Function && AviSynthTypes.TakesClip(symbol) && seen.Add(symbol.Name))
+            if (symbol.Kind != SymbolKind.Function || shadowed.Contains(symbol.Name))
+            {
+                continue;
+            }
+
+            if (AviSynthTypes.TakesClip(symbol))
             {
                 items.Add(symbol);
             }
@@ -112,7 +132,7 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
         {
             if (symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison))
             {
-                matches.Add(symbol);
+                AddOverload(matches, symbol);
             }
         }
 
@@ -122,7 +142,7 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
             {
                 if (symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison))
                 {
-                    matches.Add(symbol);
+                    AddOverload(matches, symbol);
                 }
             }
         }
@@ -134,18 +154,60 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
 
         if (!implicitClip)
         {
-            var extra = new List<Symbol>();
-            foreach (var symbol in matches)
+            var extras = matches.Count;
+            for (var i = 0; i < extras; i++)
             {
+                var symbol = matches[i];
                 if (symbol.Parameters != null && AviSynthTypes.TakesClip(symbol))
                 {
-                    extra.Add(symbol with { Parameters = symbol.Parameters[1..], ImplicitLast = true });
+                    AddOverload(matches, symbol with { Parameters = symbol.Parameters[1..], ImplicitLast = true });
                 }
             }
-
-            matches.AddRange(extra);
         }
         return new() { Overloads = matches, ImplicitReceiver = implicitClip };
+    }
+
+    private static void AddOverload(List<Symbol> matches, Symbol symbol)
+    {
+        foreach (var existing in matches)
+        {
+            if (SameOverload(existing, symbol))
+            {
+                return;
+            }
+        }
+
+        matches.Add(symbol);
+    }
+
+    private static bool SameOverload(Symbol left, Symbol right)
+    {
+        if (left.ImplicitLast != right.ImplicitLast)
+        {
+            return false;
+        }
+
+        var a = left.Parameters;
+        var b = right.Parameters;
+        if (ReferenceEquals(a, b))
+        {
+            return true;
+        }
+
+        if (a == null || b == null || a.Length != b.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < a.Length; i++)
+        {
+            if (!a[i].Equals(b[i], StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <inheritdoc />
@@ -199,17 +261,17 @@ public sealed class AviSynthLanguage : ILanguage, IRefreshableLanguage, IContext
             return new(local.Id, path.Start, path.End - path.Start);
         }
 
-        foreach (var symbol in catalog)
+        foreach (var symbol in bindings.BufferSymbols)
         {
-            if (symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison))
+            if (symbol.Name.Equals(name, Comparison))
             {
                 return new(symbol.Signature, path.Start, path.End - path.Start);
             }
         }
 
-        foreach (var symbol in bindings.BufferSymbols)
+        foreach (var symbol in catalog)
         {
-            if (symbol.Name.Equals(name, Comparison))
+            if (symbol.Kind == SymbolKind.Function && symbol.Name.Equals(name, Comparison))
             {
                 return new(symbol.Signature, path.Start, path.End - path.Start);
             }

@@ -12,8 +12,17 @@ internal static class VapourSynthBinder
         CancellationToken token, string? documentPath = null, IncludeReader? read = null,
         IncludeCache? includes = null)
     {
-        var clean = BufferLexer.Mask(text, lexer, token: token).Code;
-        var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token).Code;
+        var masked = BufferLexer.Mask(text, lexer, token: token);
+        var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token);
+        return Bind(new PreparedDocument(masked, quoted), catalog, lexer, token, documentPath, read, includes);
+    }
+
+    public static DocumentBindings Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog, LexerOptions lexer,
+        CancellationToken token, string? documentPath = null, IncludeReader? read = null,
+        IncludeCache? includes = null)
+    {
+        var clean = prepared.Masked.Code;
+        var quoted = prepared.Quoted.Code;
         var names = new Dictionary<string, TypeRef>(StringComparer.Ordinal)
         {
             ["vs"] = VapourSynthTypes.Module,
@@ -22,7 +31,7 @@ internal static class VapourSynthBinder
         };
         var scriptModules = new Dictionary<string, IReadOnlyList<Symbol>>(StringComparer.Ordinal);
         var modulesByPath = new Dictionary<string, List<Symbol>>(StringComparer.Ordinal);
-        var buffer = new List<Symbol>();
+        var buffer = new SymbolList();
         var index = VapourSynthCatalogIndex.Build(catalog);
         var statements = StatementScanner.Scan(clean, token);
         var scopes = FunctionScopes(clean, quoted, statements);
@@ -42,7 +51,7 @@ internal static class VapourSynthBinder
 
             var span = statements[i];
             var inner = innerAt[i];
-            if (Keyword(quoted, span.Start, span.End, "def"))
+            if (PythonHeaders.IsDef(quoted, span.Start, span.End))
             {
                 var self = inner;
                 if (self == null || self.Start != span.Start)
@@ -103,12 +112,12 @@ internal static class VapourSynthBinder
             token.ThrowIfCancellationRequested();
             var span = statements[i];
             var inner = innerAt[i];
-            if (DirectlyInClass(span.Start, classes, inner) && !Keyword(quoted, span.Start, span.End, "def"))
+            if (DirectlyInClass(span.Start, classes, inner) && !PythonHeaders.IsDef(quoted, span.Start, span.End))
             {
                 continue;
             }
 
-            if (Keyword(quoted, span.Start, span.End, "def"))
+            if (PythonHeaders.IsDef(quoted, span.Start, span.End))
             {
                 var self = inner;
                 if (self != null && self.Start == span.Start && self.Enclosing != null &&
@@ -126,13 +135,15 @@ internal static class VapourSynthBinder
         }
 
         names.Remove("");
-        return Current(names, scriptModules, buffer, scopes);
+        cache.Finish(documentPath);
+        Freeze(scopes);
+        return Current(names, scriptModules, buffer is SymbolList symbols ? symbols.Freeze() : buffer, scopes);
     }
 
     private static void ApplyBody(string quoted, StatementScanner.Span span, BindingScope? scope,
         string? documentPath, IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, List<Symbol>> modulesByPath, LexerOptions lexer, CancellationToken token,
-        List<Symbol> buffer, Dictionary<string, TypeRef> names, IReadOnlyList<BindingScope> scopes,
+        SymbolList buffer, Dictionary<string, TypeRef> names, IReadOnlyList<BindingScope> scopes,
         VapourSynthCatalogIndex index, IncludeSession includes, VisibleCache visible)
     {
         var start = span.Start;
@@ -171,7 +182,7 @@ internal static class VapourSynthBinder
 
         if (Keyword(quoted, start, end, "with"))
         {
-            BindWith(quoted, start, end, scope, names, scriptModules, buffer, scopes, index, visible);
+            BindWith(quoted, start, end, scope, names, scriptModules, buffer, scopes, index, visible, token);
             return;
         }
 
@@ -192,7 +203,7 @@ internal static class VapourSynthBinder
     private static void ApplyImport(string quoted, int start, int end, BindingScope? scope, string? documentPath,
         IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, List<Symbol>> modulesByPath, LexerOptions lexer, CancellationToken token,
-        Dictionary<string, TypeRef> names, List<Symbol> buffer, List<Symbol>? exports, IncludeSession includes,
+        Dictionary<string, TypeRef> names, SymbolList buffer, SymbolList? exports, IncludeSession includes,
         VisibleCache? visible = null)
     {
         foreach (var part in ParameterNames.Split(quoted[start..end]))
@@ -222,7 +233,7 @@ internal static class VapourSynthBinder
     private static void ApplyFrom(string quoted, int start, int end, BindingScope? scope, string? documentPath,
         IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, List<Symbol>> modulesByPath, LexerOptions lexer, CancellationToken token,
-        List<Symbol> buffer, Dictionary<string, TypeRef> names, IncludeSession includes,
+        SymbolList buffer, Dictionary<string, TypeRef> names, IncludeSession includes,
         VisibleCache? visible = null)
     {
         var i = start;
@@ -271,7 +282,7 @@ internal static class VapourSynthBinder
     private static void BindImportedModule(string imported, string alias, bool explicitAlias, BindingScope? scope,
         string? documentPath, IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, List<Symbol>> modulesByPath, LexerOptions lexer, CancellationToken token,
-        Dictionary<string, TypeRef> names, List<Symbol> buffer, List<Symbol>? exports, IncludeSession includes,
+        Dictionary<string, TypeRef> names, SymbolList buffer, SymbolList? exports, IncludeSession includes,
         VisibleCache? visible = null)
     {
         if (imported is "vapoursynth" or "vs")
@@ -300,7 +311,7 @@ internal static class VapourSynthBinder
     private static void BindDotted(string imported, LoadedScript loaded, BindingScope? scope, string? documentPath,
         IncludeReader? read, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         Dictionary<string, List<Symbol>> modulesByPath, LexerOptions lexer, CancellationToken token,
-        Dictionary<string, TypeRef> names, List<Symbol> buffer, List<Symbol>? exports, IncludeSession includes,
+        Dictionary<string, TypeRef> names, SymbolList buffer, SymbolList? exports, IncludeSession includes,
         VisibleCache? visible = null)
     {
         var parts = imported.Split('.');
@@ -362,7 +373,7 @@ internal static class VapourSynthBinder
     }
 
     private static string AdoptModuleId(string alias, string id, string specifier, BindingScope? scope,
-        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer,
+        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, SymbolList buffer,
         VisibleCache? visible = null)
     {
         var table = scope == null ? names : ScopeNames(scope);
@@ -486,7 +497,7 @@ internal static class VapourSynthBinder
         return created;
     }
 
-    private static void ExportAlias(string alias, TypeRef type, BindingScope? scope, List<Symbol>? exports)
+    private static void ExportAlias(string alias, TypeRef type, BindingScope? scope, SymbolList? exports)
     {
         var symbol = new Symbol(alias, null, SymbolKind.Namespace, ReturnType: type.Id);
         if (scope != null)
@@ -501,7 +512,7 @@ internal static class VapourSynthBinder
     }
 
     private static void TryAssign(string quoted, int start, int end, BindingScope? scope,
-        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer,
+        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, SymbolList buffer,
         IReadOnlyList<BindingScope> scopes, VapourSynthCatalogIndex index, VisibleCache visible,
         CancellationToken token)
     {
@@ -510,20 +521,32 @@ internal static class VapourSynthBinder
             return;
         }
 
-        var i = start;
-        if (!TryIdent(quoted, ref i, end, out var name))
+        var eq = ParameterNames.TopLevelKeywordEquals(quoted, start, end);
+        if (eq >= 0 && IsAugmentedAssign(quoted, start, eq))
         {
             return;
         }
 
-        SkipWs(quoted, ref i, end);
+        var limit = eq < 0 ? end : eq;
+        if (!TryTargetSpan(quoted, start, limit, out var innerStart, out var innerEnd))
+        {
+            return;
+        }
+
+        var i = innerStart;
+        if (!TryIdent(quoted, ref i, innerEnd, out var name))
+        {
+            return;
+        }
+
+        SkipWs(quoted, ref i, innerEnd);
         var annotation = "";
-        if (i < end && quoted[i] == ':')
+        if (i < innerEnd && quoted[i] == ':')
         {
             i++;
             var annStart = i;
             var depth = 0;
-            while (i < end)
+            while (i < innerEnd)
             {
                 if ((i & 4095) == 0)
                 {
@@ -548,9 +571,10 @@ internal static class VapourSynthBinder
             }
 
             annotation = quoted[annStart..i].Trim();
-            SkipWs(quoted, ref i, end);
         }
 
+        i = eq < 0 ? innerEnd : eq;
+        SkipWs(quoted, ref i, end);
         var type = ResolveAnnotation(annotation, ForInfer(names, scriptModules, buffer, scopes, visible, scope));
         var targets = new List<string> { name };
         if (i < end && ParameterNames.IsKeywordAssign(quoted, i))
@@ -580,7 +604,7 @@ internal static class VapourSynthBinder
 
             var rhs = quoted[i..end].Trim();
             var inferred = VapourSynthTypeWalker.Infer(rhs, ForInfer(names, scriptModules, buffer, scopes, visible, scope),
-                index);
+                index, token);
             if (inferred.IsRoot)
             {
                 inferred = TypeRef.Unknown;
@@ -626,8 +650,9 @@ internal static class VapourSynthBinder
     }
 
     private static void BindWith(string quoted, int start, int end, BindingScope? scope,
-        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer,
-        IReadOnlyList<BindingScope> scopes, VapourSynthCatalogIndex index, VisibleCache visible)
+        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, SymbolList buffer,
+        IReadOnlyList<BindingScope> scopes, VapourSynthCatalogIndex index, VisibleCache visible,
+        CancellationToken token)
     {
         var header = WithHeader(quoted, start, end);
         foreach (var part in ParameterNames.Split(header))
@@ -638,7 +663,7 @@ internal static class VapourSynthBinder
             }
 
             var bindings = ForInfer(names, scriptModules, buffer, scopes, visible, scope);
-            var type = VapourSynthTypeWalker.Infer(expression, bindings, index);
+            var type = VapourSynthTypeWalker.Infer(expression, bindings, index, token);
             if (type.IsRoot)
             {
                 type = TypeRef.Unknown;
@@ -713,7 +738,7 @@ internal static class VapourSynthBinder
     }
 
     private static void InvalidateNames(string quoted, int start, int end, BindingScope? scope,
-        Dictionary<string, TypeRef> names, List<Symbol> buffer, VisibleCache? visible = null)
+        Dictionary<string, TypeRef> names, SymbolList buffer, VisibleCache? visible = null)
     {
         foreach (var name in BindingTargets(quoted, start, end, null))
         {
@@ -722,7 +747,7 @@ internal static class VapourSynthBinder
     }
 
     private static void InvalidateForTargets(string quoted, int start, int end, BindingScope? scope,
-        Dictionary<string, TypeRef> names, List<Symbol> buffer, VisibleCache? visible = null)
+        Dictionary<string, TypeRef> names, SymbolList buffer, VisibleCache? visible = null)
     {
         foreach (var name in BindingTargets(quoted, AfterKeyword(quoted, start, end, "for"), end, "in"))
         {
@@ -731,7 +756,7 @@ internal static class VapourSynthBinder
     }
 
     private static void InvalidateExceptAlias(string quoted, int start, int end, BindingScope? scope,
-        Dictionary<string, TypeRef> names, List<Symbol> buffer, VisibleCache? visible)
+        Dictionary<string, TypeRef> names, SymbolList buffer, VisibleCache? visible)
     {
         var i = AfterKeyword(quoted, start, end, "except");
         if (i < end && quoted[i] == '*')
@@ -773,7 +798,7 @@ internal static class VapourSynthBinder
     }
 
     private static bool TryUnpackAssign(string quoted, int start, int end, BindingScope? scope,
-        Dictionary<string, TypeRef> names, List<Symbol> buffer, VisibleCache visible)
+        Dictionary<string, TypeRef> names, SymbolList buffer, VisibleCache visible)
     {
         var eq = ParameterNames.TopLevelKeywordEquals(quoted, start, end);
         if (eq < 0)
@@ -788,16 +813,27 @@ internal static class VapourSynthBinder
             return false;
         }
 
-        var unpack = quoted[i] is '(' or '[' or '*';
+        if (IsAugmentedAssign(quoted, start, eq))
+        {
+            return false;
+        }
+
+        if (!TryTargetSpan(quoted, start, eq, out var innerStart, out var innerEnd))
+        {
+            return false;
+        }
+
+        i = innerStart;
+        var unpack = i < innerEnd && quoted[i] is '[' or '*';
         if (!unpack)
         {
-            if (!TryIdent(quoted, ref i, eq, out _))
+            if (!TryIdent(quoted, ref i, innerEnd, out _))
             {
                 return false;
             }
 
-            SkipWs(quoted, ref i, eq);
-            unpack = i < eq && quoted[i] is ',' or '*';
+            SkipWs(quoted, ref i, innerEnd);
+            unpack = i < innerEnd && quoted[i] is ',' or '*';
         }
 
         if (!unpack)
@@ -811,6 +847,39 @@ internal static class VapourSynthBinder
         }
 
         return true;
+    }
+
+    private static bool IsAugmentedAssign(string quoted, int start, int eq) =>
+        eq > start && quoted[eq - 1] is '*' or '+' or '-' or '/' or '%' or '&' or '|' or '^' or '@' or ':';
+
+    private static bool TryTargetSpan(string quoted, int start, int limit, out int innerStart, out int innerEnd)
+    {
+        innerStart = start;
+        innerEnd = limit;
+        SkipWs(quoted, ref innerStart, innerEnd);
+        while (innerEnd > innerStart && char.IsWhiteSpace(quoted[innerEnd - 1]))
+        {
+            innerEnd--;
+        }
+
+        while (innerStart < innerEnd && quoted[innerStart] == '(')
+        {
+            var close = SkipBalanced(quoted, innerStart, innerEnd, '(', ')');
+            if (close != innerEnd)
+            {
+                break;
+            }
+
+            innerStart++;
+            innerEnd--;
+            SkipWs(quoted, ref innerStart, innerEnd);
+            while (innerEnd > innerStart && char.IsWhiteSpace(quoted[innerEnd - 1]))
+            {
+                innerEnd--;
+            }
+        }
+
+        return innerStart < innerEnd;
     }
 
     private static IEnumerable<string> BindingTargets(string quoted, int start, int end, string? stop)
@@ -941,7 +1010,7 @@ internal static class VapourSynthBinder
     }
 
     private static void InvalidateClass(string quoted, int start, int end, BindingScope? scope,
-        Dictionary<string, TypeRef> names, List<Symbol> buffer, VisibleCache? visible = null)
+        Dictionary<string, TypeRef> names, SymbolList buffer, VisibleCache? visible = null)
     {
         var i = AfterKeyword(quoted, start, end, "class");
         if (TryIdent(quoted, ref i, end, out var name))
@@ -951,7 +1020,7 @@ internal static class VapourSynthBinder
     }
 
     private static void SetName(string name, TypeRef type, BindingScope? scope, Dictionary<string, TypeRef> names,
-        List<Symbol>? buffer = null, VisibleCache? visible = null)
+        SymbolList? buffer = null, VisibleCache? visible = null)
     {
         if (scope != null)
         {
@@ -970,7 +1039,7 @@ internal static class VapourSynthBinder
         visible?.NoteName(null, name, type);
     }
 
-    private static void BindFunction(Symbol symbol, BindingScope? scope, List<Symbol> buffer,
+    private static void BindFunction(Symbol symbol, BindingScope? scope, SymbolList buffer,
         Dictionary<string, TypeRef> names, VisibleCache? visible = null)
     {
         if (scope != null)
@@ -986,17 +1055,25 @@ internal static class VapourSynthBinder
         visible?.NoteFunction(null, symbol);
     }
 
-    private static void ReplaceSymbol(List<Symbol> target, Symbol symbol)
+    private static void ReplaceSymbol(SymbolList target, Symbol symbol) =>
+        target.Replace(symbol);
+
+    private static void RemoveSymbol(SymbolList target, string name) =>
+        target.Remove(name);
+
+    private static void Freeze(IReadOnlyList<BindingScope> scopes)
     {
-        RemoveSymbol(target, symbol.Name);
-        target.Add(symbol);
+        foreach (var scope in scopes)
+        {
+            if (scope.Symbols is SymbolList list)
+            {
+                scope.Symbols = list.Freeze();
+            }
+        }
     }
 
-    private static void RemoveSymbol(List<Symbol> target, string name) =>
-        target.RemoveAll(symbol => symbol.Name.Equals(name, StringComparison.Ordinal));
-
     private static void BindDefHeader(string quoted, StatementScanner.Span span, BindingScope self,
-        List<Symbol> buffer, Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
+        SymbolList buffer, Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules,
         IReadOnlyList<BindingScope> scopes, VapourSynthCatalogIndex index,
         IReadOnlyList<(int Start, int End)> classes, VisibleCache visible)
     {
@@ -1021,9 +1098,9 @@ internal static class VapourSynthBinder
             bound.Add((name, type));
         }
 
-        var returnType = self.ParenClose >= 0
-            ? VapourSynthFunctions.ReturnId(quoted, self.ParenClose, header)
-            : null;
+        var returnType = self.Async || self.ParenClose < 0
+            ? null
+            : VapourSynthFunctions.ReturnId(quoted, self.ParenClose, header);
         foreach (var (name, type) in bound)
         {
             SetName(name, type, self, names, buffer, visible);
@@ -1040,7 +1117,7 @@ internal static class VapourSynthBinder
     }
 
     private static void BindDefBody(string quoted, StatementScanner.Span span, BindingScope? self,
-        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer,
+        Dictionary<string, TypeRef> names, Dictionary<string, IReadOnlyList<Symbol>> scriptModules, SymbolList buffer,
         IReadOnlyList<BindingScope> scopes, VapourSynthCatalogIndex index, VisibleCache visible,
         CancellationToken token)
     {
@@ -1105,7 +1182,7 @@ internal static class VapourSynthBinder
         for (var i = 0; i < statements.Count; i++)
         {
             var span = statements[i];
-            if (!TryDef(quoted, span, out var name, out var open))
+            if (!PythonHeaders.TryDef(quoted, span.Start, span.End, out var name, out var open, out var async))
             {
                 continue;
             }
@@ -1137,9 +1214,10 @@ internal static class VapourSynthBinder
                 Name = name,
                 HeaderEnd = headerEnd,
                 ParenClose = close,
+                Async = async,
                 Names = new Dictionary<string, TypeRef>(StringComparer.Ordinal),
                 Parameters = parameters,
-                Symbols = new List<Symbol>()
+                Symbols = new SymbolList()
             });
         }
 
@@ -1227,34 +1305,9 @@ internal static class VapourSynthBinder
         return false;
     }
 
-    private static bool TryDef(string quoted, StatementScanner.Span span, out string name, out int open)
-    {
-        name = "";
-        open = -1;
-        if (!Keyword(quoted, span.Start, span.End, "def"))
-        {
-            return false;
-        }
-
-        var i = AfterKeyword(quoted, span.Start, span.End, "def");
-        if (!TryIdent(quoted, ref i, span.End, out name))
-        {
-            return false;
-        }
-
-        SkipWs(quoted, ref i, span.End);
-        if (i >= span.End || quoted[i] != '(')
-        {
-            return false;
-        }
-
-        open = i;
-        return true;
-    }
-
     private static void BindParameters(IReadOnlyList<string> parameters, BindingScope scope,
         DocumentBindings bindings, VapourSynthCatalogIndex index, Dictionary<string, TypeRef> names,
-        List<Symbol> buffer, VisibleCache visible)
+        SymbolList buffer, VisibleCache visible)
     {
         foreach (var parameter in parameters)
         {
@@ -1403,7 +1456,7 @@ internal static class VapourSynthBinder
     }
 
     private static DocumentBindings ForInfer(Dictionary<string, TypeRef> names,
-        Dictionary<string, IReadOnlyList<Symbol>> scriptModules, List<Symbol> buffer,
+        Dictionary<string, IReadOnlyList<Symbol>> scriptModules, SymbolList buffer,
         IReadOnlyList<BindingScope> scopes, VisibleCache visible, BindingScope? inner)
     {
         if (inner == null)
@@ -1533,7 +1586,7 @@ internal static class VapourSynthBinder
             _symbols = null;
         }
 
-        public void Ensure(BindingScope inner, Dictionary<string, TypeRef> globals, List<Symbol> buffer)
+        public void Ensure(BindingScope inner, Dictionary<string, TypeRef> globals, SymbolList buffer)
         {
             if (ReferenceEquals(_scope, inner) && Names != null)
             {
@@ -1550,7 +1603,7 @@ internal static class VapourSynthBinder
             _symbols = null;
         }
 
-        public IReadOnlyList<Symbol> Symbols(List<Symbol> buffer)
+        public IReadOnlyList<Symbol> Symbols(SymbolList buffer)
         {
             if ((_local == null || _local.Count == 0) && (_hidden == null || _hidden.Count == 0))
             {
@@ -1655,7 +1708,7 @@ internal static class VapourSynthBinder
             _symbols = null;
         }
 
-        private void Remember(List<Symbol> buffer)
+        private void Remember(SymbolList buffer)
         {
             if (_moduleNames != null)
             {
@@ -1727,7 +1780,7 @@ internal static class VapourSynthBinder
 
     private static void ImportFrom(string imported, string list, string? documentPath, IncludeReader? read,
         Dictionary<string, IReadOnlyList<Symbol>> scriptModules, Dictionary<string, List<Symbol>> modulesByPath,
-        LexerOptions lexer, CancellationToken token, List<Symbol> target, Dictionary<string, TypeRef>? names,
+        LexerOptions lexer, CancellationToken token, SymbolList target, Dictionary<string, TypeRef>? names,
         IncludeSession includes, VisibleCache? visible = null, BindingScope? scope = null)
     {
         list = FlattenImportList(list);
@@ -1741,7 +1794,7 @@ internal static class VapourSynthBinder
                     continue;
                 }
 
-                if (ReferenceEquals(script.Value.Members, target))
+                if (target.Owns(script.Value.Members))
                 {
                     continue;
                 }
@@ -1782,7 +1835,7 @@ internal static class VapourSynthBinder
         return imported.All(static c => c == '.') ? imported + source : imported + "." + source;
     }
 
-    private static void BindImported(LoadedScript? script, string alias, List<Symbol> target,
+    private static void BindImported(LoadedScript? script, string alias, SymbolList target,
         Dictionary<string, TypeRef>? names, VisibleCache? visible = null, BindingScope? scope = null)
     {
         if (script == null)
@@ -1794,7 +1847,7 @@ internal static class VapourSynthBinder
             target, names, visible, scope);
     }
 
-    private static void Export(Symbol symbol, List<Symbol> target, Dictionary<string, TypeRef>? names,
+    private static void Export(Symbol symbol, SymbolList target, Dictionary<string, TypeRef>? names,
         VisibleCache? visible = null, BindingScope? scope = null)
     {
         ReplaceSymbol(target, symbol);
@@ -1894,12 +1947,13 @@ internal static class VapourSynthBinder
             text = file.Value.Text;
         }
 
-        var members = new List<Symbol>();
-        scriptModules[path] = members;
-        modulesByPath[path] = members;
+        var members = new SymbolList();
+        var list = members.Freeze();
+        scriptModules[path] = list;
+        modulesByPath[path] = list;
         FillModule(text, path, members, read, scriptModules, modulesByPath, lexer, token, includes);
-        includes.SetMembers(path, [..members]);
-        return new LoadedScript(path, members);
+        includes.SetMembers(path, list);
+        return new LoadedScript(path, list);
     }
 
     private static void RestoreModule(string path, IReadOnlyList<Symbol> members,
@@ -1986,7 +2040,7 @@ internal static class VapourSynthBinder
         return true;
     }
 
-    private static void FillModule(string text, string path, List<Symbol> members, IncludeReader? read,
+    private static void FillModule(string text, string path, SymbolList members, IncludeReader? read,
         Dictionary<string, IReadOnlyList<Symbol>> scriptModules, Dictionary<string, List<Symbol>> modulesByPath,
         LexerOptions lexer, CancellationToken token, IncludeSession includes)
     {
@@ -2020,23 +2074,23 @@ internal static class VapourSynthBinder
                 continue;
             }
 
-            if (Keyword(quoted, span.Start, span.End, "def"))
+            if (PythonHeaders.IsDef(quoted, span.Start, span.End))
             {
                 if (inner == null || IndentAt(clean, span.Start) != 0)
                 {
                     continue;
                 }
 
-                if (!TryDef(quoted, span, out _, out _))
+                if (!PythonHeaders.TryDef(quoted, span.Start, span.End, out _, out _, out var async))
                 {
                     continue;
                 }
 
                 var parameters = inner.Parameters as string[] ?? [..inner.Parameters];
-                var returnType = inner.ParenClose >= 0
-                    ? VapourSynthFunctions.ReturnId(quoted, inner.ParenClose,
-                        Current(dummy, scriptModules, members, scopes))
-                    : null;
+                var returnType = async || inner.ParenClose < 0
+                    ? null
+                    : VapourSynthFunctions.ReturnId(quoted, inner.ParenClose,
+                        Current(dummy, scriptModules, members, scopes));
                 ReplaceSymbol(members, new(inner.Name, parameters, ReturnType: returnType));
                 continue;
             }
@@ -2164,7 +2218,7 @@ internal static class VapourSynthBinder
     private static Dictionary<string, TypeRef> ScopeNames(BindingScope scope) =>
         (Dictionary<string, TypeRef>)scope.Names;
 
-    private static List<Symbol> ScopeSymbols(BindingScope scope) => (List<Symbol>)scope.Symbols;
+    private static SymbolList ScopeSymbols(BindingScope scope) => (SymbolList)scope.Symbols;
 
     private static DocumentBindings Current(IReadOnlyDictionary<string, TypeRef> names,
         Dictionary<string, IReadOnlyList<Symbol>> scriptModules, IReadOnlyList<Symbol> buffer,

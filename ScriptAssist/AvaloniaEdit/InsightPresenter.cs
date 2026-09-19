@@ -6,7 +6,7 @@ namespace HanumanInstitute.ScriptAssist.AvaloniaEdit;
 /// <summary>
 /// Owns the overload insight popup for one editor.
 /// </summary>
-internal sealed class InsightPresenter(TextEditor editor)
+internal sealed class InsightPresenter(TextEditor editor, AssistTipSize? size = null)
 {
     private OverloadInsightWindow? _window;
 
@@ -20,13 +20,23 @@ internal sealed class InsightPresenter(TextEditor editor)
     /// </summary>
     public void Show(CallInsight? insight)
     {
-        Hide();
         if (insight == null)
         {
+            Hide();
             return;
         }
 
-        var window = new OverloadInsightWindow(editor.TextArea) { Provider = new OverloadProvider(insight) };
+        if (_window?.Provider is OverloadProvider provider)
+        {
+            provider.Update(insight);
+            return;
+        }
+
+        Hide();
+        var window = new OverloadInsightWindow(editor.TextArea)
+        {
+            Provider = new OverloadProvider(insight, size ?? AssistTipSize.Hover)
+        };
         window.Closed += (_, _) =>
         {
             if (ReferenceEquals(_window, window))

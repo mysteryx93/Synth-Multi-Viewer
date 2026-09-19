@@ -39,6 +39,12 @@ internal static class CallScanner
             }
 
             var c = code[i];
+            if (ParameterNames.IsLambdaKeyword(code, i))
+            {
+                i = ParameterNames.SkipLambdaHeader(code, i, caret);
+                continue;
+            }
+
             if (c is '(' or '[' or '{')
             {
                 stack.Push(new(c, i, i + 1, comparer));

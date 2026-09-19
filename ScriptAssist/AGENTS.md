@@ -29,16 +29,16 @@ Consumer setup and API examples: [README.md](README.md). These notes describe im
 
 ## Analysis and source handling
 
-`GetAsync` awaits the catalog, then analyzes off-thread. A snapshot masks the document, binds names/scopes/imports, and merges buffer symbols over native symbols by name. Requests overlay scopes at the caret, read the expression, and produce completion, insight, and hover. Inside comments/strings, assistance is suppressed; function headers suppress call insight.
+`GetAsync` awaits the catalog, then analyzes off-thread. A snapshot masks the document and binds names, scopes, and imports. Languages overlay buffer symbols over native catalog entries when resolving members, calls, and hover. Requests overlay scopes at the caret, read the expression, and produce completion, insight, and hover. Inside comments/strings, assistance is suppressed; function headers suppress call insight.
 
-The snapshot key is **text + document path + catalog reference**, not editor version. `LanguageService` retains a small LRU of snapshots (multiple documents, evicting older revisions of the same path) with a retained-byte cap. Binding performs additional scans; do not assume total analysis is linear. There is no incremental parser. Honor cancellation in potentially long scans.
+The snapshot key is **text + document path + catalog reference**, not editor version. `LanguageService` retains a small LRU of snapshots (multiple documents, evicting older revisions of the same path) with a retained-byte cap that includes imported modules, scopes, and parameter strings. Concurrent requests for the same key share one in-flight bind; every caller awaits that task through its own token, and a build with no remaining waiters is cancelled. Invalidation drops cached snapshots and the in-flight lookup so the next request cannot observe a stale bind. Binding performs additional scans; do not assume total analysis is linear. There is no incremental parser. Honor cancellation in potentially long scans.
 
-Imported files, failed resolutions, and parsed exports persist on the language until `Invalidate` / factory `Refresh` / `Configure` with a new catalog key. Do not assume includes are rebound on every document edit.
+Include cache lifecycle is documented in README; parsed exports and failed path lookups are LRU-bounded, the current document's working set is pinned, and `Invalidate` still clears everything. Do not assume includes are rebound on every document edit.
 
 - Preserve UTF-16 offsets when masking comments/strings or joining lines; retain newlines when masking.
 - `TypeRef.Root` means an empty completion path, never a stored value type. Empty assignment expressions and tuples must not become Root.
 - Unwrap matching outer parentheses before call/ternary inference. `(core.std.BlankClip())` should retain its node type.
-- AviSynth preprocessing order is **join continuations, then mask** (`AviSynthPatterns.Clean`). A leading `\` can join a statement even inside a later triple-quoted string. Keep replacements the same length.
+- AviSynth preprocessing order is **join continuations, then mask**. `BufferLexer.Mask` joins when `BackslashLineContinuations` is set; `AviSynthPatterns.Clean` delegates to that and must not join again. A leading `\` can join a statement even inside a later triple-quoted string. Keep replacements the same length.
 - AviSynth recognizes hash comments, `/* */`, `/[ ]/`, `[* *]`, triple quotes, and doubled quotes. Preserve the correct block closer for each opener.
 - VapourSynth recognizes hash comments, single/double/triple quotes, and backslash escapes. Literal inference needs original RHS text, with comments removed and offsets aligned.
 
@@ -47,8 +47,8 @@ Imported files, failed resolutions, and parsed exports persist on the language u
 - Locals/properties hover as a type only. Suppress text identical to the identifier.
 - A named argument `name=` belongs to its call, even when unresolved; never fall through to a same-named local.
 - Function parameter names are silent in headers. Preserve header suppression at an unclosed EOF header (`HeaderEnd == End`). In `clip: vs.VideoNode`, `vs` may hover but `VideoNode` must not.
-- Completion hints show function parameters or the local/property type. Preserve wrapping, line limits, and truncation in `CompletionData`.
-- VS display names come from `VapourSynthTypes.Display` / `DisplayReturn`: use `VideoNode`, not `vnode`, for local hints. Format constants are integer properties; `VideoNode`/`AudioNode` on `vs` remain namespaces.
+- Completion hints show the function signature (name, parameters, and return type when known) or the local/property type. Locals and properties hover as a type only; functions hover as `Signature`. Function `Signature` uses `DisplayName` (last dotted segment), so `core.std.BlankClip` shows `BlankClip(...)`. Catalog `Name` stays fully qualified. Wrap and truncation come from `EditorAssistOptions.Hint` and `Hover` (`AssistTipSize`); do not hard-code widths in presenters. Short tips size to content (MaxWidth, not Width). Hover defaults are wider than the completion side panel and also wrap call-insight headers (`OverloadProvider.CurrentHeader` is a wrapping block, not a one-line string). Fluent's tooltip chrome is 320px (`ToolTipContentMaxWidth`); hover must set MaxWidth on a `ToolTip` instance so that cap does not wrap signatures.
+- VS display names come from `VapourSynthTypes.Display` / `DisplayReturn`: use `VideoNode`, not `vnode`, for local hints. Keep `[]` on parameter types (`color:float[]` is not `float`). A parameter named `format` with native type `int` displays as `VideoFormat` (BlankClip/`resize` format ids, and `clip.format`). Format constants (`vs.YUV420P8`) stay int. `VideoNode`/`AudioNode` on `vs` remain namespaces.
 - `[` may commit a completion but must not trigger member completion. Insight within brackets belongs to the enclosing call.
 
 ## Language rules
@@ -56,7 +56,7 @@ Imported files, failed resolutions, and parsed exports persist on the language u
 ### AviSynth
 
 - Compare identifiers ordinal-ignore-case. `last` is always a clip. Unknown called names default to clip except entries in `AviSynthInternals`; clip property syntax also uses that return table.
-- Preserve explicit and implicit-first-clip call handling, including bound calls and implicit-last overloads.
+- Preserve explicit and implicit-first-clip call handling, including bound calls and implicit-last overloads. Native `$InternalFunctions$` lists the same filter many times with one Param$ string; insight must keep one copy of each distinct signature (BlankClip is four identical natives plus the implicit-clip variant, not eight).
 - Bind function parameters/assignments in `BindingScope`; keep `last`, top-level assignments, and `global x =` in script names. Imported AVSI headers contribute signatures, never their parameter locals.
 - A header without `{` ends before the next function, or at EOF if none follows. Retain incomplete parameter-list spans.
 - Preserve `Default(x, y)` inference, clip preference in ternaries, and current last-assignment-wins behavior. GScript/Eval are not scopes.
@@ -100,6 +100,6 @@ dotnet build ScriptAssist.Tests/ScriptAssist.Tests.csproj
 dotnet ScriptAssist.Tests/bin/Debug/net10.0/ScriptAssist.Tests.dll
 ```
 
-- Prefer `LanguageService.Analyze` tests for language rules. Suite shape and UI-test rules: repository [AGENTS.md](../AGENTS.md). Run Avalonia editor tests in `SynthMultiViewer.Tests/EditorCompletionTests` with `-parallel none`; the headless dispatcher is not thread-safe.
+- Prefer `LanguageService.Analyze` tests for language rules. Suite shape, placement, and UI-test rules: repository [AGENTS.md](../AGENTS.md). Unqualified native names lock once on hover; insight wrap locks wrap/`MaxWidth` only. Do not add `Symbol.DisplayName`/`Signature` facts for the same string. Run Avalonia editor tests in `SynthMultiViewer.Tests/EditorCompletionTests` with `-parallel none`; the headless dispatcher is not thread-safe.
 - Test inside and after function scopes, header silence, and `vs` annotation hover. Include comments, multiline/incomplete input, and realistic native signatures.
 - Prefer representative installed/sibling scripts: xClean trailing `\`, FrameRateConverter leading `\` and `[** *]`/triple quotes, Shader, and havsfunc. Import graphs use a `Read` local function at the end of Prepare (`IncludeFile? Read(string specifier, string? fromPath)`), not an `IncludeReader` lambda.

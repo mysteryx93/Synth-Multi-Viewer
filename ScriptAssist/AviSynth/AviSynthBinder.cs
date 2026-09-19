@@ -14,20 +14,29 @@ internal static class AviSynthBinder
         CancellationToken token, string? documentPath = null, IncludeReader? read = null,
         IncludeCache? includes = null)
     {
-        var joined = AviSynthPatterns.Clean(text, lexer, token: token);
+        var masked = BufferLexer.Mask(text, lexer, token: token);
+        var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token);
+        return Bind(new PreparedDocument(masked, quoted), catalog, lexer, token, documentPath, read, includes);
+    }
+
+    public static DocumentBindings Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog, LexerOptions lexer,
+        CancellationToken token, string? documentPath = null, IncludeReader? read = null,
+        IncludeCache? includes = null)
+    {
+        var joined = prepared.Masked.Code;
         var names = new Dictionary<string, TypeRef>(StringComparer.OrdinalIgnoreCase)
         {
             ["last"] = AviSynthTypes.Clip
         };
-        var spans = AviSynthFunctions.Spans(text, lexer, token);
+        var spans = AviSynthFunctions.Spans(joined, prepared.Quoted.Code, token);
         var buffer = new List<Symbol>(spans.Count);
         foreach (var span in spans)
         {
             buffer.Add(span.Symbol);
         }
 
-        AviSynthFunctions.AddImports(text, documentPath, read, buffer, new(StringComparer.Ordinal),
-            lexer, token, includes);
+        AviSynthFunctions.AddImports(joined, prepared.Quoted.Code, documentPath, read, buffer,
+            new(StringComparer.Ordinal), lexer, token, includes);
         var scopes = FunctionScopes(joined, spans);
         Dictionary<string, TypeRef>? visible = null;
         BindingScope? visibleScope = null;
@@ -42,7 +51,7 @@ internal static class AviSynthBinder
             var name = match.Groups[2].Value;
             var inner = Innermost(scopes, match.Index);
             var lookup = Visible(names, scopes, match.Index, inner, ref visible, ref visibleScope);
-            var type = Infer(match.Groups[3].Value.Trim(), lookup, catalog);
+            var type = Infer(match.Groups[3].Value.Trim(), lookup, catalog, token);
             if (match.Groups[1].Success || inner == null)
             {
                 names[name] = type;
@@ -229,8 +238,23 @@ internal static class AviSynthBinder
         return inner;
     }
 
-    private static TypeRef Infer(string expression, Dictionary<string, TypeRef> names, IReadOnlyList<Symbol> catalog)
+    private const int MaxInferDepth = 48;
+    private const int MaxInferWork = 250_000;
+
+    private static TypeRef Infer(string expression, Dictionary<string, TypeRef> names, IReadOnlyList<Symbol> catalog,
+        CancellationToken token) =>
+        InferCore(expression, names, catalog, 0, 0, token);
+
+    private static TypeRef InferCore(string expression, Dictionary<string, TypeRef> names,
+        IReadOnlyList<Symbol> catalog, int depth, int work, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
+        work += Math.Max(1, expression.Length);
+        if (depth > MaxInferDepth || work > MaxInferWork)
+        {
+            return TypeRef.Unknown;
+        }
+
         var trimmed = ExpressionParts.UnwrapParentheses(expression);
         if (trimmed.StartsWith("Default(", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith(')'))
         {
@@ -238,7 +262,7 @@ internal static class AviSynthBinder
             var args = ParameterNames.Split(inner);
             if (args.Length > 0)
             {
-                var first = Infer(args[0], names, catalog);
+                var first = InferCore(args[0], names, catalog, depth + 1, work, token);
                 if (!first.IsUnknown)
                 {
                     return first;
@@ -246,7 +270,7 @@ internal static class AviSynthBinder
 
                 if (args.Length > 1)
                 {
-                    return Infer(args[1], names, catalog);
+                    return InferCore(args[1], names, catalog, depth + 1, work, token);
                 }
             }
         }
@@ -258,8 +282,8 @@ internal static class AviSynthBinder
             var colon = ExpressionParts.IndexOutsideBrackets(rest, ':');
             if (colon >= 0)
             {
-                var whenTrue = Infer(rest[..colon].Trim(), names, catalog);
-                var whenFalse = Infer(rest[(colon + 1)..].Trim(), names, catalog);
+                var whenTrue = InferCore(rest[..colon].Trim(), names, catalog, depth + 1, work, token);
+                var whenFalse = InferCore(rest[(colon + 1)..].Trim(), names, catalog, depth + 1, work, token);
                 if (whenTrue == AviSynthTypes.Clip || whenFalse == AviSynthTypes.Clip)
                 {
                     return AviSynthTypes.Clip;

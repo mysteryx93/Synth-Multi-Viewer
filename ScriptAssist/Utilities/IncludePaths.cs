@@ -107,8 +107,13 @@ internal static class IncludePaths
         }
 
         var rest = specifier[dots..].Replace('.', Path.DirectorySeparatorChar);
-        var combined = rest.Length == 0 ? directory : Path.Combine(directory, rest);
-        foreach (var path in Expand(combined, true))
+        if (rest.Length == 0)
+        {
+            yield return Path.Combine(directory, "__init__.py");
+            yield break;
+        }
+
+        foreach (var path in Expand(Path.Combine(directory, rest), true))
         {
             yield return path;
         }

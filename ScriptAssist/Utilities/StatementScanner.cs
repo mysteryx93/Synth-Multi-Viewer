@@ -168,8 +168,8 @@ internal static class StatementScanner
             return Declaration(code, i, "function", StringComparison.OrdinalIgnoreCase);
         }
 
-        return Declaration(code, i, "def", StringComparison.Ordinal) ||
-            Declaration(code, i, "class", StringComparison.Ordinal);
+        return Declaration(code, i, "class", StringComparison.Ordinal) ||
+            PythonHeaders.StartsDef(code, i, code.Length);
     }
 
     /// <summary>

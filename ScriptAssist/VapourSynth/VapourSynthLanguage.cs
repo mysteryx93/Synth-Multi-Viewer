@@ -3,7 +3,7 @@ namespace HanumanInstitute.ScriptAssist.VapourSynth;
 /// <summary>
 /// Catalog-driven VapourSynth profile: bound plugins, vs/core/VideoNode members, same-file types.
 /// </summary>
-public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, IContextHover
+public sealed class VapourSynthLanguage : ILanguage, IPreparedLanguage, IRefreshableLanguage, IContextHover
 {
     private readonly IncludeReader? _read;
     /// <summary>
@@ -59,8 +59,17 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
 
     /// <inheritdoc />
     public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
-        string? documentPath = null) =>
-        VapourSynthBinder.Bind(text, catalog, Lexer, token, documentPath, _read, Includes);
+        string? documentPath = null)
+    {
+        var masked = BufferLexer.Mask(text, Lexer, token: token);
+        var quoted = BufferLexer.Mask(text, Lexer, maskStrings: false, token: token);
+        return VapourSynthBinder.Bind(new PreparedDocument(masked, quoted), catalog, Lexer, token,
+            documentPath, _read, Includes);
+    }
+
+    DocumentBindings IPreparedLanguage.Bind(PreparedDocument prepared, IReadOnlyList<Symbol> catalog,
+        CancellationToken token, string? documentPath) =>
+        VapourSynthBinder.Bind(prepared, catalog, Lexer, token, documentPath, _read, Includes);
 
     /// <inheritdoc />
     public double CompletionPriority(Symbol symbol, TypeRef receiver) =>
@@ -107,7 +116,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
 
             return new()
             {
-                Overloads = [member],
+                Overloads = [VapourSynthTypes.ForDisplay(member)],
                 ImplicitReceiver = VapourSynthTypes.IsBound(receiver)
             };
         }
@@ -119,7 +128,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
             {
                 return new()
                 {
-                    Overloads = [symbol],
+                    Overloads = [VapourSynthTypes.ForDisplay(symbol)],
                     ImplicitReceiver = VapourSynthTypes.IsBoundFunction(aliased)
                 };
             }
@@ -133,7 +142,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
                 if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
                 {
                     local ??= [];
-                    local.Add(symbol);
+                    local.Add(VapourSynthTypes.ForDisplay(symbol));
                 }
             }
 
@@ -185,30 +194,14 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
         if (path.Segments.Count > 0)
         {
             var receiver = VapourSynthTypeWalker.TypeOf(path.Segments, bindings, index);
-            foreach (var symbol in VapourSynthMembers.Of(receiver, Keywords, bindings, index))
+            var symbol = VapourSynthMembers.Find(receiver, name, bindings, index);
+            if (symbol is { Kind: SymbolKind.Function, Parameters: not null })
             {
-                var inserted = symbol.Name;
-                var last = inserted.LastIndexOf('.');
-                if (last >= 0)
-                {
-                    inserted = inserted[(last + 1)..];
-                }
-
-                if (!inserted.Equals(name, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                if (symbol is { Kind: SymbolKind.Function, Parameters: not null })
-                {
-                    return new(symbol.Signature, path.Start, path.End - path.Start);
-                }
-
-                return TypeHover(name, path, VapourSynthTypes.Display(memberType) ??
-                    VapourSynthTypes.DisplayReturn(symbol.ReturnType));
+                return new(VapourSynthTypes.ForDisplay(symbol).Signature, path.Start, path.End - path.Start);
             }
 
-            return TypeHover(name, path, VapourSynthTypes.Display(memberType));
+            return TypeHover(name, path, VapourSynthTypes.Display(memberType) ??
+                VapourSynthTypes.DisplayReturn(symbol?.ReturnType));
         }
 
         if (bindings.InFunctionHeader(path.Start) && IsFunctionName(name, path.Start, bindings))
@@ -217,7 +210,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
             {
                 if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
                 {
-                    return new(symbol.Signature, path.Start, path.End - path.Start);
+                    return new(VapourSynthTypes.ForDisplay(symbol).Signature, path.Start, path.End - path.Start);
                 }
             }
         }
@@ -228,7 +221,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
             {
                 if (symbol.Name.Equals(name, StringComparison.Ordinal) && symbol.Parameters != null)
                 {
-                    return new(symbol.Signature, path.Start, path.End - path.Start);
+                    return new(VapourSynthTypes.ForDisplay(symbol).Signature, path.Start, path.End - path.Start);
                 }
             }
         }
@@ -259,7 +252,7 @@ public sealed class VapourSynthLanguage : ILanguage, IRefreshableLanguage, ICont
             return null;
         }
 
-        var display = VapourSynthTypes.DisplayReturn(key);
+        var display = VapourSynthTypes.DisplayType(ParameterNames.OfPython(parameter), key);
         if (display.HasValue() && display != key)
         {
             return display;

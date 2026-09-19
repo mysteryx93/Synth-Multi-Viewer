@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace HanumanInstitute.ScriptAssist;
 
 /// <summary>
@@ -9,6 +11,7 @@ public sealed class LanguageService : ILanguageService
     private readonly ISymbolCatalog _catalog;
     private readonly Lock _cacheGate = new();
     private readonly List<CachedSnapshot> _snapshots = [];
+    private readonly Dictionary<SnapshotKey, InflightBuild> _inflight = [];
     private int _generation;
     private const int SnapshotLimit = 8;
     private const long SnapshotByteLimit = 16 * 1024 * 1024;
@@ -28,18 +31,9 @@ public sealed class LanguageService : ILanguageService
     }
 
     /// <inheritdoc />
-    public async Task<Reply> GetAsync(string text, int caret, CancellationToken cancellationToken,
-        string? documentPath = null)
-    {
-        if (AllowRequests?.Invoke() == false)
-        {
-            return new([], null);
-        }
-
-        var native = await _catalog.GetAsync(cancellationToken).ConfigureAwait(false);
-        return await Task.Run(() => Analyze(text, caret, native, cancellationToken, documentPath), cancellationToken)
-            .ConfigureAwait(false);
-    }
+    public Task<Reply> GetAsync(string text, int caret, CancellationToken cancellationToken,
+        string? documentPath = null) =>
+        GetAsync(text, caret, cancellationToken, documentPath, completions: true);
 
     /// <summary>
     /// Analyzes a snapshot, optionally skipping completion items.
@@ -118,7 +112,7 @@ public sealed class LanguageService : ILanguageService
         foreach (var symbol in members)
         {
             token.ThrowIfCancellationRequested();
-            var name = InsertionName(symbol.Name);
+            var name = symbol.DisplayName;
             if (name.Length == 0 || !name.StartsWith(path.Typed, comparison))
             {
                 continue;
@@ -128,12 +122,6 @@ public sealed class LanguageService : ILanguageService
                 _language.CompletionPriority(symbol, receiver)));
         }
         return items;
-    }
-
-    private static string InsertionName(string name)
-    {
-        var last = name.LastIndexOf('.');
-        return last < 0 ? name : name[(last + 1)..];
     }
 
     private static string ParameterInsertion(string name, string code, int end)
@@ -154,6 +142,7 @@ public sealed class LanguageService : ILanguageService
         {
             _generation++;
             _snapshots.Clear();
+            _inflight.Clear();
         }
 
         if (_language is IRefreshableLanguage refreshable)
@@ -239,7 +228,8 @@ public sealed class LanguageService : ILanguageService
     private DocumentSnapshot Snapshot(string text, IReadOnlyList<Symbol> native, CancellationToken token,
         string? documentPath)
     {
-        int generation;
+        var key = new SnapshotKey(text, documentPath, native);
+        InflightBuild inflight;
         lock (_cacheGate)
         {
             for (var i = 0; i < _snapshots.Count; i++)
@@ -257,51 +247,125 @@ public sealed class LanguageService : ILanguageService
                 }
             }
 
-            generation = _generation;
-        }
-
-        var masked = BufferLexer.Mask(text, _language.Lexer, token: token);
-        var quoted = BufferLexer.Mask(text, _language.Lexer, maskStrings: false, token: token);
-        var joins = StatementScanner.Joins(masked.Code, _language, token);
-        var bindings = _language.Bind(text, native, token, documentPath);
-        var snapshot = new DocumentSnapshot(masked, quoted, joins, bindings, native);
-        lock (_cacheGate)
-        {
-            if (_generation != generation)
+            if (_inflight.TryGetValue(key, out inflight!) && !inflight.Cts.IsCancellationRequested)
             {
-                return snapshot;
-            }
-
-            if (documentPath != null)
-            {
-                _snapshots.RemoveAll(item => item.Path == documentPath &&
-                    ReferenceEquals(item.Catalog, native));
+                inflight.Waiters++;
             }
             else
             {
-                _snapshots.RemoveAll(item => item.Text == text && item.Path == null &&
-                    ReferenceEquals(item.Catalog, native));
-            }
-
-            _snapshots.Insert(0, new(text, documentPath, native, snapshot));
-            var bytes = 0L;
-            foreach (var item in _snapshots)
-            {
-                bytes += Size(item);
-            }
-
-            while (_snapshots.Count > SnapshotLimit || bytes > SnapshotByteLimit && _snapshots.Count > 1)
-            {
-                bytes -= Size(_snapshots[^1]);
-                _snapshots.RemoveAt(_snapshots.Count - 1);
+                var cts = new CancellationTokenSource();
+                inflight = new InflightBuild(_generation, cts);
+                inflight.Work = Task.Run(() => Build(text, native, documentPath, cts.Token), cts.Token);
+                _inflight[key] = inflight;
             }
         }
 
-        return snapshot;
+        DocumentSnapshot? snapshot = null;
+        try
+        {
+            snapshot = inflight.Work.WaitAsync(token).GetAwaiter().GetResult();
+            return snapshot;
+        }
+        finally
+        {
+            lock (_cacheGate)
+            {
+                inflight.Waiters--;
+                if (token.IsCancellationRequested && inflight.Waiters == 0 && !inflight.Work.IsCompleted)
+                {
+                    inflight.Cts.Cancel();
+                    if (_inflight.TryGetValue(key, out var abandoned) && ReferenceEquals(abandoned, inflight))
+                    {
+                        _inflight.Remove(key);
+                    }
+                }
+                else if (inflight.Work.IsCompleted && _inflight.TryGetValue(key, out var current) &&
+                    ReferenceEquals(current, inflight))
+                {
+                    _inflight.Remove(key);
+                }
+
+                if (snapshot != null && _generation == inflight.Generation)
+                {
+                    Publish(text, documentPath, native, snapshot);
+                }
+            }
+        }
+    }
+
+    private DocumentSnapshot Build(string text, IReadOnlyList<Symbol> native, string? documentPath,
+        CancellationToken token)
+    {
+        var masked = BufferLexer.Mask(text, _language.Lexer, token: token);
+        var quoted = BufferLexer.Mask(text, _language.Lexer, maskStrings: false, token: token);
+        var joins = StatementScanner.Joins(masked.Code, _language, token);
+        var prepared = new PreparedDocument(masked, quoted);
+        var bindings = _language is IPreparedLanguage preparedLanguage
+            ? preparedLanguage.Bind(prepared, native, token, documentPath)
+            : _language.Bind(text, native, token, documentPath);
+        return new DocumentSnapshot(masked, quoted, joins, bindings, native);
+    }
+
+    private void Publish(string text, string? documentPath, IReadOnlyList<Symbol> native, DocumentSnapshot snapshot)
+    {
+        if (documentPath != null)
+        {
+            _snapshots.RemoveAll(item => item.Path == documentPath &&
+                ReferenceEquals(item.Catalog, native));
+        }
+        else
+        {
+            _snapshots.RemoveAll(item => item.Text == text && item.Path == null &&
+                ReferenceEquals(item.Catalog, native));
+        }
+
+        _snapshots.Insert(0, new(text, documentPath, native, snapshot));
+        var bytes = 0L;
+        foreach (var item in _snapshots)
+        {
+            bytes += Size(item);
+        }
+
+        while (_snapshots.Count > SnapshotLimit || bytes > SnapshotByteLimit && _snapshots.Count > 1)
+        {
+            bytes -= Size(_snapshots[^1]);
+            _snapshots.RemoveAt(_snapshots.Count - 1);
+        }
     }
 
     private static long Size(CachedSnapshot item) =>
-        (long)item.Text.Length * sizeof(char) * 3 + item.Snapshot.Joins.Length;
+        (long)item.Text.Length * sizeof(char) * 3 + item.Snapshot.Joins.Length +
+        item.Snapshot.Bindings.RetainedBytes();
+
+    private sealed class InflightBuild(int generation, CancellationTokenSource cts)
+    {
+        public int Generation { get; } = generation;
+        public CancellationTokenSource Cts { get; } = cts;
+        public int Waiters { get; set; } = 1;
+        public Task<DocumentSnapshot> Work { get; set; } = null!;
+    }
+
+    private sealed class SnapshotKey : IEquatable<SnapshotKey>
+    {
+        public SnapshotKey(string text, string? path, IReadOnlyList<Symbol> catalog)
+        {
+            Text = text;
+            Path = path;
+            Catalog = catalog;
+        }
+
+        public string Text { get; }
+        public string? Path { get; }
+        public IReadOnlyList<Symbol> Catalog { get; }
+
+        public bool Equals(SnapshotKey? other) =>
+            other != null && Text == other.Text && Path == other.Path &&
+            ReferenceEquals(Catalog, other.Catalog);
+
+        public override bool Equals(object? obj) => obj is SnapshotKey other && Equals(other);
+
+        public override int GetHashCode() => HashCode.Combine(Text, Path, RuntimeHelpers.GetHashCode(Catalog));
+    }
 
     private sealed record CachedSnapshot(
         string Text,

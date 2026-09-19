@@ -74,7 +74,7 @@ internal static class ParameterNames
             type = type[..extra];
         }
 
-        type = type.Replace("[]", "", StringComparison.Ordinal).Trim();
+        type = type.Trim();
         return type.Length == 0 ? null : type;
     }
 
@@ -415,6 +415,10 @@ internal static class ParameterNames
             {
                 quote = c;
             }
+            else if (IsLambdaKeyword(inside, i))
+            {
+                i = SkipLambdaHeader(inside, i, inside.Length);
+            }
             else if (c is '(' or '[' or '{')
             {
                 depth++;
@@ -432,6 +436,90 @@ internal static class ParameterNames
 
         Add(items, inside[start..]);
         return items.ToArray();
+    }
+
+    /// <summary>
+    /// Gets whether <paramref name="index"/> is the <c>lambda</c> keyword.
+    /// </summary>
+    internal static bool IsLambdaKeyword(string text, int index)
+    {
+        const string word = "lambda";
+        if (index < 0 || index + word.Length > text.Length)
+        {
+            return false;
+        }
+
+        if (index > 0 && BufferLexer.IsIdentifier(text[index - 1]))
+        {
+            return false;
+        }
+
+        if (!text.AsSpan(index, word.Length).Equals(word, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var after = index + word.Length;
+        return after == text.Length || !BufferLexer.IsIdentifier(text[after]);
+    }
+
+    /// <summary>
+    /// Skips a lambda parameter list and returns the index of its <c>:</c>, or <paramref name="end"/>.
+    /// </summary>
+    internal static int SkipLambdaHeader(string text, int start, int end)
+    {
+        if (!IsLambdaKeyword(text, start))
+        {
+            return start;
+        }
+
+        var i = start + 6;
+        var depth = 0;
+        var quote = '\0';
+        for (; i < end; i++)
+        {
+            var c = text[i];
+            if (quote != '\0')
+            {
+                if (c == '\\' && i + 1 < end)
+                {
+                    i++;
+                    continue;
+                }
+
+                if (c == quote)
+                {
+                    quote = '\0';
+                }
+
+                continue;
+            }
+
+            if (c is '"' or '\'')
+            {
+                quote = c;
+                continue;
+            }
+
+            if (c is '(' or '[' or '{')
+            {
+                depth++;
+                continue;
+            }
+
+            if (c is ')' or ']' or '}' && depth > 0)
+            {
+                depth--;
+                continue;
+            }
+
+            if (c == ':' && depth == 0)
+            {
+                return i;
+            }
+        }
+
+        return end;
     }
 
     /// <summary>

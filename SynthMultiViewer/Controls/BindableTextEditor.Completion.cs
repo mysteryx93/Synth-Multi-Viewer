@@ -1,5 +1,8 @@
+using System.Reflection;
 using Avalonia;
+using AvaloniaEdit;
 using AvaloniaEdit.CodeCompletion;
+using AvaloniaEdit.Search;
 using HanumanInstitute.ScriptAssist.AvaloniaEdit;
 using Splat;
 
@@ -42,6 +45,9 @@ public partial class BindableTextEditor
     internal OverloadInsightWindow? Insight => _assist?.Insight;
 
     private EditorAssist? _assist;
+    private bool _searchUninstalled;
+    private static readonly FieldInfo? SearchPanelField =
+        typeof(TextEditor).GetField("searchPanel", BindingFlags.Instance | BindingFlags.NonPublic);
 
     private void InitializeCompletion()
     {
@@ -53,7 +59,17 @@ public partial class BindableTextEditor
             ResolveDocumentPath = () => (DataContext as IEditorViewModel)?.FileName
         });
         _assist.Attach();
-        DetachedFromVisualTree += (_, _) => _assist.Dismiss();
+        AttachedToVisualTree += (_, _) =>
+        {
+            _assist.Attach();
+            RestoreSearch();
+        };
+        DetachedFromVisualTree += (_, _) =>
+        {
+            _assist.Detach();
+            SearchPanel?.Uninstall();
+            _searchUninstalled = true;
+        };
         PropertyChanged += (_, e) =>
         {
             if (e.Property == ScriptKindProperty || e.Property == DocumentProperty)
@@ -92,4 +108,16 @@ public partial class BindableTextEditor
     /// </summary>
     public Task RequestCompletionAsync(bool showCompletion = true, TimeSpan? delay = null) =>
         _assist?.RequestAsync(showCompletion, delay) ?? Task.CompletedTask;
+
+    private void RestoreSearch()
+    {
+        if (!_searchUninstalled)
+        {
+            return;
+        }
+
+        var panel = SearchPanel.Install(this);
+        SearchPanelField?.SetValue(this, panel);
+        _searchUninstalled = false;
+    }
 }

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using HanumanInstitute.ScriptAssist.AviSynth;
 using Xunit;
 
 namespace HanumanInstitute.ScriptAssist.Tests;
@@ -216,6 +217,22 @@ public class AviSynthLanguageTests
         var reply = AvsService().Analyze(text, text.Length, [crop, width]);
 
         Assert.Contains(reply.Items, x => x.InsertionText == "Crop");
+    }
+
+    [Fact]
+    public void Bind_DeeplyNestedDefault_ReturnsWithoutUnboundedWork()
+    {
+        var inner = "last";
+        for (var i = 0; i < 1200; i++)
+        {
+            inner = "Default(" + inner + ", last)";
+        }
+
+        var text = "x = " + inner + "\n";
+
+        var bindings = new AviSynthLanguage().Bind(text, [], CancellationToken.None);
+
+        Assert.True(bindings.Names.ContainsKey("x"));
     }
 
     [Fact]
@@ -537,5 +554,65 @@ public class AviSynthLanguageTests
         var reply = AvsService().Analyze(text, text.Length, [crop]);
 
         Assert.Contains(reply.Items, x => x.InsertionText == "Crop");
+    }
+
+    [Fact]
+    public void Hover_LocalFunctionCall_ShowsBufferSignature()
+    {
+        var native = new Symbol("Crop", ["clip", "int [left]", "int [top]"]);
+        const string text = """
+            function Crop(clip c, float radius) { return c }
+            Crop(last, 1.0)
+            """;
+        var hoverAt = text.LastIndexOf("Crop", StringComparison.OrdinalIgnoreCase);
+
+        var hover = AvsService().Analyze(text, hoverAt + 1, [native]).Hover;
+
+        Assert.NotNull(hover);
+        Assert.Contains("radius", hover.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("left", hover.Text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Analyze_LocalNonClipFunction_DoesNotOfferNativeOnLast()
+    {
+        var native = new Symbol("Crop", ["clip", "int [left]"]);
+        const string text = """
+            function Crop(int n) { return n }
+            last.
+            """;
+
+        var reply = AvsService().Analyze(text, text.Length, [native]);
+
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Crop");
+    }
+
+    [Fact]
+    public void Analyze_ClipMembers_KeepLaterClipOverload()
+    {
+        var noClip = new Symbol("Filter", ["int value"]);
+        var takesClip = new Symbol("Filter", ["clip c", "int value"]);
+        const string text = "last.";
+
+        var reply = AvsService().Analyze(text, text.Length, [noClip, takesClip]);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "Filter");
+    }
+
+    [Fact]
+    public void Analyze_FunctionScope_KeepsScriptOverloads()
+    {
+        const string text = """
+            function Filter(clip c) { return c }
+            function Filter(clip c, int value) { return c }
+            function Other(clip c) {
+                last.
+            }
+            """;
+        var caret = text.IndexOf("last.", StringComparison.Ordinal) + "last.".Length;
+
+        var reply = AvsService().Analyze(text, caret, []);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "Filter");
     }
 }

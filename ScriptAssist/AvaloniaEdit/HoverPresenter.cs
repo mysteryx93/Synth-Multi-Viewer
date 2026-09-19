@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Media;
 using AvaloniaEdit;
 
 namespace HanumanInstitute.ScriptAssist.AvaloniaEdit;
@@ -8,7 +7,7 @@ namespace HanumanInstitute.ScriptAssist.AvaloniaEdit;
 /// <summary>
 /// Shows type and signature text when the pointer rests on an identifier.
 /// </summary>
-internal sealed class HoverPresenter(TextEditor editor)
+internal sealed class HoverPresenter(TextEditor editor, AssistTipSize? size = null)
 {
     /// <summary>
     /// Updates the tooltip from a reply, or hides it when nothing useful is known.
@@ -30,7 +29,7 @@ internal sealed class HoverPresenter(TextEditor editor)
             }
 
             var view = editor.TextArea.TextView;
-            ToolTip.SetTip(view, CreateTip(text));
+            ToolTip.SetTip(view, CreatePopup(text, size));
             ToolTip.SetIsOpen(view, true);
         }
         catch
@@ -56,17 +55,24 @@ internal sealed class HoverPresenter(TextEditor editor)
     }
 
     /// <summary>
-    /// Caps and wraps hover text the same way completion hints do.
+    /// Caps and wraps hover text using <see cref="AssistTipSize.Hover"/> unless a size is supplied.
     /// </summary>
-    internal static TextBlock CreateTip(string text) =>
-        new()
+    internal static TextBlock CreateTip(string text, AssistTipSize? size = null) =>
+        CompletionData.HintBlock(text, size ?? AssistTipSize.Hover);
+
+    /// <summary>
+    /// Fluent sets <c>ToolTipContentMaxWidth</c> to 320 on the tooltip chrome. Putting the
+    /// block in a <see cref="ToolTip"/> with a local MaxWidth keeps hover at <paramref name="size"/>.
+    /// </summary>
+    internal static ToolTip CreatePopup(string text, AssistTipSize? size = null)
+    {
+        size ??= AssistTipSize.Hover;
+        return new ToolTip
         {
-            Text = CompletionData.TruncateHint(text),
-            MaxWidth = CompletionData.HintMaxWidth,
-            MaxLines = CompletionData.HintMaxLines,
-            TextWrapping = TextWrapping.Wrap,
-            TextTrimming = TextTrimming.CharacterEllipsis
+            Content = CreateTip(text, size),
+            MaxWidth = Math.Max(1, size.MaxWidth)
         };
+    }
 
     /// <summary>
     /// Maps a pointer position to a document offset, or -1 when outside the text.

@@ -11,6 +11,19 @@ public sealed record Symbol(
     string? ReturnType = null)
 {
     /// <summary>
+    /// Gets the last dotted segment of <see cref="Name"/>. Catalog identity stays on
+    /// <see cref="Name"/>; hover, insight, and completion insert this.
+    /// </summary>
+    public string DisplayName
+    {
+        get
+        {
+            var last = Name.LastIndexOf('.');
+            return last < 0 ? Name : Name[(last + 1)..];
+        }
+    }
+
+    /// <summary>
     /// Gets the display signature.
     /// </summary>
     public string Signature
@@ -29,7 +42,14 @@ public sealed record Symbol(
 
             var inside = Parameters == null ? "parameters unknown" : string.Join(", ", Parameters);
             var suffix = ImplicitLast ? " [implicit last]" : "";
-            return Name + "(" + inside + ")" + suffix;
+            var call = DisplayName + "(" + inside + ")" + suffix;
+            if (!ReturnType.HasValue())
+            {
+                return call;
+            }
+
+            var ret = ReturnType.TrimEnd(';').Trim();
+            return ret.Length == 0 ? call : call + " -> " + ret;
         }
     }
 }

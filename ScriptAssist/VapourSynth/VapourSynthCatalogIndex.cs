@@ -9,10 +9,8 @@ internal sealed class VapourSynthCatalogIndex
 {
     private static readonly ConditionalWeakTable<IReadOnlyList<Symbol>, VapourSynthCatalogIndex> Indexes = new();
 
-    private readonly Dictionary<string, List<Symbol>> _functions = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, List<Symbol>> _boundVideo = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, List<Symbol>> _boundAudio = new(StringComparer.Ordinal);
-    private readonly List<Symbol> _namespaces = [];
+    private readonly Dictionary<string, NamespaceEntry> _namespaces = new(StringComparer.Ordinal);
+    private readonly List<Symbol> _namespaceList = [];
     private readonly List<Symbol> _boundVideoNamespaces = [];
     private readonly List<Symbol> _boundAudioNamespaces = [];
 
@@ -31,27 +29,42 @@ internal sealed class VapourSynthCatalogIndex
         var index = new VapourSynthCatalogIndex();
         foreach (var symbol in catalog)
         {
-            if (!TrySplit(symbol.Name, out var ns))
+            if (!TrySplit(symbol.Name, out var ns, out var function))
             {
                 continue;
             }
 
-            if (!index._functions.TryGetValue(ns, out var functions))
+            if (!index._namespaces.TryGetValue(ns, out var entry))
             {
-                functions = [];
-                index._functions[ns] = functions;
-                index._namespaces.Add(new(ns, null, SymbolKind.Namespace));
+                entry = new NamespaceEntry(ns);
+                index._namespaces[ns] = entry;
+                index._namespaceList.Add(entry.Namespace);
             }
 
-            functions.Add(symbol);
+            entry.Functions.Add(symbol);
+            entry.FunctionByName.TryAdd(function, symbol);
             if (VapourSynthArguments.TakesVideo(symbol))
             {
-                AddBound(index._boundVideo, index._boundVideoNamespaces, ns, symbol);
+                if (entry.BoundVideoNamespace == null)
+                {
+                    entry.BoundVideoNamespace = new(ns, null, SymbolKind.Namespace);
+                    index._boundVideoNamespaces.Add(entry.BoundVideoNamespace);
+                }
+
+                entry.BoundVideo.Add(symbol);
+                entry.BoundVideoByName.TryAdd(function, symbol);
             }
 
             if (VapourSynthArguments.TakesAudio(symbol))
             {
-                AddBound(index._boundAudio, index._boundAudioNamespaces, ns, symbol);
+                if (entry.BoundAudioNamespace == null)
+                {
+                    entry.BoundAudioNamespace = new(ns, null, SymbolKind.Namespace);
+                    index._boundAudioNamespaces.Add(entry.BoundAudioNamespace);
+                }
+
+                entry.BoundAudio.Add(symbol);
+                entry.BoundAudioByName.TryAdd(function, symbol);
             }
         }
 
@@ -61,7 +74,7 @@ internal sealed class VapourSynthCatalogIndex
     /// <summary>
     /// Gets plugin namespaces present on the core.
     /// </summary>
-    public IReadOnlyList<Symbol> Namespaces => _namespaces;
+    public IReadOnlyList<Symbol> Namespaces => _namespaceList;
 
     /// <summary>
     /// Gets plugin namespaces that bind to a video or audio node.
@@ -74,31 +87,57 @@ internal sealed class VapourSynthCatalogIndex
     /// </summary>
     public IReadOnlyList<Symbol> Functions(string ns, bool boundOnly, TypeRef node = default)
     {
+        if (!_namespaces.TryGetValue(ns, out var entry))
+        {
+            return [];
+        }
+
         if (!boundOnly)
         {
-            return _functions.TryGetValue(ns, out var list) ? list : [];
+            return entry.Functions;
         }
 
-        var map = node == VapourSynthTypes.AudioNode ? _boundAudio : _boundVideo;
-        return map.TryGetValue(ns, out var bound) ? bound : [];
+        return node == VapourSynthTypes.AudioNode ? entry.BoundAudio : entry.BoundVideo;
     }
 
-    private static void AddBound(Dictionary<string, List<Symbol>> map, List<Symbol> namespaces, string ns,
-        Symbol symbol)
+    /// <summary>
+    /// Gets the first function named <paramref name="name"/> in <paramref name="ns"/>.
+    /// </summary>
+    public Symbol? FindFunction(string ns, string name, bool boundOnly, TypeRef node = default)
     {
-        if (!map.TryGetValue(ns, out var bound))
+        if (!_namespaces.TryGetValue(ns, out var entry))
         {
-            bound = [];
-            map[ns] = bound;
-            namespaces.Add(new(ns, null, SymbolKind.Namespace));
+            return null;
         }
 
-        bound.Add(symbol);
+        var map = boundOnly
+            ? node == VapourSynthTypes.AudioNode ? entry.BoundAudioByName : entry.BoundVideoByName
+            : entry.FunctionByName;
+        return map.TryGetValue(name, out var symbol) ? symbol : null;
     }
 
-    private static bool TrySplit(string name, out string ns)
+    /// <summary>
+    /// Gets the namespace symbol named <paramref name="name"/>, if present.
+    /// </summary>
+    public Symbol? FindNamespace(string name, bool boundOnly, TypeRef node = default)
+    {
+        if (!_namespaces.TryGetValue(name, out var entry))
+        {
+            return null;
+        }
+
+        if (!boundOnly)
+        {
+            return entry.Namespace;
+        }
+
+        return node == VapourSynthTypes.AudioNode ? entry.BoundAudioNamespace : entry.BoundVideoNamespace;
+    }
+
+    private static bool TrySplit(string name, out string ns, out string function)
     {
         ns = "";
+        function = "";
         const string prefix = "core.";
         if (!name.StartsWith(prefix, StringComparison.Ordinal))
         {
@@ -113,7 +152,20 @@ internal sealed class VapourSynthCatalogIndex
         }
 
         ns = rest[..dot];
-        var function = rest[(dot + 1)..];
+        function = rest[(dot + 1)..];
         return function.Length > 0 && !function.Contains('.', StringComparison.Ordinal);
+    }
+
+    private sealed class NamespaceEntry(string ns)
+    {
+        public Symbol Namespace { get; } = new(ns, null, SymbolKind.Namespace);
+        public List<Symbol> Functions { get; } = [];
+        public Dictionary<string, Symbol> FunctionByName { get; } = new(StringComparer.Ordinal);
+        public List<Symbol> BoundVideo { get; } = [];
+        public Dictionary<string, Symbol> BoundVideoByName { get; } = new(StringComparer.Ordinal);
+        public List<Symbol> BoundAudio { get; } = [];
+        public Dictionary<string, Symbol> BoundAudioByName { get; } = new(StringComparer.Ordinal);
+        public Symbol? BoundVideoNamespace { get; set; }
+        public Symbol? BoundAudioNamespace { get; set; }
     }
 }

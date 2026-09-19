@@ -15,11 +15,12 @@ internal static class AviSynthTypeWalker
             return TypeRef.Root;
         }
 
+        _ = catalog;
         var first = segments[0];
         var current = Resolve(first.Name, bindings);
         if (first.Kind == PathSegmentKind.Call)
         {
-            current = AviSynthInternals.ReturnOf(first.Name, Find(catalog, first.Name));
+            current = AviSynthInternals.ReturnOf(first.Name);
         }
         else if (first.Kind == PathSegmentKind.Index)
         {
@@ -38,7 +39,7 @@ internal static class AviSynthTypeWalker
                         return TypeRef.Unknown;
                     }
 
-                    current = AviSynthInternals.ReturnOf(segment.Name, Find(catalog, segment.Name));
+                    current = AviSynthInternals.ReturnOf(segment.Name);
                 }
 
                 current = Index(current);
@@ -50,7 +51,7 @@ internal static class AviSynthTypeWalker
                 return TypeRef.Unknown;
             }
 
-            current = AviSynthInternals.ReturnOf(segment.Name, Find(catalog, segment.Name));
+            current = AviSynthInternals.ReturnOf(segment.Name);
         }
 
         return current;
@@ -65,9 +66,6 @@ internal static class AviSynthTypeWalker
 
         return bindings.Names.TryGetValue(name, out var type) ? type : TypeRef.Unknown;
     }
-
-    private static Symbol? Find(IReadOnlyList<Symbol> catalog, string name) =>
-        AviSynthCatalogIndex.Build(catalog).Find(name);
 
     private static TypeRef Index(TypeRef current) =>
         current == AviSynthTypes.Clip ? AviSynthTypes.Clip : TypeRef.Unknown;

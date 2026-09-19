@@ -43,10 +43,10 @@ public static class VapourSynthHostTypes
         new("used_cache_size", null, SymbolKind.Property, ReturnType: "int"),
         new("clear_cache", [], ReturnType: ""),
         new("plugins", []),
-        new("get_video_format", ["id:int"], ReturnType: "format"),
+        new("get_video_format", ["id:int"], ReturnType: "VideoFormat"),
         new("query_video_format",
             ["color_family:int", "sample_type:int", "bits_per_sample:int", "subsampling_w:int:opt",
-                "subsampling_h:int:opt"], ReturnType: "format")
+                "subsampling_h:int:opt"], ReturnType: "VideoFormat")
     ];
 
     /// <summary>
@@ -54,7 +54,7 @@ public static class VapourSynthHostTypes
     /// </summary>
     public static IReadOnlyList<Symbol> VideoNodeMembers { get; } =
     [
-        new("format", null, SymbolKind.Property, ReturnType: "format"),
+        new("format", null, SymbolKind.Property, ReturnType: "VideoFormat"),
         new("width", null, SymbolKind.Property, ReturnType: "int"),
         new("height", null, SymbolKind.Property, ReturnType: "int"),
         new("num_frames", null, SymbolKind.Property, ReturnType: "int"),
@@ -102,7 +102,7 @@ public static class VapourSynthHostTypes
         new("num_planes", null, SymbolKind.Property, ReturnType: "int"),
         new("replace",
             ["color_family:int:opt", "sample_type:int:opt", "bits_per_sample:int:opt", "subsampling_w:int:opt",
-                "subsampling_h:int:opt"], ReturnType: "format")
+                "subsampling_h:int:opt"], ReturnType: "VideoFormat")
     ];
 
     /// <summary>
@@ -110,7 +110,7 @@ public static class VapourSynthHostTypes
     /// </summary>
     public static IReadOnlyList<Symbol> VideoFrameMembers { get; } =
     [
-        new("format", null, SymbolKind.Property, ReturnType: "format"),
+        new("format", null, SymbolKind.Property, ReturnType: "VideoFormat"),
         new("width", null, SymbolKind.Property, ReturnType: "int"),
         new("height", null, SymbolKind.Property, ReturnType: "int"),
         new("props", null, SymbolKind.Property),

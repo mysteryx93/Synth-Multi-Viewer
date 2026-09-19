@@ -8,7 +8,9 @@ internal static class AssistHarness
     internal static readonly IReadOnlyList<Symbol> Vs =
     [
         new("core.std.Crop", ["clip:vnode", "left:int:opt", "right:int:opt"], ReturnType: "clip:vnode;"),
-        new("core.std.BlankClip", ["width:int:opt", "height:int:opt"], ReturnType: "clip:vnode;"),
+        new("core.std.BlankClip",
+            ["clip:vnode:opt", "width:int:opt", "height:int:opt", "format:int:opt", "color:float[]:opt"],
+            ReturnType: "clip:vnode;"),
         new("core.rife.RIFE", ["clip:vnode", "model:int:opt"], ReturnType: "clip:vnode;"),
         new("core.std.SelectEvery", ["clip:vnode", "cycle:int", "offsets:int[]"], ReturnType: "clip:vnode;"),
         new("core.svp1.Super", ["clip:vnode"], ReturnType: "clip:vnode;clip:vnode;"),

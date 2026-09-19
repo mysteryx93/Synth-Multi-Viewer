@@ -6,6 +6,10 @@ Follow this when adding or changing tests. Language-engine invariants for Script
 
 Keep a test when it locks **observable behavior** that would otherwise regress.
 
+One lock per fact. A hover/`Analyze` assertion already covers the string; do not also test the formatter that produced it. A presenter test for wrap or size must not re-assert that same string.
+
+Updating a test that would fail is required. Adding another because this task touched the type is not.
+
 A test that only existed to finish the current task does not belong in the suite.
 
 ## UI tests are last resort

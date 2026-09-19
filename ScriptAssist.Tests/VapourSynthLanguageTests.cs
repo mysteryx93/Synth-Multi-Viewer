@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Xunit;
 
@@ -295,6 +296,17 @@ public class VapourSynthLanguageTests
     }
 
     [Fact]
+    public void Hover_NativeFunction_ShowsUnqualifiedSignature()
+    {
+        const string text = "core.std.BlankClip()";
+
+        var hover = VsService().Analyze(text, text.IndexOf("BlankClip", StringComparison.Ordinal) + 1, Vs).Hover;
+
+        Assert.NotNull(hover);
+        Assert.StartsWith("BlankClip(", hover.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Hover_AssignedClip_ShowsVideoNode()
     {
         const string text = "clip = core.std.BlankClip()\nclip";
@@ -350,6 +362,17 @@ public class VapourSynthLanguageTests
 
         Assert.NotNull(hover);
         Assert.Equal("int", hover.Text);
+    }
+
+    [Fact]
+    public void Hover_FormatProperty_ShowsVideoFormat()
+    {
+        const string text = "clip = core.std.BlankClip()\nclip.format";
+
+        var hover = VsService().Analyze(text, text.Length, Vs).Hover;
+
+        Assert.NotNull(hover);
+        Assert.Equal("VideoFormat", hover.Text);
     }
 
     [Fact]
@@ -2085,5 +2108,207 @@ public class VapourSynthLanguageTests
 
         Assert.DoesNotContain(reply.Items, x => x.InsertionText == "replace");
         Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void Analyze_MultiplyAssign_KeepsClipMembers()
+    {
+        const string text = """
+            clip = core.std.BlankClip()
+            clip *= 2
+            clip.
+            """;
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_GroupedSingleTarget_InfersRhs()
+    {
+        const string text = "(clip) = core.std.BlankClip()\nclip.";
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_AsyncDef_DoesNotLeakLocals()
+    {
+        const string text = """
+            async def f():
+                source = core.std.BlankClip()
+            source.
+            """;
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_AsyncDefBody_KeepsLocals()
+    {
+        const string text = """
+            async def f():
+                source = core.std.BlankClip()
+                source.
+            """;
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_NestedGroupedAssignment_InfersRhs()
+    {
+        const string text = "((clip)) = core.std.BlankClip()\nclip.";
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_SpacedGroupedAssignment_InfersRhs()
+    {
+        const string text = "( (clip) ) = core.std.BlankClip()\nclip.";
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_ConditionalSameBranchTypes_KeepsNode()
+    {
+        const string text = """
+            left = core.std.BlankClip()
+            right = core.std.BlankClip()
+            result = left if enabled else right
+            result.
+            """;
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_ConditionalMixedBranchTypes_StaysUnknown()
+    {
+        const string text = """
+            left = core.std.BlankClip()
+            result = left if enabled else 1
+            result.
+            """;
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Theory]
+    [InlineData("value = vs()\nvalue.")]
+    [InlineData("value = vs.core()\nvalue.")]
+    [InlineData("value = core.std()\nvalue.")]
+    [InlineData("clip = core.std.BlankClip()\nvalue = clip.std()\nvalue.")]
+    public void Analyze_InvalidNamespaceCall_StaysUnknown(string text)
+    {
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "core");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Crop");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_GetCoreCall_KeepsCore()
+    {
+        const string text = "c = vs.get_core()\nc.";
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+    }
+
+    [Fact]
+    public void Analyze_BrokenInputBeforeAsyncDef_RecoversFunction()
+    {
+        const string text = """
+            broken = (
+            async def good():
+                clip = core.std.BlankClip()
+                clip.
+            """;
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "std");
+        Assert.Contains(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_AsyncDefCall_StaysUnknown()
+    {
+        const string text = """
+            async def load() -> vs.VideoNode:
+                return core.std.BlankClip()
+            result = load()
+            result.
+            """;
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_ImportedAsyncDefCall_StaysUnknown()
+    {
+        const string helper = """
+            async def load() -> vs.VideoNode:
+                return None
+            """;
+        const string text = """
+            from helper import load
+            result = load()
+            result.
+            """;
+        var service = VsService(Read);
+        IncludeFile? Read(string specifier, string? _) =>
+            specifier == "helper" ? new IncludeFile("/plugins/helper.py", helper) : null;
+
+        var reply = service.Analyze(text, text.Length, Vs);
+
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
+    }
+
+    [Fact]
+    public void Analyze_DeeplyGroupedExpression_ReturnsUnknownPromptly()
+    {
+        const int depth = 2000;
+        var text = "x = " + new string('(', depth) + "core.std.BlankClip()" + new string(')', depth) + "\nx.";
+        var timer = Stopwatch.StartNew();
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.True(timer.Elapsed.TotalSeconds < 1);
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "std");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "width");
     }
 }

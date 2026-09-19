@@ -88,13 +88,13 @@ public static class AviSynthInternals
     /// <summary>
     /// Infers the return of a called function. Unknown names default to clip.
     /// </summary>
-    public static TypeRef ReturnOf(string name, Symbol? symbol)
+    public static TypeRef ReturnOf(string name)
     {
         if (Table.TryGetValue(name, out var type))
         {
             return type;
         }
-        _ = symbol;
+
         return AviSynthTypes.Clip;
     }
 }

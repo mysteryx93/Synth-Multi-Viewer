@@ -26,6 +26,11 @@ public sealed class LanguageProfile
     public ISymbolCatalog Catalog { get; }
 
     /// <summary>
+    /// Gets the configuration key last passed to <see cref="ScriptLanguageFactory.Configure"/>.
+    /// </summary>
+    internal string? CatalogKey { get; set; }
+
+    /// <summary>
     /// Gets the shared language service for this profile.
     /// </summary>
     public ILanguageService Service { get; }

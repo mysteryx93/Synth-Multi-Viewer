@@ -209,13 +209,89 @@ public static class VapourSynthTypes
             return null;
         }
 
-        var mapped = FromReturn(returnType);
-        if (!mapped.IsUnknown)
+        var type = returnType.Trim();
+        var array = type.EndsWith("[]", StringComparison.Ordinal);
+        if (array)
         {
-            return Display(mapped);
+            type = type[..^2];
         }
 
-        return returnType == "format" ? "VideoFormat" : returnType;
+        var mapped = FromReturn(type);
+        var display = !mapped.IsUnknown ? Display(mapped)
+            : type == "format" ? "VideoFormat" : type;
+        if (!display.HasValue())
+        {
+            return null;
+        }
+
+        return array ? display + "[]" : display;
+    }
+
+    /// <summary>
+    /// Hover/insight type for a native or Python parameter. <c>format:int</c> is a
+    /// VideoFormat id; <c>float[]</c> stays an array (BlankClip <c>color</c>).
+    /// </summary>
+    internal static string? DisplayType(string? name, string? typeKey)
+    {
+        if (!typeKey.HasValue())
+        {
+            return null;
+        }
+
+        if (name == "format" && typeKey == "int")
+        {
+            return "VideoFormat";
+        }
+
+        return DisplayReturn(typeKey);
+    }
+
+    /// <summary>Rewrites a native parameter string for display without changing the name.</summary>
+    internal static string DisplayParameter(string parameter)
+    {
+        var text = parameter.Trim();
+        var colon = text.IndexOf(':');
+        if (colon <= 0 || colon + 1 >= text.Length)
+        {
+            return parameter;
+        }
+
+        var name = text[..colon];
+        var rest = text[(colon + 1)..];
+        var extra = rest.IndexOf(':');
+        var type = (extra < 0 ? rest : rest[..extra]).Trim();
+        var flags = extra < 0 ? "" : rest[extra..];
+        var display = DisplayType(name, type);
+        if (!display.HasValue() || display == type)
+        {
+            return parameter;
+        }
+
+        return name + ":" + display + flags;
+    }
+
+    /// <summary>Copy of <paramref name="symbol"/> with display parameter types.</summary>
+    internal static Symbol ForDisplay(Symbol symbol)
+    {
+        if (symbol.Parameters == null || symbol.Parameters.Length == 0)
+        {
+            return symbol;
+        }
+
+        string[]? mapped = null;
+        for (var i = 0; i < symbol.Parameters.Length; i++)
+        {
+            var pretty = DisplayParameter(symbol.Parameters[i]);
+            if (pretty == symbol.Parameters[i])
+            {
+                continue;
+            }
+
+            mapped ??= [..symbol.Parameters];
+            mapped[i] = pretty;
+        }
+
+        return mapped == null ? symbol : symbol with { Parameters = mapped };
     }
 
     private const char Field = '\x1e';

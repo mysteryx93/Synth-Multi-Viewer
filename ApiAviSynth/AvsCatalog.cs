@@ -35,11 +35,17 @@ public static class AvsCatalog
                 }
             }
             var result = new List<AvsFilterInfo>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var category in new[] { "InternalFunctions", "PluginFunctions", "UserFunctions" })
             {
                 var names = native.ReadStringVariable(env, "$" + category + "$");
                 foreach (var name in (names ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
                 {
+                    if (!seen.Add(name))
+                    {
+                        continue;
+                    }
+
                     result.Add(new(name, ReadParameters(native, env, category, name)));
                 }
             }

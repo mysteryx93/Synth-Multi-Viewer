@@ -31,6 +31,11 @@ public sealed class BindingScope
     internal int ParenClose { get; init; } = -1;
 
     /// <summary>
+    /// Gets whether the header is <c>async def</c>.
+    /// </summary>
+    internal bool Async { get; init; }
+
+    /// <summary>
     /// Gets locals and parameters assigned in this function.
     /// </summary>
     public IReadOnlyDictionary<string, TypeRef> Names { get; init; } =
@@ -44,7 +49,7 @@ public sealed class BindingScope
     /// <summary>
     /// Gets function symbols imported or declared only inside this scope.
     /// </summary>
-    public IReadOnlyList<Symbol> Symbols { get; init; } = [];
+    public IReadOnlyList<Symbol> Symbols { get; internal set; } = [];
 
     /// <summary>
     /// Gets the enclosing function, or null at module level.

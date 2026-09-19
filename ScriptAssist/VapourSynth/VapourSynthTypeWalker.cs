@@ -29,7 +29,8 @@ internal static class VapourSynthTypeWalker
     /// <summary>
     /// Types a right-hand side, including clip copy through <c>+</c> and <c>*</c>.
     /// </summary>
-    public static TypeRef Infer(string expression, DocumentBindings bindings, VapourSynthCatalogIndex index)
+    public static TypeRef Infer(string expression, DocumentBindings bindings, VapourSynthCatalogIndex index,
+        CancellationToken token = default)
     {
         var unwrapped = ExpressionParts.UnwrapParentheses(expression);
         if (IsInteger(unwrapped))
@@ -52,10 +53,17 @@ internal static class VapourSynthTypeWalker
             return VapourSynthTypes.String;
         }
 
+        if (TryConditional(unwrapped, out var left, out var right))
+        {
+            var whenTrue = InferPart(left, bindings, index, token);
+            var whenFalse = InferPart(right, bindings, index, token);
+            return whenTrue == whenFalse && !whenTrue.IsUnknown ? whenTrue : TypeRef.Unknown;
+        }
+
         var parts = ExpressionParts.SplitAddMul(unwrapped);
         if (parts.Count == 1)
         {
-            return InferPart(expression, bindings, index);
+            return InferPart(expression, bindings, index, token);
         }
 
         var node = TypeRef.Unknown;
@@ -67,7 +75,7 @@ internal static class VapourSynthTypeWalker
                 continue;
             }
 
-            last = InferPart(ExpressionParts.GroupOperand(expression, part), bindings, index);
+            last = InferPart(ExpressionParts.GroupOperand(expression, part), bindings, index, token);
             if (VapourSynthTypes.IsNode(last))
             {
                 node = last;
@@ -82,7 +90,8 @@ internal static class VapourSynthTypeWalker
         return TypeRef.Unknown;
     }
 
-    private static TypeRef InferPart(string part, DocumentBindings bindings, VapourSynthCatalogIndex index)
+    private static TypeRef InferPart(string part, DocumentBindings bindings, VapourSynthCatalogIndex index,
+        CancellationToken token)
     {
         if (IsInteger(part))
         {
@@ -104,7 +113,7 @@ internal static class VapourSynthTypeWalker
             return VapourSynthTypes.String;
         }
 
-        var segments = ExpressionReader.Parse(part);
+        var segments = ExpressionReader.Parse(part, token: token);
         if (segments.Count == 0)
         {
             return TypeRef.Unknown;
@@ -183,9 +192,9 @@ internal static class VapourSynthTypeWalker
             return Index(current);
         }
 
-        if (current == VapourSynthTypes.Module && segment.Name is "core" or "get_core")
+        if (current == VapourSynthTypes.Module && segment.Name == "get_core")
         {
-            return VapourSynthTypes.Core;
+            return segment.Kind == PathSegmentKind.Call ? VapourSynthTypes.Core : TypeRef.Unknown;
         }
 
         var symbol = VapourSynthMembers.Find(current, segment.Name, bindings, index);
@@ -196,6 +205,16 @@ internal static class VapourSynthTypeWalker
 
         if (symbol.Kind == SymbolKind.Namespace)
         {
+            if (segment.Kind == PathSegmentKind.Call)
+            {
+                return TypeRef.Unknown;
+            }
+
+            if (current == VapourSynthTypes.Module && segment.Name == "core")
+            {
+                return VapourSynthTypes.Core;
+            }
+
             if (current == VapourSynthTypes.Core)
             {
                 return VapourSynthTypes.Plugin(segment.Name);
@@ -227,12 +246,96 @@ internal static class VapourSynthTypeWalker
             return ReturnOf(snapshot);
         }
 
-        if (current == VapourSynthTypes.Module)
+        return TypeRef.Unknown;
+    }
+
+    private static bool TryConditional(string text, out string left, out string right)
+    {
+        left = "";
+        right = "";
+        var ifAt = KeywordAt(text, "if", 0);
+        if (ifAt < 0)
         {
-            return VapourSynthTypes.Core;
+            return false;
         }
 
-        return TypeRef.Unknown;
+        var elseAt = KeywordAt(text, "else", ifAt + 2);
+        if (elseAt < 0)
+        {
+            return false;
+        }
+
+        left = text[..ifAt].Trim();
+        right = text[(elseAt + 4)..].Trim();
+        return left.Length > 0 && right.Length > 0;
+    }
+
+    private static int KeywordAt(string text, string word, int from)
+    {
+        var depth = 0;
+        var quote = '\0';
+        for (var i = from; i + word.Length <= text.Length; i++)
+        {
+            var c = text[i];
+            if (quote != '\0')
+            {
+                if (c == '\\' && i + 1 < text.Length)
+                {
+                    i++;
+                    continue;
+                }
+
+                if (c == quote)
+                {
+                    quote = '\0';
+                }
+
+                continue;
+            }
+
+            if (c is '"' or '\'')
+            {
+                quote = c;
+                continue;
+            }
+
+            if (c is '(' or '[' or '{')
+            {
+                depth++;
+                continue;
+            }
+
+            if (c is ')' or ']' or '}' && depth > 0)
+            {
+                depth--;
+                continue;
+            }
+
+            if (depth != 0)
+            {
+                continue;
+            }
+
+            if (!text.AsSpan(i, word.Length).Equals(word, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (i > 0 && BufferLexer.IsIdentifier(text[i - 1]))
+            {
+                continue;
+            }
+
+            var after = i + word.Length;
+            if (after < text.Length && BufferLexer.IsIdentifier(text[after]))
+            {
+                continue;
+            }
+
+            return i;
+        }
+
+        return -1;
     }
 
     private static TypeRef ReturnOf(Symbol symbol) => VapourSynthTypes.FromReturn(symbol.ReturnType);

@@ -26,10 +26,10 @@ internal static partial class AviSynthPatterns
     public static string JoinContinuations(string clean) => BufferLexer.JoinBackslashLines(clean);
 
     /// <summary>
-    /// Joins continuations, then masks comments and strings. <c>\</c> is preprocessing, so it
-    /// still joins a statement when the next line sits inside a triple-quoted string.
+    /// Masks comments and strings. <see cref="BufferLexer.Mask"/> joins <c>\</c> continuations first,
+    /// so a leading <c>\</c> still joins a statement when the next line sits inside a triple-quoted string.
     /// </summary>
     public static string Clean(string text, LexerOptions lexer, bool maskStrings = true,
         CancellationToken token = default) =>
-        BufferLexer.Mask(JoinContinuations(text), lexer, maskStrings, token: token).Code;
+        BufferLexer.Mask(text, lexer, maskStrings, token: token).Code;
 }

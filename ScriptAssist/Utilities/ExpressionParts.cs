@@ -114,8 +114,11 @@ internal static class ExpressionParts
         var start = 0;
         var end = expression.Length;
         Trim(expression, ref start, ref end);
-        while (end - start >= 2 && IsParenthesized(expression, start, end))
+        const int maxUnwrap = 48;
+        var unwraps = 0;
+        while (end - start >= 2 && unwraps < maxUnwrap && IsParenthesized(expression, start, end))
         {
+            unwraps++;
             start++;
             end--;
             Trim(expression, ref start, ref end);
@@ -137,7 +140,7 @@ internal static class ExpressionParts
         }
     }
 
-    private static bool IsParenthesized(string expression, int start, int end)
+    internal static bool IsParenthesized(string expression, int start, int end)
     {
         if (end - start < 2 || expression[start] != '(' || expression[end - 1] != ')')
         {

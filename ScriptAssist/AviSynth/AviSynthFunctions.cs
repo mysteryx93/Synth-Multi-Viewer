@@ -29,6 +29,12 @@ public static class AviSynthFunctions
     {
         var clean = AviSynthPatterns.Clean(text, lexer, token: token);
         var quoted = AviSynthPatterns.Clean(text, lexer, maskStrings: false, token: token);
+        return Spans(clean, quoted, token);
+    }
+
+    internal static IReadOnlyList<AviSynthFunctionSpan> Spans(string clean, string quoted,
+        CancellationToken token = default)
+    {
         var buffer = new List<AviSynthFunctionSpan>();
         var matches = AviSynthPatterns.Functions().Matches(clean);
         for (var i = 0; i < matches.Count; i++)
@@ -80,6 +86,25 @@ public static class AviSynthFunctions
         HashSet<string> visited, LexerOptions lexer, CancellationToken token, IncludeCache? includes) =>
         AddImports(text, documentPath, read, buffer, visited, lexer, token, new IncludeSession(includes));
 
+    internal static void AddImports(string clean, string quoted, string? documentPath, IncludeReader? read,
+        List<Symbol> buffer, HashSet<string> visited, LexerOptions lexer, CancellationToken token,
+        IncludeCache? includes)
+    {
+        if (read == null)
+        {
+            return;
+        }
+
+        var ensuring = new HashSet<string>(StringComparer.Ordinal);
+        var session = new IncludeSession(includes);
+        foreach (var specifier in ImportSpecifiers(clean, quoted, token))
+        {
+            LoadSpecifier(specifier, documentPath, read, buffer, visited, ensuring, lexer, token, session);
+        }
+
+        session.Finish(documentPath);
+    }
+
     private static void AddImports(string text, string? documentPath, IncludeReader? read, List<Symbol> buffer,
         HashSet<string> visited, LexerOptions lexer, CancellationToken token, IncludeSession includes)
     {
@@ -93,6 +118,8 @@ public static class AviSynthFunctions
         {
             LoadSpecifier(specifier, documentPath, read, buffer, visited, ensuring, lexer, token, includes);
         }
+
+        includes.Finish(documentPath);
     }
 
     private static void LoadSpecifier(string specifier, string? fromPath, IncludeReader read, List<Symbol> buffer,
@@ -228,6 +255,11 @@ public static class AviSynthFunctions
     {
         var quoted = AviSynthPatterns.Clean(text, lexer, maskStrings: false, token: token);
         var clean = AviSynthPatterns.Clean(text, lexer, token: token);
+        return ImportSpecifiers(clean, quoted, token);
+    }
+
+    private static IEnumerable<string> ImportSpecifiers(string clean, string quoted, CancellationToken token)
+    {
         foreach (Match match in AviSynthPatterns.Import().Matches(quoted))
         {
             token.ThrowIfCancellationRequested();

@@ -6,7 +6,7 @@ namespace HanumanInstitute.ScriptAssist.AvaloniaEdit;
 /// <summary>
 /// Owns the completion popup for one editor.
 /// </summary>
-internal sealed class CompletionPresenter(TextEditor editor)
+internal sealed class CompletionPresenter(TextEditor editor, AssistTipSize? size = null)
 {
     private CompletionWindow? _window;
 
@@ -39,7 +39,7 @@ internal sealed class CompletionPresenter(TextEditor editor)
         };
         foreach (var item in reply.Items)
         {
-            window.CompletionList.CompletionData.Add(new CompletionData(item));
+            window.CompletionList.CompletionData.Add(new CompletionData(item, size ?? AssistTipSize.Hint));
         }
 
         window.Closed += (_, _) =>

@@ -13,22 +13,26 @@ public static class VapourSynthFunctions
         var clean = BufferLexer.Mask(text, lexer, token: token).Code;
         var quoted = BufferLexer.Mask(text, lexer, maskStrings: false, token: token).Code;
         var buffer = new List<Symbol>();
-        var matches = VapourSynthPatterns.TopLevelDef().Matches(clean);
-        for (var i = 0; i < matches.Count; i++)
+        var statements = StatementScanner.Scan(clean, token);
+        for (var i = 0; i < statements.Count; i++)
         {
             token.ThrowIfCancellationRequested();
-            var match = matches[i];
-            var open = match.Index + match.Length - 1;
-            var limit = i + 1 < matches.Count ? matches[i + 1].Index : clean.Length;
-            var close = FunctionHeaders.MatchingClose(clean, open, limit, token);
+            var span = statements[i];
+            if (!ColumnZero(clean, span.Start) ||
+                !PythonHeaders.TryDef(quoted, span.Start, span.End, out var name, out var open, out var async))
+            {
+                continue;
+            }
+
+            var close = FunctionHeaders.MatchingClose(clean, open, span.End, token);
             if (close < 0)
             {
                 continue;
             }
 
             var parameters = ParameterNames.Split(quoted[(open + 1)..close]);
-            var returnType = ReturnId(quoted, close);
-            buffer.Add(new(match.Groups[1].Value, parameters, ReturnType: returnType));
+            var returnType = async ? null : ReturnId(quoted, close);
+            buffer.Add(new(name, parameters, ReturnType: returnType));
         }
 
         return buffer;
@@ -56,4 +60,7 @@ public static class VapourSynthFunctions
 
         return VapourSynthBinder.ResolveAnnotationId(text[start..i].Trim(), bindings);
     }
+
+    private static bool ColumnZero(string text, int offset) =>
+        offset == 0 || text[offset - 1] is '\n' or '\r';
 }

@@ -28,6 +28,8 @@ assist.Attach();
 
 Keep `assist` for the editor's lifetime and call `Dispose()` when finished. The callbacks can return the current language and file path when an editor switches documents. Use `ScriptLanguageFactory.AviSynth` for AviSynth.
 
+`EditorAssistOptions.Hint` and `Hover` set wrap width, line count, and character cap (`AssistTipSize`). Hover defaults are wider than the completion side panel and also wrap call-insight headers. Function signatures omit the `core.ns.` prefix.
+
 Shortcuts: **Ctrl+Space** completion, **Ctrl+Shift+Space** call insight, **Ctrl+Shift+R** catalog refresh, **Escape** dismiss.
 
 ## Use without an editor
@@ -86,6 +88,8 @@ var factory = new ScriptLanguageFactory(
 `ScriptFiles` uses absolute paths directly; otherwise it tries paths beside `fromPath`, then the supplied directories. The per-path reader must return `null` for a missing or unreadable candidate so later paths are tried; do not pass `File.ReadAllText` directly. AviSynth uses the supplied filename, including its extension; Python tries `name.py` and `name/__init__.py`. Leading-dot Python imports resolve relative to the importing file. Include plugin or site-packages directories in the host's roots as needed.
 
 Pass the open document's path for sibling imports. Unsaved buffers can still use supplied search roots. Autoload AviSynth scripts can be parsed with `AviSynthFunctions.Parse` and merged into the host catalog with `UnionByName`.
+
+Imported exports and failed lookups are cached on the language (bounded LRU). The current bind keeps its own import graph, and that document's working set is pinned so a later edit of the same file does not cascade-reread. `Invalidate`, factory `Refresh`, or `Configure` with a new catalog key still drop the cache. Files that fall out of the cache and the working set are read again.
 
 ## Scope
 

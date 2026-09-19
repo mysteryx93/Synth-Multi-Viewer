@@ -383,7 +383,135 @@ public class ScriptLanguageFactoryTests
         Assert.DoesNotContain(reply.Items, x => x.InsertionText == "Old");
     }
 
-    private sealed class CountingLanguage(ILanguage inner) : ILanguage
+    [Fact]
+    public async Task Refresh_ThenConfigureSameKey_DoesNotEnumerateAgain()
+    {
+        const string text = "im";
+        var count = 0;
+        var catalog = new CatalogCache(() =>
+        {
+            Interlocked.Increment(ref count);
+            return [];
+        });
+        var language = new CountingLanguage(new VapourSynthLanguage());
+        var factory = new ScriptLanguageFactory([new("one", language, catalog)]);
+        factory.Configure("one", "A");
+        var service = (LanguageService)factory.Create("one")!;
+        await service.GetAsync(text, text.Length, CancellationToken.None);
+        var binds = language.Binds;
+        Assert.Equal(1, count);
+
+        factory.Refresh();
+        await service.GetAsync(text, text.Length, CancellationToken.None);
+        factory.Configure("one", "A");
+        await service.GetAsync(text, text.Length, CancellationToken.None);
+
+        Assert.Equal(2, count);
+        Assert.Equal(binds + 1, language.Binds);
+    }
+
+    [Fact]
+    public async Task GetAsync_ParallelSameSnapshot_BindsOnce()
+    {
+        const string text = "core.std.BlankClip(";
+        var started = new ManualResetEventSlim(false);
+        var proceed = new ManualResetEventSlim(false);
+        var catalog = new[] { new Symbol("core.std.BlankClip", ["clip:vnode"], ReturnType: "clip:vnode;") };
+        var language = new CountingLanguage(new VapourSynthLanguage(), started, proceed);
+        var service = new LanguageService(language, new CatalogCache(() => catalog));
+        var first = Task.Run(() => service.Analyze(text, text.Length, catalog));
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+        var second = Task.Run(() => service.Analyze(text, text.Length, catalog));
+        var duplicated = SpinWait.SpinUntil(() => Volatile.Read(ref language.Binds) > 1, 250);
+
+        proceed.Set();
+        var results = await Task.WhenAll(first, second);
+
+        Assert.False(duplicated);
+        Assert.Equal(1, language.Binds);
+        Assert.All(results, reply => Assert.NotNull(reply.Insight));
+    }
+
+    [Fact]
+    public void IncludeCache_ExceedsEntryLimit_EvictsOldest()
+    {
+        var cache = new IncludeCache();
+        var session = new IncludeSession(cache);
+        for (var i = 0; i < 80; i++)
+        {
+            session.SetEntry("/plugins/f" + i + ".py", new IncludeEntry([], []));
+        }
+
+        Assert.False(cache.TryEntry("/plugins/f0.py", out _));
+        Assert.True(cache.TryEntry("/plugins/f79.py", out _));
+    }
+
+    [Fact]
+    public async Task GetAsync_CancelledFirstCaller_DoesNotWaitForBuild()
+    {
+        const string text = "import helper as h\nh.";
+        var started = new ManualResetEventSlim(false);
+        var proceed = new ManualResetEventSlim(false);
+        var service = new LanguageService(new VapourSynthLanguage(Read), new CatalogCache(() => []));
+        var native = Array.Empty<Symbol>();
+        using var cts = new CancellationTokenSource();
+        var first = Task.Run(() => service.Analyze(text, text.Length, native, cts.Token));
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+        cts.Cancel();
+        IncludeFile? Read(string specifier, string? _)
+        {
+            if (specifier != "helper")
+            {
+                return null;
+            }
+
+            started.Set();
+            proceed.Wait();
+            return new IncludeFile("/plugins/helper.py", "def Old():\n    return 1\n");
+        }
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        proceed.Set();
+    }
+
+    [Fact]
+    public async Task Invalidate_OverlappingRequest_DoesNotReuseInflightSnapshot()
+    {
+        const string text = "import helper as h\nh.";
+        var started = new ManualResetEventSlim(false);
+        var proceed = new ManualResetEventSlim(false);
+        var current = "def Old():\n    return 1\n";
+        var reads = 0;
+        var service = new LanguageService(new VapourSynthLanguage(Read), new CatalogCache(() => []));
+        var native = Array.Empty<Symbol>();
+        var first = Task.Run(() => service.Analyze(text, text.Length, native));
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+        current = "def New():\n    return 1\n";
+        IncludeFile? Read(string specifier, string? _)
+        {
+            if (specifier != "helper")
+            {
+                return null;
+            }
+
+            Interlocked.Increment(ref reads);
+            started.Set();
+            proceed.Wait();
+            return new IncludeFile("/plugins/helper.py", current);
+        }
+
+        service.Invalidate();
+        var second = Task.Run(() => service.Analyze(text, text.Length, native));
+        Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref reads) >= 2, 2000));
+        proceed.Set();
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Contains(results[1].Items, x => x.InsertionText == "New");
+        Assert.DoesNotContain(results[1].Items, x => x.InsertionText == "Old");
+    }
+
+    private sealed class CountingLanguage(ILanguage inner, ManualResetEventSlim? started = null,
+        ManualResetEventSlim? proceed = null) : ILanguage
     {
         public int Binds;
 
@@ -394,7 +522,9 @@ public class ScriptLanguageFactoryTests
         public DocumentBindings Bind(string text, IReadOnlyList<Symbol> catalog, CancellationToken token,
             string? documentPath = null)
         {
-            Binds++;
+            Interlocked.Increment(ref Binds);
+            started?.Set();
+            proceed?.Wait();
             return inner.Bind(text, catalog, token, documentPath);
         }
 

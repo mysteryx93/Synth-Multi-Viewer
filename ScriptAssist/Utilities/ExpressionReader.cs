@@ -5,6 +5,9 @@ namespace HanumanInstitute.ScriptAssist;
 /// </summary>
 internal static class ExpressionReader
 {
+    private const int MaxDepth = 48;
+    private const int MaxWork = 250_000;
+
     private static readonly LexerOptions StructureLexer = new()
     {
         HashLineComments = true,
@@ -34,12 +37,13 @@ internal static class ExpressionReader
 
         var typed = start <= caret && caret <= code.Length ? code[start..caret] : "";
         joins ??= StatementScanner.Joins(code, language, token);
+        var work = 0;
         return new()
         {
             Start = start,
             End = end,
             Typed = typed,
-            Segments = WalkLeft(code, start, joins, 0, language, token, out _)
+            Segments = WalkLeft(code, start, 0, joins, language, token, 0, ref work, out _)
         };
     }
 
@@ -55,33 +59,61 @@ internal static class ExpressionReader
             return [];
         }
 
+        token.ThrowIfCancellationRequested();
         var structure = BufferLexer.Mask(code, StructureLexer, token: token).Code;
         var joins = StatementScanner.Joins(structure, language, token);
-        var (trimmed, offset) = ExpressionParts.UnwrapSpan(structure);
-        if (trimmed.Length == 0)
+        var work = 0;
+        return ParseRange(structure, 0, structure.Length, joins, language, token, 0, ref work);
+    }
+
+    private static IReadOnlyList<PathSegment> ParseRange(string code, int start, int end, bool[] joins,
+        ILanguage? language, CancellationToken token, int depth, ref int work)
+    {
+        if (depth > MaxDepth || (work += Math.Max(1, end - start)) > MaxWork)
+        {
+            return [];
+        }
+
+        token.ThrowIfCancellationRequested();
+        Trim(code, ref start, ref end);
+        var unwraps = 0;
+        while (end - start >= 2 && ExpressionParts.IsParenthesized(code, start, end))
+        {
+            if (++unwraps > MaxDepth || (work += Math.Max(1, end - start)) > MaxWork)
+            {
+                return [];
+            }
+
+            start++;
+            end--;
+            Trim(code, ref start, ref end);
+        }
+
+        if (start >= end)
         {
             return [];
         }
 
         IReadOnlyList<PathSegment> segments;
         int remaining;
-        if (trimmed[^1] is ')' or ']')
+        if (code[end - 1] is ')' or ']')
         {
-            if (!TryParseClosed(trimmed, joins, offset, language, token, out segments, out remaining))
+            if (!TryParseClosed(code, start, end, joins, language, token, depth, ref work, out segments,
+                    out remaining))
             {
                 return [];
             }
         }
         else
         {
-            var typedStart = trimmed.Length;
-            while (typedStart > 0 && BufferLexer.IsIdentifier(trimmed[typedStart - 1]))
+            var typedStart = end;
+            while (typedStart > start && BufferLexer.IsIdentifier(code[typedStart - 1]))
             {
                 typedStart--;
             }
 
-            var prefix = WalkLeft(trimmed, typedStart, joins, offset, language, token, out remaining);
-            if (typedStart == trimmed.Length)
+            var prefix = WalkLeft(code, typedStart, start, joins, language, token, depth, ref work, out remaining);
+            if (typedStart == end)
             {
                 segments = prefix;
             }
@@ -89,36 +121,36 @@ internal static class ExpressionReader
             {
                 var list = new List<PathSegment>(prefix.Count + 1);
                 list.AddRange(prefix);
-                list.Add(new() { Name = trimmed[typedStart..], Kind = PathSegmentKind.Name });
+                list.Add(new() { Name = code[typedStart..end], Kind = PathSegmentKind.Name });
                 segments = list;
             }
         }
 
-        return Leftover(trimmed, remaining) ? [] : segments;
+        return Leftover(code, start, remaining) ? [] : segments;
     }
 
-    private static bool TryParseClosed(string code, bool[] joins, int offset, ILanguage? language,
-        CancellationToken token, out IReadOnlyList<PathSegment> segments, out int remaining)
+    private static bool TryParseClosed(string code, int start, int end, bool[] joins, ILanguage? language,
+        CancellationToken token, int depth, ref int work, out IReadOnlyList<PathSegment> segments, out int remaining)
     {
         segments = [];
         remaining = 0;
-        var pos = code.Length;
-        while (pos > 0 && char.IsWhiteSpace(code[pos - 1]))
+        var pos = end;
+        while (pos > start && char.IsWhiteSpace(code[pos - 1]))
         {
             pos--;
         }
 
-        if (pos == 0 || code[pos - 1] is not (')' or ']'))
+        if (pos <= start || code[pos - 1] is not (')' or ']'))
         {
             return false;
         }
 
-        if (!TryReadPostfix(code, ref pos, out var name, out var uses))
+        if (!TryReadPostfix(code, start, ref pos, out var name, out var uses))
         {
             return false;
         }
 
-        var prefix = WalkLeft(code, pos, joins, offset, language, token, out remaining);
+        var prefix = WalkLeft(code, pos, start, joins, language, token, depth, ref work, out remaining);
         var list = new List<PathSegment>(prefix.Count + uses.Count);
         list.AddRange(prefix);
         AppendUses(list, name, uses, reverse: false);
@@ -134,7 +166,7 @@ internal static class ExpressionReader
     {
         var end = openParen.Clamp(0, code.Length);
         joins ??= StatementScanner.Joins(code, language, token);
-        if (!SkipJoin(code, ref end, joins, 0))
+        if (!SkipJoin(code, 0, ref end, joins))
         {
             return [];
         }
@@ -151,46 +183,53 @@ internal static class ExpressionReader
         }
 
         var name = code[start..end];
-        var prefix = WalkLeft(code, start, joins, 0, language, token, out _);
+        var work = 0;
+        var prefix = WalkLeft(code, start, 0, joins, language, token, 0, ref work, out _);
         var segments = new List<PathSegment>(prefix.Count + 1);
         segments.AddRange(prefix);
         segments.Add(new() { Name = name, Kind = PathSegmentKind.Name });
         return segments;
     }
 
-    private static IReadOnlyList<PathSegment> WalkLeft(string code, int position, bool[] joins, int offset,
-        ILanguage? language, CancellationToken token, out int remaining)
+    private static IReadOnlyList<PathSegment> WalkLeft(string code, int position, int min, bool[] joins,
+        ILanguage? language, CancellationToken token, int depth, ref int work, out int remaining)
     {
         var collected = new List<PathSegment>();
         var pos = position;
         var steps = 0;
-        while (pos > 0)
+        while (pos > min)
         {
             if ((steps++ & 4095) == 0)
             {
                 token.ThrowIfCancellationRequested();
             }
 
-            if (!SkipJoin(code, ref pos, joins, offset))
+            if (depth > MaxDepth || ++work > MaxWork)
+            {
+                collected.Clear();
+                break;
+            }
+
+            if (!SkipJoin(code, min, ref pos, joins))
             {
                 break;
             }
 
-            if (pos == 0 || code[pos - 1] != '.')
+            if (pos <= min || code[pos - 1] != '.')
             {
                 break;
             }
 
             pos--;
-            if (!SkipJoin(code, ref pos, joins, offset))
+            if (!SkipJoin(code, min, ref pos, joins))
             {
                 break;
             }
 
-            if (pos > 0 && code[pos - 1] is ')' or ']')
+            if (pos > min && code[pos - 1] is ')' or ']')
             {
                 var saved = pos;
-                if (TryReadPostfix(code, ref pos, out var name, out var uses))
+                if (TryReadPostfix(code, min, ref pos, out var name, out var uses))
                 {
                     AppendUses(collected, name, uses, reverse: true);
                     continue;
@@ -203,13 +242,13 @@ internal static class ExpressionReader
                 }
 
                 var close = pos - 1;
-                var open = SkipBalanced(code, close, ')', '(');
+                var open = SkipBalanced(code, close, min, ')', '(');
                 if (open >= close)
                 {
                     break;
                 }
 
-                var inner = Parse(code[open..(close + 1)], language, token);
+                var inner = ParseRange(code, open, close + 1, joins, language, token, depth + 1, ref work);
                 for (var i = inner.Count - 1; i >= 0; i--)
                 {
                     collected.Add(inner[i]);
@@ -219,10 +258,10 @@ internal static class ExpressionReader
                 continue;
             }
 
-            if (pos > 0 && BufferLexer.IsIdentifier(code[pos - 1]))
+            if (pos > min && BufferLexer.IsIdentifier(code[pos - 1]))
             {
                 var nameEnd = pos;
-                while (pos > 0 && BufferLexer.IsIdentifier(code[pos - 1]))
+                while (pos > min && BufferLexer.IsIdentifier(code[pos - 1]))
                 {
                     pos--;
                 }
@@ -239,33 +278,32 @@ internal static class ExpressionReader
         return collected;
     }
 
-    private static bool SkipJoin(string code, ref int pos, bool[] joins, int offset)
+    private static bool SkipJoin(string code, int min, ref int pos, bool[] joins)
     {
         var origin = pos;
-        while (pos > 0)
+        while (pos > min)
         {
             var saved = pos;
-            while (pos > 0 && code[pos - 1] is ' ' or '\t')
+            while (pos > min && code[pos - 1] is ' ' or '\t')
             {
                 pos--;
             }
 
-            if (pos == 0 || code[pos - 1] is not ('\n' or '\r'))
+            if (pos <= min || code[pos - 1] is not ('\n' or '\r'))
             {
                 return true;
             }
 
             var last = pos - 1;
-            var newline = code[last] == '\n' && last > 0 && code[last - 1] == '\r' ? last - 1 : last;
-            var at = newline + offset;
-            if (at < 0 || at >= joins.Length || !joins[at])
+            var newline = code[last] == '\n' && last > min && code[last - 1] == '\r' ? last - 1 : last;
+            if (newline < 0 || newline >= joins.Length || !joins[newline])
             {
                 pos = saved;
                 return saved != origin;
             }
 
             pos = newline;
-            if (pos > 0 && code[pos - 1] == '\\')
+            if (pos > min && code[pos - 1] == '\\')
             {
                 pos--;
             }
@@ -274,9 +312,9 @@ internal static class ExpressionReader
         return true;
     }
 
-    private static bool Leftover(string code, int remaining)
+    private static bool Leftover(string code, int start, int remaining)
     {
-        for (var i = 0; i < remaining; i++)
+        for (var i = start; i < remaining; i++)
         {
             if (!char.IsWhiteSpace(code[i]))
             {
@@ -287,17 +325,30 @@ internal static class ExpressionReader
         return false;
     }
 
-    private static bool TryReadPostfix(string code, ref int pos, out string name, out List<PathSegmentKind> uses)
+    private static void Trim(string code, ref int start, ref int end)
+    {
+        while (start < end && char.IsWhiteSpace(code[start]))
+        {
+            start++;
+        }
+
+        while (end > start && char.IsWhiteSpace(code[end - 1]))
+        {
+            end--;
+        }
+    }
+
+    private static bool TryReadPostfix(string code, int min, ref int pos, out string name, out List<PathSegmentKind> uses)
     {
         name = "";
         uses = [];
-        while (pos > 0 && code[pos - 1] is ')' or ']')
+        while (pos > min && code[pos - 1] is ')' or ']')
         {
             var closer = code[pos - 1];
             var opener = closer == ')' ? '(' : '[';
             var kind = closer == ')' ? PathSegmentKind.Call : PathSegmentKind.Index;
-            pos = SkipBalanced(code, pos - 1, closer, opener);
-            while (pos > 0 && code[pos - 1] is ' ' or '\t')
+            pos = SkipBalanced(code, pos - 1, min, closer, opener);
+            while (pos > min && code[pos - 1] is ' ' or '\t')
             {
                 pos--;
             }
@@ -312,7 +363,7 @@ internal static class ExpressionReader
             pos--;
         }
 
-        if (pos == nameEnd || uses.Count == 0)
+        if (pos == nameEnd || pos < min || uses.Count == 0)
         {
             return false;
         }
@@ -339,11 +390,11 @@ internal static class ExpressionReader
         }
     }
 
-    private static int SkipBalanced(string code, int closerIndex, char closer, char opener)
+    private static int SkipBalanced(string code, int closerIndex, int min, char closer, char opener)
     {
         var depth = 1;
         var i = closerIndex;
-        while (i > 0 && depth > 0)
+        while (i > min && depth > 0)
         {
             i--;
             var c = code[i];

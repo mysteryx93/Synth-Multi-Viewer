@@ -24,6 +24,18 @@ public class CallInsightTests
     }
 
     [Fact]
+    public void Hover_ArrayParameter_ShowsArrayType()
+    {
+        const string text = "core.std.BlankClip(color=[32, 96, 192])";
+        var caret = text.IndexOf("color", StringComparison.Ordinal) + 1;
+
+        var hover = VsService().Analyze(text, caret, Vs).Hover;
+
+        Assert.NotNull(hover);
+        Assert.Equal("float[]", hover.Text);
+    }
+
+    [Fact]
     public void Hover_NamedArgumentAndValue_ShowType()
     {
         const string text = "w = 640\ncore.std.BlankClip(width=w)";
@@ -57,8 +69,7 @@ public class CallInsightTests
         var hover = VsService().Analyze(text, caret, catalog).Hover;
 
         Assert.NotNull(hover);
-        Assert.Equal("int", hover.Text);
-        Assert.DoesNotContain("format", hover.Text, StringComparison.Ordinal);
+        Assert.Equal("VideoFormat", hover.Text);
     }
 
     [Fact]
@@ -774,6 +785,20 @@ public class CallInsightTests
     }
 
     [Fact]
+    public void Insight_DuplicateAviSynthOverloads_AreUnique()
+    {
+        var parsed = AviSynthParameters.Parse("c[length]i[width]i")!;
+        var catalog = Enumerable.Repeat(new Symbol("BlankClip", parsed), 4).ToArray();
+        const string text = "BlankClip(";
+
+        var insight = AvsService().Analyze(text, text.Length, catalog).Insight;
+
+        Assert.NotNull(insight);
+        Assert.Equal(2, insight.Overloads.Count);
+        Assert.Equal(2, insight.Overloads.Select(x => x.Signature).Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
     public void Insight_AviSynthDisplayedOverload_MapsParameter()
     {
         var overloads = new[]
@@ -1015,5 +1040,38 @@ public class CallInsightTests
         var text = OverloadProvider.ActiveParameterText(planes);
 
         Assert.Contains("int* [planes]", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Insight_LambdaArgument_DoesNotStealFollowingParameter()
+    {
+        var catalog = Vs.Concat([
+            new Symbol("core.std.FrameEval",
+                ["clip:vnode", "eval:func", "prop_src:vnode:opt"], ReturnType: "clip:vnode;")
+        ]).ToArray();
+        const string text = "core.std.FrameEval(clip, lambda n, f: clip, ";
+
+        var insight = VsService().Analyze(text, text.Length, catalog).Insight;
+
+        Assert.NotNull(insight);
+        Assert.Contains("prop_src", OverloadProvider.ActiveParameterText(insight), StringComparison.Ordinal);
+        Assert.DoesNotContain("eval:func", OverloadProvider.ActiveParameterText(insight), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Complete_LambdaDefault_DoesNotInventParameter()
+    {
+        const string text = """
+            def helper(callback=lambda x, y: x):
+                return callback
+            helper(
+            """;
+
+        var reply = VsService().Analyze(text, text.Length, Vs);
+
+        Assert.Contains(reply.Items, x => x.InsertionText == "callback=");
+        Assert.DoesNotContain(reply.Items, x => x.InsertionText == "y=");
+        Assert.DoesNotContain(reply.Insight!.Overloads[0].Parameters!.Select(ParameterNames.LocalName),
+            x => x == "y");
     }
 }

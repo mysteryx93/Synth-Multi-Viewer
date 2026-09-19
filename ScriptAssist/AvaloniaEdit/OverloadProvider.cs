@@ -6,9 +6,29 @@ namespace HanumanInstitute.ScriptAssist.AvaloniaEdit;
 /// <summary>
 /// Presents overloads and the active parameter in the shared insight window.
 /// </summary>
-public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
+public sealed class OverloadProvider : IOverloadProvider
 {
-    private int _selected = FirstMatchingOverload(insight);
+    private readonly AssistTipSize _size;
+    private CallInsight _insight;
+    private int _selected;
+    private bool _explicit;
+
+    /// <summary>
+    /// Creates a provider for <paramref name="insight"/> using <see cref="AssistTipSize.Hover"/>.
+    /// </summary>
+    public OverloadProvider(CallInsight insight) : this(insight, AssistTipSize.Hover)
+    {
+    }
+
+    /// <summary>
+    /// Creates a provider that wraps the signature header to <paramref name="size"/>.
+    /// </summary>
+    public OverloadProvider(CallInsight insight, AssistTipSize size)
+    {
+        _insight = insight;
+        _size = size.CheckNotNull();
+        _selected = FirstMatchingOverload(insight);
+    }
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -20,21 +40,44 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
         set
         {
             _selected = value.Clamp(0, Math.Max(0, Count - 1));
+            _explicit = true;
             PropertyChanged?.Invoke(this, new(null));
         }
     }
 
     /// <inheritdoc />
-    public int Count => insight.Overloads.Count;
+    public int Count => _insight.Overloads.Count;
 
     /// <inheritdoc />
     public string CurrentIndexText => $"{SelectedIndex + 1} / {Count}";
 
     /// <inheritdoc />
-    public object CurrentHeader => insight.Overloads[SelectedIndex].Signature;
+    public object CurrentHeader =>
+        CompletionData.HintBlock(_insight.Overloads[SelectedIndex].Signature, _size);
 
     /// <inheritdoc />
-    public object CurrentContent => ActiveParameterText(insight, SelectedIndex);
+    public object CurrentContent => ActiveParameterText(_insight, SelectedIndex);
+
+    /// <summary>
+    /// Replaces the displayed insight. Selection is kept when the overloads are the same call.
+    /// </summary>
+    internal void Update(CallInsight insight)
+    {
+        var selected = _selected;
+        var same = SameCall(_insight, insight);
+        _insight = insight;
+        if (same && _explicit)
+        {
+            _selected = selected.Clamp(0, Math.Max(0, Count - 1));
+        }
+        else
+        {
+            _selected = FirstMatchingOverload(insight);
+            _explicit = false;
+        }
+
+        PropertyChanged?.Invoke(this, new(null));
+    }
 
     /// <summary>
     /// Describes the argument under the caret, including extra and repeating parameters.
@@ -92,6 +135,61 @@ public sealed class OverloadProvider(CallInsight insight) : IOverloadProvider
         }
 
         return 0;
+    }
+
+    private static bool SameCall(CallInsight left, CallInsight right)
+    {
+        if (left.Overloads.Count != right.Overloads.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Overloads.Count; i++)
+        {
+            if (!SameOverload(left.Overloads[i], right.Overloads[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool SameOverload(Symbol left, Symbol right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (!left.Name.Equals(right.Name, StringComparison.Ordinal) || left.Kind != right.Kind ||
+            left.ImplicitLast != right.ImplicitLast ||
+            !string.Equals(left.ReturnType, right.ReturnType, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var a = left.Parameters;
+        var b = right.Parameters;
+        if (ReferenceEquals(a, b))
+        {
+            return true;
+        }
+
+        if (a == null || b == null || a.Length != b.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < a.Length; i++)
+        {
+            if (!a[i].Equals(b[i], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static int SlotNumber(string[] parameters, int physical)
